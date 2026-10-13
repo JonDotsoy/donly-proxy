@@ -25,7 +25,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[] };
+    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; password?: string };
 }
 
 export interface ProxyConfig {
@@ -105,6 +105,27 @@ const commandPassArgs = (name: string, directive: Directive): string[] => {
   return [...args.slice(0, -1), ...options, ...selectors, args.at(-1)!];
 };
 
+/** `port`, `user` and `pass` inside an `ssh_pass`: `-p <port>`, `-l <user>` and the password for askpass. */
+const sshPassOptions = (name: string, directive: Directive) => {
+  const value = (key: string) => directive.children.find((c) => c.name === key)?.args[0];
+  const port = value("port");
+  const user = value("user");
+  const pass = value("pass");
+  if (port !== undefined && !(typeof port === "number" && Number.isInteger(port) && port >= 1 && port <= 65535)) {
+    throw new Error(`route ${name}: port debe ser un puerto entre 1 y 65535, no "${port}"`);
+  }
+  if (user !== undefined && (typeof user !== "string" || user === "")) {
+    throw new Error(`route ${name}: user debe ser un nombre, no "${user}"`);
+  }
+  if (pass !== undefined && !((typeof pass === "string" && pass !== "") || typeof pass === "number")) {
+    throw new Error(`route ${name}: pass debe ser un texto no vacío`);
+  }
+  return {
+    options: [...(port === undefined ? [] : ["-p", String(port)]), ...(user === undefined ? [] : ["-l", user])],
+    password: pass === undefined ? undefined : String(pass),
+  };
+};
+
 const defaultManifest = new URL("../../manifest.donly", import.meta.url);
 
 /** Reads the `proxy { ... }` block of a `.donly` manifest. */
@@ -165,6 +186,17 @@ export const loadConfig = async (
           if (innerConcurrency !== undefined && !(typeof innerConcurrency === "number" && Number.isInteger(innerConcurrency) && innerConcurrency >= 1)) {
             throw new Error(`route ${name}: concurrency debe ser un entero positivo, no "${innerConcurrency}"`);
           }
+          // ssh_pass takes the host first (an alias of ~/.ssh/config works); the arguments after it are
+          // ssh options. The older "options… destination" form still works when the first one is an option.
+          const sshArgs = (() => {
+            if (kubectlPass) return undefined;
+            const { options, password } = sshPassOptions(name, pass);
+            const args = pass.args.map(String);
+            const legacy = args[0]!.startsWith("-");
+            const host = legacy ? args.at(-1)! : args[0]!;
+            const given = legacy ? args.slice(0, -1) : args.slice(1);
+            return { args: [...given, ...options, host], password };
+          })();
           return {
             method,
             pattern,
@@ -174,8 +206,9 @@ export const loadConfig = async (
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
               // The options of the line, the context / namespace selectors (kubectl), then the target (always last).
-              args: [...pass.args.slice(0, -1).map(String), ...(kubectlPass ? selectorArgs(name, kubectlPass) : []), String(pass.args.at(-1))],
+              args: sshArgs?.args ?? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))],
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
+              ...(sshArgs?.password === undefined ? {} : { password: sshArgs.password }),
             },
           };
         }
@@ -289,6 +322,7 @@ const commandPass = async (
   engine: Engine | undefined,
   args: string[],
   engineArgs: string[] | undefined,
+  password: string | undefined,
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
@@ -299,7 +333,7 @@ const commandPass = async (
   }
   let executed: string[] | undefined;
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, onCommand: (c: string[]) => (executed = c) };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand: (c: string[]) => (executed = c) };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -372,7 +406,7 @@ export const createProxyServer = ({
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password);
         } finally {
           release();
         }

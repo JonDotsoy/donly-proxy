@@ -12,10 +12,12 @@ export const run = (
   argv: string[],
   input: Buffer | string,
   onCommand?: (command: string[]) => void,
+  /** Extra environment variables for the process (secrets go here, never in `argv`). */
+  env?: Record<string, string>,
 ) =>
   new Promise<RunResult>((resolve, reject) => {
     onCommand?.([command, ...argv]);
-    const child = spawn(command, argv, { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(command, argv, { stdio: ["pipe", "pipe", "pipe"], env: env && { ...process.env, ...env } });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     child.stdout.on("data", (chunk) => out.push(chunk));

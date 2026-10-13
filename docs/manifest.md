@@ -142,6 +142,7 @@ route https?://example.com/ {
 | `insecure` con un valor que no es `true` / `false`, o fuera de `command_pass curl` | `route …: insecure debe ser true o false, no "…"` / `insecure solo aplica a command_pass curl` |
 | `max_time` que no es un número positivo, o fuera de `command_pass curl` | `route …: max_time debe ser un número positivo, no "…"` / `max_time solo aplica a command_pass curl` |
 | `kubectl_pass` / `command_pass kubectl` con `context` / `namespace` que no es un nombre | `route …: context debe ser un nombre, no "…"` / `namespace debe ser un nombre, no "…"` |
+| `ssh_pass` con `port` fuera de 1–65535, `user` o `pass` inválidos | `route …: port debe ser un puerto entre 1 y 65535, no "…"` / `user debe ser un nombre, no "…"` / `pass debe ser un texto no vacío` |
 | `context` / `namespace` fuera de `kubectl_pass` y `command_pass kubectl` | `route …: namespace solo aplica a kubectl_pass y command_pass kubectl` |
 | `retry` que no es un entero no negativo, o fuera de `command_pass curl` | `route …: retry debe ser un entero no negativo, no "…"` / `retry solo aplica a command_pass curl` |
 | `engine` distinto de `curl` / `node` / `wget`, o usado fuera de `ssh` y `kubectl` | `route …: engine solo soporta …` / `engine solo aplica a command_pass ssh y kubectl` |

@@ -427,22 +427,44 @@ route https?://api.internal/ {
 ## ssh_pass
 
 Forma anidada de [`command_pass ssh`](#ssh), igual que [`kubectl_pass`](#kubectl_pass): la
-directiva nombra el destino y el `command_pass` hijo nombra **qué comando se ejecuta en el host
+directiva nombra el host y el `command_pass` hijo nombra **qué comando se ejecuta en el host
 remoto** (`curl`, `wget` o `node`), con sus opciones.
 
 ```
 route https?://api.internal/ {
-  ssh_pass "-p" "2222" "user@remote.test" {
+  ssh_pass myserver {
+    port 2222
+    user deploy
     command_pass curl "--max-time" "5"
   }
 }
 ```
 
-- Los argumentos de `ssh_pass` son los de `command_pass ssh`: opciones de `ssh` seguidas del
-  destino (último). Sin destino, el arranque falla con `ssh_pass requiere el destino`.
+- El **primer argumento es el host**: un nombre de `~/.ssh/config` (`myserver`), un nombre DNS, una
+  IP o `usuario@host`. Al ser el que recibe `ssh`, la configuración de `~/.ssh/config` (usuario,
+  puerto, llave, `ProxyJump`…) se aplica. Los argumentos que siguen al host son opciones
+  adicionales de `ssh` (`ssh_pass myserver "-v" { … }`). La forma anterior, con las opciones
+  primero y el destino al final (`ssh_pass "-p" "2222" "user@host" { … }`), sigue funcionando
+  cuando el primer argumento empieza por `-`.
+- Subdirectivas de conexión (todas opcionales):
+
+  | Subdirectiva | Equivale a | Valor |
+  | --- | --- | --- |
+  | `port <n>` | `-p <n>` | entero entre 1 y 65535 |
+  | `user <nombre>` | `-l <nombre>` | texto no vacío |
+  | `pass <contraseña>` | autenticación por contraseña | texto no vacío (o número) |
+
+  Con otro valor el arranque falla con `port debe ser un puerto entre 1 y 65535`,
+  `user debe ser un nombre` o `pass debe ser un texto no vacío`.
+- **`pass`**: sin él `ssh` corre con `BatchMode=yes` (solo llaves o agente). Con él, la
+  contraseña se entrega a `ssh` mediante `SSH_ASKPASS` (`SSH_ASKPASS_REQUIRE=force`, requiere
+  OpenSSH 8.4 o superior) con un programa temporal que solo puede usar el dueño y que la lee de
+  una variable de entorno: **no aparece en la línea de comandos** ni en el `command` del
+  `log_file`. Aun así queda en claro en el manifest: restringe sus permisos y prefiere llaves o
+  el agente cuando puedas.
 - Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
   comando, o sin hijo, el arranque falla con `ssh_pass requiere un command_pass hijo`. Sus
   argumentos y subdirectivas (`concurrency`, `extra_args`, `max_time`, `insecure`, `retry`)
-  siguen las mismas reglas que en `kubectl_pass`.
+  siguen las mismas reglas que en `kubectl_pass`. Sin host, falla con `ssh_pass requiere el destino`.
 - Un `route` no puede combinar `ssh_pass` con otra acción.
 - El `log_file` registra el `ssh …` completo, igual que con `command_pass ssh`.
