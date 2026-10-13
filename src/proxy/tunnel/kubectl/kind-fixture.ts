@@ -196,9 +196,15 @@ export const echoTest = (engine: KindEngine, kind: ReturnType<typeof useKind>) =
     expect(res.headers.get("x-echo")).toBe("yes");
     expect(await res.json()).toEqual({ method: "POST", url: `/${engine}/path?x=1`, custom: "abc", body: "payload" });
 
-    // The log holds both the request and the command_pass that carried it to the pod.
-    const [request, response, ...rest] = kind.readLog().slice(before);
-    expect(rest).toEqual([]);
+    // The log holds the request, the commands that carried it to the pod (and their script, for node) and the response.
+    const entries = kind.readLog().slice(before);
+    const request = entries.find((entry) => entry.type === "request");
+    const response = entries.find((entry) => entry.type === "response");
+    expect(entries.map((entry) => entry.type)).toEqual(
+      engine === "node"
+        ? ["request", "command", "command", "script", "command_exit", "command_exit", "response"]
+        : ["request", "command", "command", "command_exit", "command_exit", "response"],
+    );
     expect(request).toMatchObject({ type: "request", method: "POST", url, headers: { "x-custom": "abc" }, payload: "payload" });
     expect(response).toMatchObject({ type: "response", status: 200, transaction_id: request.transaction_id });
     expect(response.headers["x-echo"]).toBe("yes");

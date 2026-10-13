@@ -176,7 +176,7 @@ testFeature(relativePayload, ["/proxy/log_file", "/proxy/ssl"], "log_file and ss
   }
 
   expect(existsSync(expected)).toBe(true);
-  expect(readFileSync(expected, "utf8").split("\n").filter(Boolean)).toHaveLength(2);
+  expect(readFileSync(expected, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l).type)).toEqual(["listening", "request", "response"]);
   expect(existsSync(join(process.cwd(), "out/rel.ndjson"))).toBe(false);
   // certs were resolved from the manifest dir too
   expect(existsSync(join(base, "ssl/cert.pem"))).toBe(true);
@@ -226,8 +226,9 @@ testFeature(snapshotPayload, ["/proxy/log_file"], "log_file snapshot", async (pa
   const masked = readFileSync(join(snapDir, "snap.ndjson"), "utf8")
     .split("\n")
     .filter(Boolean)
-    .map((line) => {
-      const entry = JSON.parse(line);
+    .map((line) => JSON.parse(line))
+    .filter((entry) => entry.type !== "listening")
+    .map((entry) => {
       entry.timestamp = "<timestamp>";
       if (entry.headers.date) entry.headers.date = "<date>";
       if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${ids.size + 1}>`);

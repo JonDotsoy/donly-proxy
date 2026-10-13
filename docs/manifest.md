@@ -52,6 +52,13 @@ rutas, creando las carpetas necesarias. Si ya existen, no los toca.
 Solo se admite la extensión `.ndjson`; con otra, el arranque falla. Se crean las carpetas que
 falten y cada evento se agrega como una línea JSON al final del archivo.
 
+Al empezar a escuchar, el proxy escribe una línea `listening` con el `host` y el `port` reales
+(el que asignó el sistema si `port` es `0`):
+
+```json
+{"timestamp":"2026-10-13T01:59:00.120Z","type":"listening","host":"127.0.0.1","port":8080}
+```
+
 Cada petición genera **dos líneas**, una `request` y una `response`, que comparten el
 `transaction_id` (un UUID):
 
@@ -67,9 +74,10 @@ Cada petición genera **dos líneas**, una `request` y una `response`, que compa
 | `http_version` | Versión HTTP de la petición, p. ej. `HTTP/1.1`. |
 | `method` | Método de la petición. |
 | `url` | URL completa, p. ej. `https://example.com/ruta?q=1` (sin `:443`). |
-| `type` | `request` o `response`. |
+| `type` | `request`, `response`, `listening` (arranque), `command`, `command_exit` o `script`. |
 | `status` | Solo en `response`: código de estado devuelto al cliente. |
 | `command` | Solo en `response` de rutas `command_pass`: la línea de comandos ejecutada, como lista (programa y argumentos). |
+| `script` | Solo en líneas `type: "script"`: el script completo que el motor `node` envía por stdin al `node` remoto (`kubectl_pass` / `ssh_pass`), justo después de las líneas `command`. |
 | `headers` | Cabeceras de la petición o de la respuesta. |
 | `payload` | Cuerpo como texto UTF-8. Si no es UTF-8 válido se guarda en base64 y la línea incluye `"payload_encoding":"base64"`. |
 

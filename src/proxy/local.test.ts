@@ -50,11 +50,12 @@ const readLog = () =>
     ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
     : [];
 
-testFeature(manifestPayload, ["/proxy/log_file"], "fetch without proxy reaches the local server and writes no log", async () => {
+testFeature(manifestPayload, ["/proxy/log_file"], "fetch without proxy reaches the local server and writes no request log", async () => {
   const res = await fetch(target);
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("hello from 3001");
-  expect(existsSync(logFile)).toBe(false);
+  // The proxy only logged that it started listening.
+  expect(readLog().map((l) => l.type)).toEqual(["listening"]);
 });
 
 testFeature(manifestPayload, ["/proxy/log_file"], "fetch through the proxy goes through it and is logged", async () => {
@@ -62,8 +63,9 @@ testFeature(manifestPayload, ["/proxy/log_file"], "fetch through the proxy goes 
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok"); // no route: the proxy answers by itself
 
-  const [request, response] = readLog();
-  expect(readLog()).toHaveLength(2);
+  const [listening, request, response] = readLog();
+  expect(readLog()).toHaveLength(3);
+  expect(listening.type).toBe("listening");
   expect(request.type).toBe("request");
   expect(request.method).toBe("GET");
   expect(request.url).toBe(target);

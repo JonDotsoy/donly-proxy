@@ -11,6 +11,8 @@ export interface CurlRequest {
   password?: string;
   /** Called with the full command line (program and arguments) right before it runs. */
   onCommand?: (command: string[]) => void;
+  /** Called with the script that the node engine sends to a remote `node` through stdin. */
+  onScript?: (script: string) => void;
   /** Called with the exit code of that command once it has finished. */
   onExit?: (code: number | null) => void;
 }

@@ -1,6 +1,7 @@
 import http from "node:http";
 import tls from "node:tls";
 import type { Duplex } from "node:stream";
+import type { AddressInfo } from "node:net";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -344,6 +345,7 @@ const commandPass = async (
     }
   }
   let executed: string[] | undefined;
+  let script: string | undefined;
   // kubectl runs the engine after `--`: both programs are logged, and the exit code of kubectl
   // is the one of the engine (`kubectl exec` forwards it).
   const onCommand = (c: string[]) => {
@@ -351,13 +353,18 @@ const commandPass = async (
     emit({ type: "command", program: c[0], command: c });
     const remote = command === "kubectl" ? c.indexOf("--") : -1;
     if (remote >= 0) emit({ type: "command", program: c[remote + 1], command: c.slice(remote + 1) });
+    // `node` reads its script from stdin: the command alone does not say what it runs.
+    if (script !== undefined) emit({ type: "script", program: "node", script });
+  };
+  const onScript = (s: string) => {
+    script = s;
   };
   const onExit = (code: number | null) => {
     if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code });
     emit({ type: "command_exit", program: executed?.[0], exit_code: code });
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onExit };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -474,6 +481,12 @@ export const createProxyServer = ({
     secure.tunnelHost = req.url?.replace(/:443$/, "");
     secure.on("error", () => {});
     server.emit("connection", secure);
+  });
+
+  server.on("listening", () => {
+    // `port 0` is assigned by the system: log the real one.
+    const { address, port } = server.address() as AddressInfo;
+    log({ type: "listening", host: address, port });
   });
 
   return server;

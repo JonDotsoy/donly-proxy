@@ -63,6 +63,17 @@ exports[`echo-pod is not reachable directly but answers through kubectl_pass int
     "url": "http://echo-pod.donly-proxy-two-pods.svc.cluster.local/via-conn-pod?x=1",
   },
   {
+    "http_version": "HTTP/1.1",
+    "method": "POST",
+    "performance_timestamp": "<performance>",
+    "program": "node",
+    "script": "<script>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "script",
+    "url": "http://echo-pod.donly-proxy-two-pods.svc.cluster.local/via-conn-pod?x=1",
+  },
+  {
     "exit_code": 0,
     "http_version": "HTTP/1.1",
     "method": "POST",

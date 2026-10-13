@@ -8,5 +8,7 @@ export const nodeRemote = (request: CurlRequest) => {
   const options = request.engineArgs ?? [];
   // The node command is passed as plain words (no shell), so options cannot hold spaces.
   if (options.some((option) => /\s/.test(option))) throw new Error("node options cannot contain whitespace");
-  return { command: ["node", ...options, "--input-type=module", "-"].join(" "), input: prelude + scriptSource() };
+  const input = prelude + scriptSource();
+  request.onScript?.(input);
+  return { command: ["node", ...options, "--input-type=module", "-"].join(" "), input };
 };

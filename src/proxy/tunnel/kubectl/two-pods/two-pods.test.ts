@@ -74,12 +74,12 @@ const readLog = (): any[] =>
 // Fixed client headers so the snapshots do not depend on the Bun version.
 const base = { "user-agent": "test", accept: "*/*", "accept-encoding": "identity" };
 
-/** Masks what changes between runs: timestamps, transaction ids and the date header. */
+/** Masks what changes between runs: timestamps, transaction ids, the date header and the (long) node script. */
 const mask = (entries: any[]) => {
   const ids = new Map<string, string>();
   return entries.map((entry) => {
     if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${ids.size + 1}>`);
-    return { ...entry, timestamp: "<timestamp>", performance_timestamp: "<performance>", transaction_id: ids.get(entry.transaction_id), ...(entry.headers && { headers: { ...entry.headers, ...(entry.headers.date && { date: "<date>" }) } }) };
+    return { ...entry, timestamp: "<timestamp>", performance_timestamp: "<performance>", ...(entry.script && { script: "<script>" }), transaction_id: ids.get(entry.transaction_id), ...(entry.headers && { headers: { ...entry.headers, ...(entry.headers.date && { date: "<date>" }) } }) };
   });
 };
 
@@ -98,20 +98,24 @@ cluster(manifestPayload, ["/proxy/route/kubectl_pass"], "echo-pod is not reachab
   expect(res.headers.get("x-echo")).toBe("yes");
   expect(await res.json()).toMatchObject({ method: "POST", url: "/via-conn-pod?x=1", custom: "abc", body: "payload" });
 
-  // The proxy log of the transaction: request, kubectl, node, node exit, kubectl end and response, in that order.
+  // The proxy log of the transaction: request, kubectl, node, the node script, node exit, kubectl end and response, in that order.
   const entries = readLog().slice(before);
   expect(entries.map((entry) => [entry.type, entry.program])).toEqual([
     ["request", undefined],
     ["command", "kubectl"],
     ["command", "node"],
+    ["script", "node"],
     ["command_exit", "node"],
     ["command_exit", "kubectl"],
     ["response", undefined],
   ]);
-  const [request, kubectlStart, nodeStart, nodeExit, kubectlExit, response] = entries;
+  const [request, kubectlStart, nodeStart, script, nodeExit, kubectlExit, response] = entries;
   expect(request).toMatchObject({ method: "POST", url: `http://${HOST}/via-conn-pod?x=1` });
   expect(kubectlStart.command).toEqual(["kubectl", "exec", "-i", "-q", "--context", CONTEXT, "--namespace", NAMESPACE, "conn-pod", "--", "node", "--input-type=module", "-"]);
   expect(nodeStart.command).toEqual(["node", "--input-type=module", "-"]);
+  // The script node reads from stdin: the request prelude and the code that performs it.
+  expect(script.script).toContain("globalThis.__donlyRequest");
+  expect(script.script).toContain("http");
   expect(nodeExit.exit_code).toBe(0);
   expect(kubectlExit.exit_code).toBe(0);
   expect(response).toMatchObject({ status: 200 });
