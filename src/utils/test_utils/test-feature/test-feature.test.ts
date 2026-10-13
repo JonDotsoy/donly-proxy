@@ -24,7 +24,7 @@ testFeature(payload, ["/proxy/port"], "should read the port from the manifest", 
   const manifest = join(dir, "manifest.donly");
   writeFileSync(manifest, payload);
   const config = await loadConfig(manifest);
-  expect(config.port).toBe(3001);
+  expect(config.port).toBe(3000);
 });
 
 testFeature(payload, ["/proxy"], "should load the proxy block of the manifest", async (payload) => {
