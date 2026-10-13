@@ -35,6 +35,14 @@ const manifestPayload = (port: number) => `proxy {
   route http://logcmd.test/ssh {
     command_pass ssh "-p" "2222" "user@remote.test"
   }
+  route http://logcmd.test/via-ssh-pass {
+    ssh_pass logged-host "-v" {
+      port 2200
+      user deploy
+      pass "top-secret"
+      command_pass curl "--max-time" "5"
+    }
+  }
   route http://logcmd.test/kubectl {
     command_pass kubectl "-n" "prod" "deploy/api"
   }
@@ -126,4 +134,18 @@ testFeature(payload, ["/proxy/log_file", "/proxy/route/respond"], "routes withou
   expect(response).not.toHaveProperty("command");
   const fallback = await logged("http://unmatched.test/");
   expect(fallback.response).not.toHaveProperty("command");
+});
+
+testFeature(payload, ["/proxy/log_file", "/proxy/route/ssh_pass"], "logs the ssh command of ssh_pass with its arguments, without the password", async () => {
+  const { request, response } = await logged("http://logcmd.test/via-ssh-pass?x=1");
+  expect(request.type).toBe("request");
+  expect(response.type).toBe("response");
+  // ssh options (given, port, user), the host, then the remote command with the curl options.
+  expect(response.command.slice(0, 7)).toEqual(["ssh", "-v", "-p", "2200", "-l", "deploy", "-T"]);
+  expect(response.command).toContain("logged-host");
+  expect(response.command.indexOf("logged-host")).toBe(response.command.length - 2);
+  expect(response.command.at(-1)).toContain("curl -K");
+  expect(response.command.at(-1)).toContain("'--max-time' '5'");
+  // The password goes to ssh through the environment: it is not in the logged command.
+  expect(JSON.stringify(response)).not.toContain("top-secret");
 });
