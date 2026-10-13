@@ -37,6 +37,16 @@ export interface ProxyConfig {
   logFile?: string;
 }
 
+/** `no_warnings` inside a `command_pass node` (or `no_warnings true`): it becomes `--no-warnings`. */
+const noWarningsArgs = (name: string, command: string, directive: Directive): string[] => {
+  const noWarnings = directive.children.find((c) => c.name === "no_warnings");
+  if (!noWarnings) return [];
+  if (command !== "node") throw new Error(`route ${name}: no_warnings solo aplica a command_pass node`);
+  const value = noWarnings.args[0] ?? true;
+  if (typeof value !== "boolean") throw new Error(`route ${name}: no_warnings debe ser true o false, no "${value}"`);
+  return value ? ["--no-warnings"] : [];
+};
+
 /** `max_time <seconds>` inside a `command_pass curl`: it becomes `--max-time <seconds>`. */
 const maxTimeArgs = (name: string, command: string, directive: Directive): string[] => {
   const maxTime = directive.children.find((c) => c.name === "max_time");
@@ -71,9 +81,10 @@ const retryArgs = (name: string, command: string, directive: Directive): string[
   return ["--retry", String(value)];
 };
 
-/** Options from the child directives of a `command_pass`: `extra_args <value…>`, `insecure`, `max_time`, then `retry`. */
+/** Options from the child directives of a `command_pass`: `extra_args <value…>`, `no_warnings`, `insecure`, `max_time`, then `retry`. */
 const optionArgs = (name: string, command: string, directive: Directive): string[] => [
   ...directive.children.filter((c) => c.name === "extra_args").flatMap((c) => c.args.map(String)),
+  ...noWarningsArgs(name, command, directive),
   ...insecureArgs(name, command, directive),
   ...maxTimeArgs(name, command, directive),
   ...retryArgs(name, command, directive),

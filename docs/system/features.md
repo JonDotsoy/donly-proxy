@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **138** · ✅ pasan: **131** · 🔴 fallan: **1** · ⏳ sin resultado: **6** · ⏭️ omitidas: **0**
+Specs: **147** · ✅ pasan: **140** · 🔴 fallan: **1** · ⏳ sin resultado: **6** · ⏭️ omitidas: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -91,11 +91,13 @@ Specs: **138** · ✅ pasan: **131** · 🔴 fallan: **1** · ⏳ sin resultado:
 | should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
 | should listen on the IPv6 host ::1 | ✅ | <code>host "::1"</code> |
 | should load the proxy block of the manifest | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 3000</code><br><code>}</code> |
-| should not let the extra_args values reach a shell | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-C23Q23/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-C23Q23/pwned)"</code> |
+| should not let the extra_args values reach a shell | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-qpUB5O/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-qpUB5O/pwned)"</code> |
 | should not pass --context or --namespace without the selectors | ✅ | <code>kubectl_pass "deploy/api" {</code><br><code>&nbsp;&nbsp;context dev</code><br><code>&nbsp;&nbsp;namespace prod</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass "pod/api-0" {</code><br><code>&nbsp;&nbsp;namespace staging</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass "--kubeconfig" "/tmp/kube" "deploy/api" {</code><br><code>&nbsp;&nbsp;context dev</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass "deploy/api" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should not pass --insecure to curl with insecure false | ✅ | <code>insecure</code><br><code>insecure true</code><br><code>insecure false</code> |
 | should not pass --insecure to curl without insecure | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure true</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure false</code><br><code>}</code><br><code>command_pass curl</code> |
 | should not pass --max-time to curl without max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;max_time 2.5</code><br><code>}</code><br><code>command_pass curl</code> |
+| should not pass --no-warnings to node with no_warnings false | ✅ | <code>no_warnings</code><br><code>no_warnings true</code><br><code>no_warnings false</code><br><code>no_warnings</code> |
+| should not pass --no-warnings to node without no_warnings | ✅ | <code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings true</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings false</code><br><code>}</code><br><code>command_pass node "--max-old-space-size=64" {</code><br><code>&nbsp;&nbsp;extra_args --no-deprecation</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node</code> |
 | should not pass --retry to curl without retry | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;retry 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;retry 0</code><br><code>}</code><br><code>command_pass curl</code> |
 | should pass --context and --namespace to kubectl before the target | ✅ | <code>context dev</code><br><code>namespace prod</code><br><code>namespace staging</code><br><code>context dev</code> |
 | should pass --context and --namespace to kubectl in command_pass kubectl | ✅ | <code>context dev</code><br><code>namespace prod</code><br><code>namespace staging</code><br><code>namespace prod</code> |
@@ -104,16 +106,21 @@ Specs: **138** · ✅ pasan: **131** · 🔴 fallan: **1** · ⏳ sin resultado:
 | should pass --insecure to the curl run by kubectl_pass | ✅ | <code>insecure</code> |
 | should pass --max-time 5 to curl when command_pass curl has max_time 5 | ✅ | <code>max_time 5</code><br><code>max_time 2.5</code> |
 | should pass --max-time to the curl run by kubectl_pass | ✅ | <code>max_time 5</code> |
+| should pass --no-warnings to node when command_pass node has no_warnings | ✅ | <code>no_warnings</code><br><code>no_warnings true</code><br><code>no_warnings false</code><br><code>no_warnings</code> |
+| should pass --no-warnings to node with no_warnings true | ✅ | <code>no_warnings</code><br><code>no_warnings true</code><br><code>no_warnings false</code><br><code>no_warnings</code> |
+| should pass --no-warnings to the node run by kubectl_pass | ✅ | <code>no_warnings</code> |
+| should pass --no-warnings to the node run by ssh_pass | ✅ | <code>no_warnings</code> |
 | should pass --retry 0 to curl with retry 0 | ✅ | <code>retry 5</code><br><code>retry 0</code> |
 | should pass --retry 5 to curl when command_pass curl has retry 5 | ✅ | <code>retry 5</code><br><code>retry 0</code> |
 | should pass --retry to the curl run by kubectl_pass | ✅ | <code>retry 5</code> |
 | should pass only --namespace when kubectl_pass has no context | ✅ | <code>namespace prod</code><br><code>namespace staging</code> |
 | should pass the extra_args to the curl run by kubectl_pass | ✅ | <code>extra_args --foo tar</code> |
-| should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-C23Q23/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-C23Q23/pwned)"</code> |
+| should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-qpUB5O/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-qpUB5O/pwned)"</code> |
 | should pass the port subdirective of ssh_pass as -p | ✅ | <code>port 2222</code><br><code>port 2200</code> |
 | should pass the user subdirective of ssh_pass as -l | ✅ | <code>port 2222</code><br><code>user jon</code><br><code>port 2200</code><br><code>user jon</code> |
+| should put no_warnings after the arguments of the line and the extra_args | ✅ | <code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings true</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings false</code><br><code>}</code><br><code>command_pass node "--max-old-space-size=64" {</code><br><code>&nbsp;&nbsp;extra_args --no-deprecation</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node</code> |
 | should put the arguments after the host of ssh_pass before the host as ssh options | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
-| should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-C23Q23/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-C23Q23/pwned)"</code><br><code>}</code> |
+| should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-qpUB5O/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-qpUB5O/pwned)"</code><br><code>}</code> |
 | should put the selectors after the options given as arguments | ✅ | <code>kubectl_pass "deploy/api" {</code><br><code>&nbsp;&nbsp;context dev</code><br><code>&nbsp;&nbsp;namespace prod</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass "pod/api-0" {</code><br><code>&nbsp;&nbsp;namespace staging</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass "--kubeconfig" "/tmp/kube" "deploy/api" {</code><br><code>&nbsp;&nbsp;context dev</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass "deploy/api" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should put the selectors of command_pass kubectl after the options given as arguments | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace prod</code> |
 | should read the concurrency and the options of the nested command_pass in ssh_pass | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>&nbsp;&nbsp;extra_args --foo tar</code><br><code>}</code> |
@@ -125,6 +132,7 @@ Specs: **138** · ✅ pasan: **131** · 🔴 fallan: **1** · ⏳ sin resultado:
 | should reject a namespace of command_pass kubectl that is not a name | ✅ | <code>namespace 5</code> |
 | should reject a namespace that is not a name | ✅ | <code>namespace 5</code> |
 | should reject a nested command_pass that is not curl, wget or node | ✅ | <code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass ssh</code><br><code>}</code> |
+| should reject a no_warnings that is not true or false | ✅ | <code>no_warnings maybe</code> |
 | should reject a pass that is empty or not a text | ✅ | <code>pass ""</code> |
 | should reject a port that is not between 1 and 65535 | ✅ | <code>port 0</code> |
 | should reject a retry that is not a non-negative integer | ✅ | <code>retry -1</code> |
@@ -134,6 +142,7 @@ Specs: **138** · ✅ pasan: **131** · 🔴 fallan: **1** · ⏳ sin resultado:
 | should reject context and namespace outside kubectl | ✅ | <code>namespace prod</code> |
 | should reject insecure outside command_pass curl | ✅ | <code>insecure</code> |
 | should reject max_time outside command_pass curl | ✅ | <code>max_time 5</code> |
+| should reject no_warnings outside command_pass node | ✅ | <code>no_warnings</code> |
 | should reject retry outside command_pass curl | ✅ | <code>retry 5</code> |
 | should reject ssh_pass without a destination | ✅ | <code>ssh_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should reject ssh_pass without a nested command_pass | ✅ | <code>ssh_pass "user@remote.test"</code> |
