@@ -8,6 +8,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DON } from "donly";
 import { ensureCerts } from "./certs";
+import { curl } from "./curl";
 
 export interface Route {
   /** `null` matches any method. */
@@ -16,7 +17,8 @@ export interface Route {
   pattern: RegExp;
   action:
     | { kind: "respond"; status: number; body: string }
-    | { kind: "proxy_pass"; target: URL };
+    | { kind: "proxy_pass"; target: URL }
+    | { kind: "command_pass"; command: "curl"; args: string[] };
 }
 
 export interface ProxyConfig {
@@ -59,15 +61,23 @@ export const loadConfig = async (
         const name = route.args.join(" ");
         const respond = child("respond", route);
         const proxyPass = child("proxy_pass", route);
-        if (!respond === !proxyPass) {
-          throw new Error(`route ${name}: se requiere exactamente uno de \`respond\` o \`proxy_pass\``);
+        const commandPass = child("command_pass", route);
+        if ([respond, proxyPass, commandPass].filter(Boolean).length !== 1) {
+          throw new Error(
+            `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\` o \`command_pass\``,
+          );
+        }
+        if (commandPass && commandPass.args[0] !== "curl") {
+          throw new Error(`route ${name}: command_pass solo soporta "curl", no "${commandPass.args[0]}"`);
         }
         return {
           method: route.args.length > 1 ? String(route.args[0]).toUpperCase() : null,
           pattern: new RegExp(String(route.args[route.args.length - 1])),
           action: respond
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
-            : { kind: "proxy_pass", target: new URL(String(proxyPass!.args[0])) },
+            : proxyPass
+              ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
+              : { kind: "command_pass", command: "curl", args: commandPass!.args.slice(1).map(String) },
         };
       }),
   };
@@ -88,7 +98,7 @@ const hopByHop = new Set([
 
 interface Reply {
   status: number;
-  headers: Record<string, string>;
+  headers: Record<string, string | string[]>;
   body: Buffer;
 }
 
@@ -133,6 +143,33 @@ const forward = async (
       headers: { "content-type": "text/plain" },
       body: Buffer.from(`bad gateway: ${(error as Error).message}`),
     };
+  }
+};
+
+/** Passes the request to the `curl` command, which performs it against the original URL. */
+const commandPass = async (
+  req: http.IncomingMessage,
+  body: Buffer,
+  url: string,
+  args: string[],
+): Promise<Reply> => {
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    // curl negotiates the encoding itself (`--compressed`).
+    if (!hopByHop.has(k) && k !== "accept-encoding" && v !== undefined) {
+      headers[k] = Array.isArray(v) ? v.join(", ") : v;
+    }
+  }
+  try {
+    const response = await curl({ method: req.method ?? "GET", url, headers, body, args });
+    return {
+      ...response,
+      headers: Object.fromEntries(
+        Object.entries(response.headers).filter(([k]) => !hopByHop.has(k) && k !== "content-encoding"),
+      ),
+    };
+  } catch (error) {
+    return text(502, `bad gateway: ${(error as Error).message}`);
   }
 };
 
@@ -188,7 +225,9 @@ export const createProxyServer = ({
     const reply =
       route?.action.kind === "proxy_pass"
         ? await forward(req, body, url, route.action.target)
-        : route?.action.kind === "respond"
+        : route?.action.kind === "command_pass"
+          ? await commandPass(req, body, url, route.action.args)
+          : route?.action.kind === "respond"
           ? text(route.action.status, route.action.body)
           : text(200, "ok");
 

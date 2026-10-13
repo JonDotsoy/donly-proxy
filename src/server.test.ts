@@ -34,6 +34,9 @@ writeFileSync(
   route http://fixed.test/ {
     proxy_pass "${upstreamUrl}/fixed"
   }
+  route http://curl.test/ {
+    command_pass curl "--connect-to" "curl.test:80:${upstreamUrl.replace("http://", "")}"
+  }
   route POST http://example.com/ {
     respond 201 "created"
   }
@@ -236,4 +239,37 @@ test("log_file snapshot", async () => {
     });
 
   expect(masked).toMatchSnapshot();
+});
+
+test("command_pass curl hands the request to curl", async () => {
+  const res = await fetch("http://curl.test/via/curl?k=v", { proxy, method: "PUT", body: "data", headers: { "x-custom": "1" } });
+  expect(res.status).toBe(200);
+  expect(res.headers.get("x-upstream")).toBe("yes");
+  expect(await res.json()).toEqual({
+    method: "PUT",
+    url: "/via/curl?k=v",
+    host: "curl.test",
+    body: "data",
+  });
+});
+
+test("command_pass curl reports a bad gateway when curl fails", async () => {
+  const dead = join(mkdtempSync(join(tmpdir(), "donly-proxy-dead-")), "manifest.donly");
+  writeFileSync(dead, `proxy {\n  route http://dead.test/ {\n    command_pass curl "--connect-to" "dead.test:80:127.0.0.1:1"\n  }\n}\n`);
+  const deadConfig = await loadConfig(dead);
+  const deadServer = createProxyServer(deadConfig);
+  await new Promise<void>((resolve) => deadServer.listen(0, "127.0.0.1", resolve));
+  try {
+    const res = await fetch("http://dead.test/", { proxy: `http://127.0.0.1:${(deadServer.address() as AddressInfo).port}` });
+    expect(res.status).toBe(502);
+    expect(await res.text()).toContain("curl exited with");
+  } finally {
+    deadServer.close();
+  }
+});
+
+test("command_pass only supports curl", async () => {
+  const bad = join(dir, "bad-command.donly");
+  writeFileSync(bad, `proxy {\n  route / {\n    command_pass wget\n  }\n}\n`);
+  expect(loadConfig(bad)).rejects.toThrow("solo soporta");
 });
