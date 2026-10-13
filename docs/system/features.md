@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **71** · ✅ pasan: **65** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
+Specs: **73** · ✅ pasan: **67** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -72,6 +72,8 @@ Specs: **71** · ✅ pasan: **65** · 🔴 fallan: **1** · ⏳ sin resultado: *
 | should keep the port declared in the manifest | ✅ | <code>port 3456</code> |
 | should listen on 127.0.0.1 when the manifest has no host | ✅ |  |
 | should listen on a random free port when the manifest has none | ✅ |  |
+| should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
+| should listen on the IPv6 host ::1 | ✅ | <code>host "::1"</code> |
 | should load the proxy block of the manifest | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 3000</code><br><code>}</code> |
 | should read the port from the manifest | 🔴 | <code>port 3000</code> |
 | should read the port from the manifest | ✅ | <code>port 3000</code> |

@@ -28,7 +28,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 
 | Directiva | Valor | Por defecto | Descripción |
 | --- | --- | --- | --- |
-| `host` | string | `"127.0.0.1"` | Dirección en la que escucha. Si se omite, solo escucha en loopback. |
+| `host` | string | `"127.0.0.1"` | Dirección en la que escucha (IPv4 o IPv6: `"::1"`, `"::"`). Si se omite, solo escucha en loopback. |
 | `port` | número | `0` | Puerto. Si se omite o es `0`, el sistema asigna uno libre. |
 | `ssl` | bloque | ver abajo | Certificado usado para terminar el TLS de los túneles `CONNECT`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |

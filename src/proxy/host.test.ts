@@ -42,3 +42,28 @@ testFeature(withoutHost, ["/proxy/host"], "should listen on 127.0.0.1 when the m
 testFeature(`proxy {\n  host "0.0.0.0"\n  port 0\n}\n`, ["/proxy/host"], "should keep the host declared in the manifest", async (payload) => {
   expect((await load(payload)).host).toBe("0.0.0.0");
 });
+
+// IPv6: `::1` is the loopback address and `::` all the interfaces.
+for (const host of ["::1", "::"]) {
+  testFeature(
+    `proxy {\n  host "${host}"\n  port 0\n  route {\n    respond 200 "ok"\n  }\n}\n`,
+    ["/proxy/host"],
+    `should listen on the IPv6 host ${host}`,
+    async (payload) => {
+      const config = await load(payload);
+      expect(config.host).toBe(host);
+      const server = createProxyServer(config);
+      await new Promise<void>((resolve) => server.listen(config.port, config.host, resolve));
+      try {
+        const { address, family, port } = server.address() as AddressInfo;
+        expect(address).toBe(host);
+        expect(family).toBe("IPv6");
+        // The proxy URL brackets the IPv6 address.
+        const res = await fetch("http://example.com/", { proxy: `http://[::1]:${port}` });
+        expect(await res.text()).toBe("ok");
+      } finally {
+        server.close();
+      }
+    },
+  );
+}
