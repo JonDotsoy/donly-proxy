@@ -4,7 +4,7 @@
   "version": "0.0.2",
   "scripts": {
     "start": "bun src/cli/main.ts",
-    "build": "bun build src/cli/main.ts --outfile dist/donly-proxy.js --target node",
+    "build": "bun build src/cli/main.ts --outfile dist/donly-proxy.js --target bun",
     "test": "bun test",
     "features": "bun scripts/features.ts",
     "features:check": "bun scripts/features.ts --check"
