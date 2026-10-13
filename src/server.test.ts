@@ -1,9 +1,19 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
+
+// Upstream that echoes what it received, used by `proxy_pass` routes.
+const upstream = http.createServer(async (req, res) => {
+  const body = Buffer.concat(await Array.fromAsync(req)).toString();
+  res.setHeader("x-upstream", "yes");
+  res.end(JSON.stringify({ method: req.method, url: req.url, host: req.headers.host, body }));
+});
+await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+const upstreamUrl = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
 
 // Manifest in a temp dir; the SSL certs are auto-generated on first use.
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-"));
@@ -16,6 +26,12 @@ writeFileSync(
   ssl {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
+  }
+  route https?://pass.test/ {
+    proxy_pass "${upstreamUrl}"
+  }
+  route http://fixed.test/ {
+    proxy_pass "${upstreamUrl}/fixed"
   }
   route POST http://example.com/ {
     respond 201 "created"
@@ -37,6 +53,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   server.close();
+  upstream.close();
 });
 
 test("GET http://example.com through the proxy responds ok", async () => {
@@ -72,4 +89,25 @@ test("requests that match no route respond ok", async () => {
   const res = await fetch("http://other.test/x", { proxy });
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok");
+});
+
+test("proxy_pass forwards method, path, query and body to the target", async () => {
+  const res = await fetch("http://pass.test/a/b?x=1", { proxy, method: "POST", body: "hello" });
+  expect(res.headers.get("x-upstream")).toBe("yes");
+  expect(await res.json()).toEqual({
+    method: "POST",
+    url: "/a/b?x=1",
+    host: upstreamUrl.replace("http://", ""),
+    body: "hello",
+  });
+});
+
+test("proxy_pass works through an https tunnel", async () => {
+  const res = await fetch("https://pass.test/secure", { proxy, tls: { rejectUnauthorized: false } });
+  expect((await res.json()).url).toBe("/secure");
+});
+
+test("proxy_pass with a target path replaces the path", async () => {
+  const res = await fetch("http://fixed.test/ignored?y=2", { proxy });
+  expect((await res.json()).url).toBe("/fixed?y=2");
 });

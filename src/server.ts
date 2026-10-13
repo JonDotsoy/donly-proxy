@@ -12,8 +12,9 @@ export interface Route {
   method: string | null;
   /** Tested against the full request URL, e.g. `https://example.com/path`. */
   pattern: RegExp;
-  status: number;
-  body: string;
+  action:
+    | { kind: "respond"; status: number; body: string }
+    | { kind: "proxy_pass"; target: URL };
 }
 
 export interface ProxyConfig {
@@ -46,13 +47,18 @@ export const loadConfig = async (
     routes: (proxy?.children ?? [])
       .filter((c) => c.name === "route")
       .map((route): Route => {
+        const name = route.args.join(" ");
         const respond = child("respond", route);
-        if (!respond) throw new Error(`route ${route.args.join(" ")}: falta \`respond\``);
+        const proxyPass = child("proxy_pass", route);
+        if (!respond === !proxyPass) {
+          throw new Error(`route ${name}: se requiere exactamente uno de \`respond\` o \`proxy_pass\``);
+        }
         return {
           method: route.args.length > 1 ? String(route.args[0]).toUpperCase() : null,
           pattern: new RegExp(String(route.args[route.args.length - 1])),
-          status: Number(respond.args[0]),
-          body: String(respond.args[1] ?? ""),
+          action: respond
+            ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
+            : { kind: "proxy_pass", target: new URL(String(proxyPass!.args[0])) },
         };
       }),
   };
@@ -64,6 +70,50 @@ const requestUrl = (req: http.IncomingMessage) => {
   const tunnel = (req.socket as TunnelSocket).tunnelHost;
   if (tunnel) return `https://${tunnel}${req.url}`;
   return `http://${req.headers.host}${req.url}`;
+};
+
+const hopByHop = new Set([
+  "connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer",
+  "host", "content-length",
+]);
+
+/**
+ * Forwards the request to `target`. The original path and query are kept,
+ * unless `target` declares its own path, which then replaces the path.
+ */
+const forward = async (
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  url: string,
+  target: URL,
+) => {
+  const original = new URL(url);
+  const upstream = new URL(target);
+  if (upstream.pathname === "/") upstream.pathname = original.pathname;
+  upstream.search = original.search;
+
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (!hopByHop.has(k) && v !== undefined) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
+  }
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  try {
+    const response = await fetch(upstream, {
+      method: req.method,
+      headers,
+      body: hasBody ? Buffer.concat(await Array.fromAsync(req)) : undefined,
+      redirect: "manual",
+    });
+    // fetch has already decoded the body, so encoding/length no longer apply.
+    const out = Object.fromEntries(
+      [...response.headers].filter(([k]) => !hopByHop.has(k) && k !== "content-encoding"),
+    );
+    res.writeHead(response.status, out);
+    res.end(Buffer.from(await response.arrayBuffer()));
+  } catch (error) {
+    res.writeHead(502, { "content-type": "text/plain" });
+    res.end(`bad gateway: ${(error as Error).message}`);
+  }
 };
 
 type TunnelSocket = tls.TLSSocket & { tunnelHost?: string };
@@ -83,8 +133,10 @@ export const createProxyServer = ({ ssl, routes }: Pick<ProxyConfig, "ssl" | "ro
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
-    res.writeHead(route?.status ?? 200, { "content-type": "text/plain" });
-    res.end(route?.body ?? "ok");
+    if (route?.action.kind === "proxy_pass") return void forward(req, res, url, route.action.target);
+    const { status, body } = route?.action.kind === "respond" ? route.action : { status: 200, body: "ok" };
+    res.writeHead(status, { "content-type": "text/plain" });
+    res.end(body);
   });
 
   server.on("connect", (req, socket: Duplex) => {
