@@ -56,6 +56,8 @@ Curl recibe `--foo tar --biz lol` como cuatro argumentos separados. Los números
 texto y un valor con espacios o caracteres de shell (`"x-a: b; c"`, `"$(…)"`) sigue siendo **un
 solo argumento**: el comando se lanza sin shell.
 
+- `ssh` y `kubectl`: las opciones se insertan **antes del destino** (el último argumento de la
+  línea), que sigue siendo el último.
 - Orden: primero los argumentos de la línea `command_pass`, luego `extra_args` (en el orden en
   que se declaren), [`insecure`](#certificados-inseguros-con-curl) y al final
   [`max_time`](#tiempo-máximo-con-curl) y [`retry`](#reintentos-con-curl).
@@ -412,6 +414,8 @@ route https?://api.internal/ {
 
   El valor debe ser un nombre (texto no vacío); con otro (`namespace 5`, `context ""`) el
   arranque falla con `namespace debe ser un nombre` / `context debe ser un nombre`.
+  Lo mismo vale para [`command_pass kubectl`](#kubectl); con otro comando falla con
+  `namespace solo aplica a kubectl_pass y command_pass kubectl`.
 - Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
   comando, o sin hijo, el arranque falla. Sus argumentos son **opciones adicionales del comando
   remoto** (`curl`: tras los flags fijos; `wget`: antes de la URL; `node`: antes del script, sin

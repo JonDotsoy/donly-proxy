@@ -79,17 +79,31 @@ const optionArgs = (name: string, command: string, directive: Directive): string
   ...retryArgs(name, command, directive),
 ];
 
-/** `context <name>` and `namespace <name>` inside a `kubectl_pass`: they become `--context` / `--namespace`. */
-const selectorArgs = (name: string, directive: Directive): string[] =>
+/** `context <name>` and `namespace <name>` inside a `kubectl_pass` / `command_pass kubectl`: they become `--context` / `--namespace`. */
+const selectorArgs = (name: string, directive: Directive, command = "kubectl"): string[] =>
   (["context", "namespace"] as const).flatMap((selector) => {
     const child = directive.children.find((c) => c.name === selector);
     if (!child) return [];
+    if (command !== "kubectl") throw new Error(`route ${name}: ${selector} solo aplica a kubectl_pass y command_pass kubectl`);
     const value = child.args[0];
     if (typeof value !== "string" || value === "") {
       throw new Error(`route ${name}: ${selector} debe ser un nombre, no "${value}"`);
     }
     return [`--${selector}`, value];
   });
+
+/**
+ * The arguments of a `command_pass`: those of its line plus the options of its child directives.
+ * `ssh` and `kubectl` keep their target (the last argument of the line) last.
+ */
+const commandPassArgs = (name: string, directive: Directive): string[] => {
+  const command = String(directive.args[0]);
+  const args = directive.args.slice(1).map(String);
+  const options = optionArgs(name, command, directive);
+  if (command !== "ssh" && command !== "kubectl") return [...args, ...options];
+  const selectors = selectorArgs(name, directive, command);
+  return [...args.slice(0, -1), ...options, ...selectors, args.at(-1)!];
+};
 
 const defaultManifest = new URL("../../manifest.donly", import.meta.url);
 
@@ -190,7 +204,7 @@ export const loadConfig = async (
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
               ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
-              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", concurrency: Number(concurrencyValue ?? 1), args: [...commandPass!.args.slice(1).map(String), ...optionArgs(name, String(commandPass!.args[0]), commandPass!)] },
+              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", concurrency: Number(concurrencyValue ?? 1), args: commandPassArgs(name, commandPass!) },
         };
       }),
   };

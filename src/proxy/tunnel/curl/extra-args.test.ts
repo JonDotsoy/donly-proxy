@@ -99,10 +99,10 @@ testFeature(manifestPayload, ["/proxy/route/command_pass/extra_args"], "should n
 testFeature(
   route(`    command_pass ssh "user@remote.test" {\n      extra_args "-p" 2222\n    }`),
   ["/proxy/route/command_pass/extra_args"],
-  "should add the extra_args to the arguments of command_pass ssh",
+  "should add the extra_args to the ssh options, keeping the destination last",
   async (payload) => {
     const [first] = (await load(payload)).routes;
-    expect(first!.action).toMatchObject({ kind: "command_pass", command: "ssh", args: ["user@remote.test", "-p", "2222"] });
+    expect(first!.action).toMatchObject({ kind: "command_pass", command: "ssh", args: ["-p", "2222", "user@remote.test"] });
   },
 );
 
