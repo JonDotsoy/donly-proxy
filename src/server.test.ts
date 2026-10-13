@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { AddressInfo } from "node:net";
-import { createProxyServer } from "./server";
+import { createProxyServer, loadConfig } from "./server";
 
-const server = createProxyServer();
+const config = await loadConfig();
+const server = createProxyServer(config.ssl);
 let proxy: string;
 
 beforeAll(async () => {
@@ -27,4 +28,10 @@ test("GET https://example.com through the proxy responds ok", async () => {
   });
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok");
+});
+
+test("manifest.donly configures the proxy", () => {
+  expect(config.host).toBe("127.0.0.1");
+  expect(config.port).toBe(8080);
+  expect(config.ssl.cert.endsWith("certs/cert.pem")).toBe(true);
 });

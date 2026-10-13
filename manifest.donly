@@ -1,0 +1,8 @@
+proxy {
+  host "127.0.0.1"
+  port 8080
+  ssl {
+    cert "./certs/cert.pem"
+    key "./certs/key.pem"
+  }
+}
