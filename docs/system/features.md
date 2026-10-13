@@ -28,7 +28,7 @@ Soportadas: **53** · Soportadas y probadas: **40** · Sin pruebas: **13**
 | `manifest.load` | Configuración con `manifest.donly` (`host`, `port`) | ✅ | ✅ | manifest.donly configures the proxy |
 | `manifest.relative-paths` | Rutas de `log_file` y `ssl` relativas a la carpeta del manifest | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
 | `ssl.autogen` | Certificado autofirmado generado con `openssl` si no existe | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
-| `manifest.features` | Lista las features de un manifest: marca con `++` las líneas de las directivas que coinciden con unas rutas (`src/features/list-features.ts`) | ✅ | ✅ | marks the lines of the directives matching the paths<br>marks every matching directive of several paths<br>a block directive marks only its own line<br>without matches nothing is marked |
+| `manifest.features` | Lista las features de un manifest: marca con `++` las líneas de las directivas que coinciden con unas rutas (`src/utils/test_utils/lint-features/list-features.ts`) | ✅ | ✅ | marks the lines of the directives matching the paths<br>marks every matching directive of several paths<br>a block directive marks only its own line<br>without matches nothing is marked |
 | `route.regex` | `route` con patrón regex sobre la URL completa | ✅ | 🔴 | GET http://example.com through the proxy is answered by the route<br>🔴 GET https://example.com through the proxy is answered by the route |
 | `route.method` | `route` limitada a un método HTTP | ✅ | ✅ | route can be limited by method |
 | `route.first-match-wins` | Gana la primera `route` que coincide | ✅ | ❌ |  |
