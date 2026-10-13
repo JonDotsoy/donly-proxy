@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
@@ -141,4 +141,42 @@ test("log_file only supports .ndjson", async () => {
   const bad = join(dir, "bad.donly");
   writeFileSync(bad, `proxy {\n  log_file "./proxy.log"\n}\n`);
   expect(loadConfig(bad)).rejects.toThrow(".ndjson");
+});
+
+test("log_file is resolved relative to the manifest, not the cwd", async () => {
+  const base = mkdtempSync(join(tmpdir(), "donly-proxy-rel-"));
+  mkdirSync(join(base, "conf"));
+  const relManifest = join(base, "conf/manifest.donly");
+  writeFileSync(
+    relManifest,
+    `proxy {
+  host "127.0.0.1"
+  port 0
+  log_file "../out/rel.ndjson"
+  ssl {
+    cert "../ssl/cert.pem"
+    key "../ssl/key.pem"
+  }
+}
+`,
+  );
+  const relConfig = await loadConfig(relManifest);
+  const expected = join(base, "out/rel.ndjson");
+  expect(relConfig.logFile).toBe(expected);
+  expect(process.cwd()).not.toBe(base);
+
+  const relServer = createProxyServer(relConfig);
+  await new Promise<void>((resolve) => relServer.listen(0, "127.0.0.1", resolve));
+  try {
+    const relProxy = `http://127.0.0.1:${(relServer.address() as AddressInfo).port}`;
+    await (await fetch("http://example.com/rel", { proxy: relProxy })).text();
+  } finally {
+    relServer.close();
+  }
+
+  expect(existsSync(expected)).toBe(true);
+  expect(readFileSync(expected, "utf8").split("\n").filter(Boolean)).toHaveLength(2);
+  expect(existsSync(join(process.cwd(), "out/rel.ndjson"))).toBe(false);
+  // certs were resolved from the manifest dir too
+  expect(existsSync(join(base, "ssl/cert.pem"))).toBe(true);
 });
