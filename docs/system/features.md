@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **68** · ✅ pasan: **62** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
+Specs: **71** · ✅ pasan: **65** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -66,8 +66,11 @@ Specs: **68** · ✅ pasan: **62** · 🔴 fallan: **1** · ⏳ sin resultado: *
 | route can be limited by method | ✅ | <code>route https?://pass.test/ {</code><br><code>&nbsp;&nbsp;proxy_pass "http://127.0.0.1:&lt;port&gt;"</code><br><code>}</code><br><code>route http://fixed.test/ {</code><br><code>&nbsp;&nbsp;proxy_pass "http://127.0.0.1:&lt;port&gt;/fixed"</code><br><code>}</code><br><code>route http://curl.test/ {</code><br><code>&nbsp;&nbsp;command_pass curl "--connect-to" "curl.test:80:127.0.0.1:&lt;port&gt;"</code><br><code>}</code><br><code>route POST http://example.com/ {</code><br><code>&nbsp;&nbsp;respond 201 "created"</code><br><code>}</code><br><code>route https?://example.com/ {</code><br><code>&nbsp;&nbsp;respond 200 "good"</code><br><code>}</code> |
 | routes without command_pass log no command | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;respond 200 "plain"</code> |
 | runs one process at a time by default | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |
+| should default the host to 127.0.0.1 when the manifest has none | ✅ |  |
 | should default the port to 0 when the manifest has none | ✅ |  |
+| should keep the host declared in the manifest | ✅ | <code>host "0.0.0.0"</code> |
 | should keep the port declared in the manifest | ✅ | <code>port 3456</code> |
+| should listen on 127.0.0.1 when the manifest has no host | ✅ |  |
 | should listen on a random free port when the manifest has none | ✅ |  |
 | should load the proxy block of the manifest | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 3000</code><br><code>}</code> |
 | should read the port from the manifest | 🔴 | <code>port 3000</code> |
