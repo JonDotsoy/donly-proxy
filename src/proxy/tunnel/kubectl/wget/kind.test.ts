@@ -1,11 +1,11 @@
 import { expect } from "bun:test";
-import { cluster, echoTest, useKind } from "../kind-fixture";
+import { cluster, echoTest, manifestFor, useKind } from "../kind-fixture";
 
 const kind = useKind("wget");
 
 echoTest("wget", kind);
 
-cluster("[command_pass.kubectl.kind] wget answers GET requests and reports the status of failed ones", async () => {
+cluster(manifestFor("wget"), ["/proxy/route/kubectl_pass"], "wget answers GET requests and reports the status of failed ones", async () => {
   const get = await fetch(kind.url("get"), { proxy: kind.proxy() });
   expect(get.status).toBe(200);
   expect((await get.json()).method).toBe("GET");

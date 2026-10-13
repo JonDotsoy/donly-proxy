@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import type { AddressInfo } from "node:net";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type http from "node:http";
 import { createProxyServer, loadConfig } from "../../server";
+import { testFeature } from "../../../utils/test_utils/test-feature/test-feature";
 
 // End to end against a real cluster: podman builds an echo server image, it is loaded into
 // the kind node and deployed as a Service, and `kubectl_pass` / `command_pass kubectl` reach
@@ -36,7 +37,7 @@ export const available =
   ok(["podman", "version"]) &&
   ok(["kubectl", "--context", CONTEXT, "get", "nodes"]) &&
   ok(["podman", "container", "exists", NODE_CONTAINER]);
-export const cluster = available ? test : test.skip;
+export const cluster = available ? testFeature : testFeature.skip;
 
 const echoServer = `
 import http from "node:http";
@@ -115,6 +116,10 @@ const route = (engine: KindEngine) =>
   }
 `;
 
+/** The manifest of the proxy that carries the requests of `engine` to the echo pod. */
+export const manifestFor = (engine: KindEngine) =>
+  `proxy {\n  host "127.0.0.1"\n  port 0\n  log_file "./proxy.ndjson"\n${route(engine)}}\n`;
+
 /**
  * Deploys the echo Service (once) and starts a proxy with a route for `engine`.
  * Call it at the top level of a test file.
@@ -129,7 +134,7 @@ export const useKind = (engine: KindEngine) => {
     if (!available) return;
     await (deployed.__donlyKindDeployed ??= deploy());
     const dir = mkdtempSync(join(tmpdir(), "donly-proxy-kind-proxy-"));
-    writeFileSync(join(dir, "manifest.donly"), `proxy {\n  host "127.0.0.1"\n  port 0\n  log_file "./proxy.ndjson"\n${route(engine)}}\n`);
+    writeFileSync(join(dir, "manifest.donly"), manifestFor(engine));
     logFile = join(dir, "proxy.ndjson");
     process.env.NO_PROXY = process.env.no_proxy = "";
     server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
@@ -158,7 +163,7 @@ export const useKind = (engine: KindEngine) => {
 
 /** The shared check: a POST through the proxy reaches the echo pod and both log lines are written. */
 export const echoTest = (engine: KindEngine, kind: ReturnType<typeof useKind>) =>
-  cluster(`[command_pass.kubectl.kind] command_pass kubectl with engine ${engine} reaches an echo Service in the kind-kind-cluster`, async () => {
+  cluster(manifestFor(engine), ["/proxy/route/kubectl_pass"], `command_pass kubectl with engine ${engine} reaches an echo Service in the kind-kind-cluster`, async () => {
     const url = kind.url("path?x=1");
     const before = kind.readLog().length;
     const res = await fetch(url, { proxy: kind.proxy(), method: "POST", body: "payload", headers: { "x-custom": "abc" } });

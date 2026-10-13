@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { createProxyServer, loadConfig } from "../../server";
+import { testFeature } from "../../../utils/test_utils/test-feature/test-feature";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-curl-"));
 const bin = join(dir, "bin");
@@ -26,9 +27,7 @@ printf 'answered by fake curl'
 chmodSync(join(bin, "curl"), 0o755);
 
 const manifest = join(dir, "manifest.donly");
-writeFileSync(
-  manifest,
-  `proxy {
+const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
   ssl {
@@ -39,8 +38,8 @@ writeFileSync(
     command_pass curl "--max-time" "5"
   }
 }
-`,
-);
+`;
+writeFileSync(manifest, manifestPayload);
 
 const originalPath = process.env.PATH;
 let server: Server;
@@ -58,7 +57,7 @@ afterAll(() => {
   server.close();
 });
 
-test("[command_pass.curl] command_pass curl runs the curl found in PATH", async () => {
+testFeature(manifestPayload, ["/proxy/route/command_pass"], "command_pass curl runs the curl found in PATH", async () => {
   const res = await fetch("http://fake.test/some/path?q=1", {
     proxy,
     method: "POST",

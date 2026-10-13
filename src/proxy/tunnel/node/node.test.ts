@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import http from "node:http";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { ensureCerts } from "../../certs";
 import { createProxyServer, loadConfig } from "../../server";
+import { testFeature } from "../../../utils/test_utils/test-feature/test-feature";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-node-"));
 const bin = join(dir, "bin");
@@ -35,18 +36,7 @@ const httpsUpstream = https.createServer(
 const listen = (server: http.Server | https.Server) =>
   new Promise<number>((resolve) => server.listen(0, "127.0.0.1", () => resolve((server.address() as AddressInfo).port)));
 
-const saved = { PATH: process.env.PATH, NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy, TLS: process.env.NODE_TLS_REJECT_UNAUTHORIZED };
-let server: http.Server;
-let proxy: string;
-let httpPort: number;
-let httpsPort: number;
-
-beforeAll(async () => {
-  httpPort = await listen(httpUpstream);
-  httpsPort = await listen(httpsUpstream);
-  writeFileSync(
-    join(dir, "manifest.donly"),
-    `proxy {
+const manifestPayload = (httpPort: number, httpsPort: number) => `proxy {
   host "127.0.0.1"
   port 0
   ssl {
@@ -60,8 +50,21 @@ beforeAll(async () => {
     command_pass node "--no-warnings"
   }
 }
-`,
-  );
+`;
+
+// Representative payload of the tests below (they use the ports of real upstreams).
+const payload = manifestPayload(8080, 8443);
+
+const saved = { PATH: process.env.PATH, NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy, TLS: process.env.NODE_TLS_REJECT_UNAUTHORIZED };
+let server: http.Server;
+let proxy: string;
+let httpPort: number;
+let httpsPort: number;
+
+beforeAll(async () => {
+  httpPort = await listen(httpUpstream);
+  httpsPort = await listen(httpsUpstream);
+  writeFileSync(join(dir, "manifest.donly"), manifestPayload(httpPort, httpsPort));
   // The proxied hosts are loopback addresses: fetch must not bypass the proxy for them,
   // and the self-signed upstream certificate must be accepted by the spawned node.
   process.env.NO_PROXY = process.env.no_proxy = "";
@@ -84,7 +87,7 @@ afterAll(() => {
   httpsUpstream.close();
 });
 
-test("[command_pass.node] command_pass node performs the request with http.request", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "command_pass node performs the request with http.request", async () => {
   const res = await fetch(`http://127.0.0.1:${httpPort}/a/b?x=1`, {
     proxy,
     method: "POST",
@@ -107,7 +110,7 @@ test("[command_pass.node] command_pass node performs the request with http.reque
   expect(args[1]).toEndWith("node-request.mjs");
 });
 
-test("[command_pass.node.https] command_pass node performs https requests with https.request", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "command_pass node performs https requests with https.request", async () => {
   const res = await fetch(`https://127.0.0.1:${httpsPort}/secure?y=2`, {
     proxy,
     tls: { rejectUnauthorized: false },
@@ -116,7 +119,11 @@ test("[command_pass.node.https] command_pass node performs https requests with h
   expect(await res.json()).toMatchObject({ method: "GET", url: "/secure?y=2" });
 });
 
-test("[command_pass.node.error] command_pass node reports a bad gateway when the request fails", async () => {
+testFeature(
+  `proxy {\n  route http://127.0.0.1:1/ {\n    command_pass node\n  }\n}\n`,
+  ["/proxy/route/command_pass"],
+  "command_pass node reports a bad gateway when the request fails",
+  async () => {
   const down = http.createServer();
   const port = await listen(down);
   down.close();

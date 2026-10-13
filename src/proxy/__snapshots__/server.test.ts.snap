@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`[log_file.snapshot] log_file snapshot 1`] = `
+exports[`log_file snapshot 1`] = `
 [
   {
     "headers": {

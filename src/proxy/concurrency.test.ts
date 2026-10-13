@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
+import { testFeature } from "../utils/test_utils/test-feature/test-feature";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-concurrency-"));
 const bin = join(dir, "bin");
@@ -30,9 +31,7 @@ printf 'done'
 chmodSync(join(bin, "curl"), 0o755);
 
 const manifest = join(dir, "manifest.donly");
-writeFileSync(
-  manifest,
-  `proxy {
+const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
   route http://conc.test/default/ {
@@ -44,8 +43,8 @@ writeFileSync(
     }
   }
 }
-`,
-);
+`;
+writeFileSync(manifest, manifestPayload);
 
 const savedPath = process.env.PATH;
 let server: Server;
@@ -79,7 +78,7 @@ const get = (path: string, delay = 0) =>
     setTimeout(() => fetch(`http://conc.test${path}`, { proxy }).then(resolve, reject), delay),
   );
 
-test("[command_pass.concurrency.default] runs one process at a time by default", async () => {
+testFeature(manifestPayload, ["/proxy/route/command_pass"], "runs one process at a time by default", async () => {
   reset();
   const started = Date.now();
   const responses = await Promise.all([get("/default/a"), get("/default/b"), get("/default/c")]);
@@ -89,7 +88,7 @@ test("[command_pass.concurrency.default] runs one process at a time by default",
   expect(Date.now() - started).toBeGreaterThanOrEqual(850); // 3 × 300ms, one after the other
 });
 
-test("[command_pass.concurrency.limit] concurrency <n> allows n processes in parallel", async () => {
+testFeature(manifestPayload, ["/proxy/route/command_pass/concurrency"], "concurrency <n> allows n processes in parallel", async () => {
   reset();
   const started = Date.now();
   const responses = await Promise.all([get("/two/a"), get("/two/b"), get("/two/c"), get("/two/d")]);
@@ -98,13 +97,13 @@ test("[command_pass.concurrency.limit] concurrency <n> allows n processes in par
   expect(Date.now() - started).toBeLessThan(1100); // 4 runs in 2 waves of 300ms (one after the other would take 1200ms)
 });
 
-test("[command_pass.concurrency.limit] each route has its own limit", async () => {
+testFeature(manifestPayload, ["/proxy/route/command_pass"], "each route has its own limit", async () => {
   reset();
   await Promise.all([get("/default/a"), get("/two/a"), get("/two/b")]);
   expect(maxRunning()).toBe(3);
 });
 
-test("[command_pass.concurrency.queue] waiting requests are served in arrival order", async () => {
+testFeature(manifestPayload, ["/proxy/route/command_pass"], "waiting requests are served in arrival order", async () => {
   reset();
   await Promise.all([get("/default/1", 0), get("/default/2", 60), get("/default/3", 120)]);
   expect(events().filter((e) => e.startsWith("start"))).toEqual([
@@ -114,7 +113,7 @@ test("[command_pass.concurrency.queue] waiting requests are served in arrival or
   ]);
 });
 
-test("[command_pass.concurrency.queue] a failing process frees its place for the next request", async () => {
+testFeature(manifestPayload, ["/proxy/route/command_pass"], "a failing process frees its place for the next request", async () => {
   reset();
   writeFileSync(failNext, "");
   const responses = await Promise.all([get("/default/a"), get("/default/b", 60)]);
@@ -124,16 +123,18 @@ test("[command_pass.concurrency.queue] a failing process frees its place for the
   expect(existsSync(failNext)).toBe(false);
 });
 
-test("[command_pass.concurrency.limit] loadConfig reads concurrency, defaulting to 1", async () => {
+testFeature(manifestPayload, ["/proxy/route/command_pass/concurrency"], "loadConfig reads concurrency, defaulting to 1", async () => {
   const config = await loadConfig(manifest);
   const concurrency = config.routes.map((r) => (r.action.kind === "command_pass" ? r.action.concurrency : undefined));
   expect(concurrency).toEqual([1, 2]);
 });
 
-test("[command_pass.concurrency.validation] concurrency must be a positive integer", async () => {
+const concurrencyPayload = (value: string) => `proxy {\n  route / {\n    command_pass curl {\n      concurrency ${value}\n    }\n  }\n}\n`;
+
+testFeature(concurrencyPayload("0"), ["/proxy/route/command_pass/concurrency"], "concurrency must be a positive integer", async () => {
   const load = (value: string) => {
     const file = join(dir, `v-${Math.random()}.donly`);
-    writeFileSync(file, `proxy {\n  route / {\n    command_pass curl {\n      concurrency ${value}\n    }\n  }\n}\n`);
+    writeFileSync(file, concurrencyPayload(value));
     return loadConfig(file);
   };
   for (const value of ["0", "-1", "1.5", "many"]) {

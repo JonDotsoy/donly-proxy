@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
+import { testFeature } from "../utils/test_utils/test-feature/test-feature";
 
 const target = "http://localhost:3001/hello";
 
@@ -15,9 +16,7 @@ const local = http.createServer((_req, res) => res.end("hello from 3001"));
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-local-"));
 const manifest = join(dir, "manifest.donly");
 const logFile = join(dir, "proxy.ndjson");
-writeFileSync(
-  manifest,
-  `proxy {
+const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
   log_file "./proxy.ndjson"
@@ -26,8 +25,8 @@ writeFileSync(
     key "./certs/key.pem"
   }
 }
-`,
-);
+`;
+writeFileSync(manifest, manifestPayload);
 
 let server: http.Server;
 let proxy: string;
@@ -51,14 +50,14 @@ const readLog = () =>
     ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
     : [];
 
-test("[log_file.no-proxy-no-log] fetch without proxy reaches the local server and writes no log", async () => {
+testFeature(manifestPayload, ["/proxy/log_file"], "fetch without proxy reaches the local server and writes no log", async () => {
   const res = await fetch(target);
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("hello from 3001");
   expect(existsSync(logFile)).toBe(false);
 });
 
-test("[http.proxy][log_file.transactions] fetch through the proxy goes through it and is logged", async () => {
+testFeature(manifestPayload, ["/proxy/log_file"], "fetch through the proxy goes through it and is logged", async () => {
   const res = await fetch(target, { proxy });
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok"); // no route: the proxy answers by itself
@@ -73,7 +72,7 @@ test("[http.proxy][log_file.transactions] fetch through the proxy goes through i
   expect(response.transaction_id).toBe(request.transaction_id);
 });
 
-test("[log_file.no-proxy-no-log] a later fetch without proxy still adds nothing to the log", async () => {
+testFeature(manifestPayload, ["/proxy/log_file"], "a later fetch without proxy still adds nothing to the log", async () => {
   const before = readLog().length;
   expect(await (await fetch(target)).text()).toBe("hello from 3001");
   expect(readLog()).toHaveLength(before);

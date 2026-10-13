@@ -1,16 +1,15 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
+import { testFeature } from "../utils/test_utils/test-feature/test-feature";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-catchall-"));
 const manifest = join(dir, "manifest.donly");
-writeFileSync(
-  manifest,
-  `proxy {
+const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
   ssl {
@@ -27,8 +26,8 @@ writeFileSync(
     respond 200 "unreachable"
   }
 }
-`,
-);
+`;
+writeFileSync(manifest, manifestPayload);
 
 let server: Server;
 let proxy: string;
@@ -43,7 +42,7 @@ afterAll(() => server.close());
 
 const insecure = { rejectUnauthorized: false };
 
-test("[route.catch-all] a route without arguments matches every request", async () => {
+testFeature(manifestPayload, ["/proxy/route()"], "a route without arguments matches every request", async () => {
   for (const url of ["http://any.test/", "http://other.test/a/b?c=d"]) {
     const res = await fetch(url, { proxy });
     expect(res.status).toBe(202);
@@ -58,7 +57,7 @@ test("[route.catch-all] a route without arguments matches every request", async 
   expect(await https.text()).toBe("catch-all");
 });
 
-test("[route.catch-all] its pattern is a real wildcard, not the text 'undefined'", async () => {
+testFeature(manifestPayload, ["/proxy/route()"], "its pattern is a real wildcard, not the text 'undefined'", async () => {
   const config = await loadConfig(manifest);
   const route = config.routes[1]!;
   expect(route.method).toBeNull();
@@ -66,7 +65,7 @@ test("[route.catch-all] its pattern is a real wildcard, not the text 'undefined'
   expect(route.pattern.test("")).toBe(true);
 });
 
-test("[route.catch-all.order] earlier routes win and the catch-all takes the rest", async () => {
+testFeature(manifestPayload, ["/proxy/route"], "earlier routes win and the catch-all takes the rest", async () => {
   const specific = await fetch("http://specific.test/", { proxy });
   expect(specific.status).toBe(200);
   expect(await specific.text()).toBe("specific");

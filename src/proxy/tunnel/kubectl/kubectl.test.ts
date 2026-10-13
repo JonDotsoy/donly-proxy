@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { createProxyServer, loadConfig } from "../../server";
+import { testFeature } from "../../../utils/test_utils/test-feature/test-feature";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-kubectl-"));
 const bin = join(dir, "bin");
@@ -38,12 +39,8 @@ let port: number;
 
 const manifest = (route: string) => `proxy {\n  host "127.0.0.1"\n  port 0\n${route}\n}\n`;
 
-beforeAll(async () => {
-  await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
-  port = (upstream.address() as AddressInfo).port;
-  writeFileSync(
-    join(dir, "manifest.donly"),
-    manifest(`  route http://127.0.0.1:${port}/curl/ {
+const manifestPayload = (port: number) =>
+  manifest(`  route http://127.0.0.1:${port}/curl/ {
     command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
       engine curl
     }
@@ -60,8 +57,15 @@ beforeAll(async () => {
   }
   route http://127.0.0.1:${port}/default/ {
     command_pass kubectl "pod/api-0"
-  }`),
-  );
+  }`);
+
+// Representative payload of the tests below (they use the port of a real upstream).
+const payload = manifestPayload(8080);
+
+beforeAll(async () => {
+  await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  port = (upstream.address() as AddressInfo).port;
+  writeFileSync(join(dir, "manifest.donly"), manifestPayload(port));
   process.env.NO_PROXY = process.env.no_proxy = "";
   process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
   server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
@@ -82,7 +86,7 @@ afterAll(() => {
 const kubectlArgs = () => readFileSync(argsFile, "utf8").split("\0").slice(0, -1);
 
 for (const engine of ["curl", "node"] as const) {
-  test(`[command_pass.kubectl.${engine}] command_pass kubectl with engine ${engine} runs the request inside the pod`, async () => {
+  testFeature(payload, ["/proxy/route/command_pass/engine"], `command_pass kubectl with engine ${engine} runs the request inside the pod`, async () => {
     const res = await fetch(`http://127.0.0.1:${port}/${engine}/path?x=1`, {
       proxy,
       method: "POST",
@@ -108,13 +112,13 @@ for (const engine of ["curl", "node"] as const) {
   });
 }
 
-test("[command_pass.kubectl.default-engine] command_pass kubectl uses curl when no engine is given", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "command_pass kubectl uses curl when no engine is given", async () => {
   const res = await fetch(`http://127.0.0.1:${port}/default/`, { proxy });
   expect((await res.json()).url).toBe("/default/");
   expect(kubectlArgs().at(-1)).toContain("curl -K");
 });
 
-test("[command_pass.kubectl.no-shell-injection] request data never reaches the command line or a shell", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "request data never reaches the command line or a shell", async () => {
   const evil = `'; touch ${evilFile}; echo '`;
   for (const route of ["curl", "node"]) {
     const res = await fetch(`http://127.0.0.1:${port}/${route}/${encodeURIComponent(evil)}$(touch%20${evilFile})`, {
@@ -132,7 +136,7 @@ test("[command_pass.kubectl.no-shell-injection] request data never reaches the c
   expect(existsSync(evilFile)).toBe(false);
 });
 
-test("[command_pass.kubectl.error] kubectl failures are reported as a bad gateway", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "kubectl failures are reported as a bad gateway", async () => {
   const failing = join(dir, "failing");
   mkdirSync(failing);
   writeFileSync(join(failing, "kubectl"), '#!/bin/sh\necho \'Error from server (NotFound): pods "api-0" not found\' >&2\nexit 1\n');
@@ -147,7 +151,7 @@ test("[command_pass.kubectl.error] kubectl failures are reported as a bad gatewa
   }
 });
 
-test("[command_pass.kubectl.validation] manifest validation for kubectl", async () => {
+testFeature(manifest(`  route / {\n command_pass kubectl\n }`), ["/proxy/route/command_pass"], "manifest validation for kubectl", async () => {
   const load = (route: string) => {
     const file = join(dir, `v-${Math.random()}.donly`);
     writeFileSync(file, manifest(route));
@@ -157,7 +161,7 @@ test("[command_pass.kubectl.validation] manifest validation for kubectl", async 
   expect(load(`route / {\n command_pass kubectl pod/x {\n engine perl\n }\n }`)).rejects.toThrow("engine solo soporta");
 });
 
-test("[kubectl_pass] kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options", async () => {
+testFeature(payload, ["/proxy/route/kubectl_pass"], "kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options", async () => {
   const res = await fetch(`http://127.0.0.1:${port}/pass/path?x=1`, { proxy, method: "POST", body: "payload" });
   expect(res.status).toBe(200);
   expect(await res.json()).toMatchObject({ method: "POST", url: "/pass/path?x=1", body: "payload" });
@@ -168,7 +172,7 @@ test("[kubectl_pass] kubectl_pass with a nested command_pass curl runs the reque
   expect(args.at(-1)).toContain("'--max-time' '5'");
 });
 
-test("[kubectl_pass.validation] manifest validation for kubectl_pass", async () => {
+testFeature(manifest(`  route / {\n kubectl_pass {\n command_pass curl\n }\n }`), ["/proxy/route/kubectl_pass"], "manifest validation for kubectl_pass", async () => {
   const load = (route: string) => {
     const file = join(dir, `v-${Math.random()}.donly`);
     writeFileSync(file, manifest(route));

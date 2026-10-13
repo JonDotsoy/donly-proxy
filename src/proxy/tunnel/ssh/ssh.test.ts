@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { createProxyServer, loadConfig } from "../../server";
+import { testFeature } from "../../../utils/test_utils/test-feature/test-feature";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-ssh-"));
 const bin = join(dir, "bin");
@@ -33,12 +34,8 @@ let port: number;
 
 const manifest = (route: string) => `proxy {\n  host "127.0.0.1"\n  port 0\n${route}\n}\n`;
 
-beforeAll(async () => {
-  await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
-  port = (upstream.address() as AddressInfo).port;
-  writeFileSync(
-    join(dir, "manifest.donly"),
-    manifest(`  route http://127.0.0.1:${port}/curl/ {
+const manifestPayload = (port: number) =>
+  manifest(`  route http://127.0.0.1:${port}/curl/ {
     command_pass ssh "-p" "2222" "user@remote.test" {
       engine curl
     }
@@ -50,8 +47,15 @@ beforeAll(async () => {
   }
   route http://127.0.0.1:${port}/default/ {
     command_pass ssh "user@remote.test"
-  }`),
-  );
+  }`);
+
+// Representative payload of the tests below (they use the port of a real upstream).
+const payload = manifestPayload(8080);
+
+beforeAll(async () => {
+  await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  port = (upstream.address() as AddressInfo).port;
+  writeFileSync(join(dir, "manifest.donly"), manifestPayload(port));
   process.env.NO_PROXY = process.env.no_proxy = "";
   process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
   server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
@@ -72,7 +76,7 @@ afterAll(() => {
 const sshArgs = () => readFileSync(argsFile, "utf8").split("\0").slice(0, -1);
 
 for (const engine of ["curl", "node"] as const) {
-  test(`[command_pass.ssh.${engine}] command_pass ssh with engine ${engine} runs the request on the remote host`, async () => {
+  testFeature(payload, ["/proxy/route/command_pass/engine"], `command_pass ssh with engine ${engine} runs the request on the remote host`, async () => {
     const res = await fetch(`http://127.0.0.1:${port}/${engine}/path?x=1`, {
       proxy,
       method: "POST",
@@ -92,13 +96,13 @@ for (const engine of ["curl", "node"] as const) {
   });
 }
 
-test("[command_pass.ssh.default-engine] command_pass ssh uses curl when no engine is given", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "command_pass ssh uses curl when no engine is given", async () => {
   const res = await fetch(`http://127.0.0.1:${port}/default/`, { proxy });
   expect((await res.json()).url).toBe("/default/");
   expect(sshArgs().at(-1)).toContain("curl -K");
 });
 
-test("[command_pass.ssh.no-shell-injection] request data never reaches the remote command line or a shell", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "request data never reaches the remote command line or a shell", async () => {
   const evil = `'; touch ${evilFile}; echo '`;
   for (const route of ["curl", "node"]) {
     const res = await fetch(`http://127.0.0.1:${port}/${route}/${encodeURIComponent(evil)}$(touch%20${evilFile})`, {
@@ -116,7 +120,7 @@ test("[command_pass.ssh.no-shell-injection] request data never reaches the remot
   expect(existsSync(evilFile)).toBe(false);
 });
 
-test("[command_pass.ssh.error] ssh failures are reported as a bad gateway", async () => {
+testFeature(payload, ["/proxy/route/command_pass"], "ssh failures are reported as a bad gateway", async () => {
   const failing = join(dir, "failing");
   mkdirSync(failing);
   writeFileSync(join(failing, "ssh"), "#!/bin/sh\necho 'connection refused' >&2\nexit 255\n");
@@ -131,7 +135,7 @@ test("[command_pass.ssh.error] ssh failures are reported as a bad gateway", asyn
   }
 });
 
-test("[command_pass.ssh.validation] manifest validation for ssh and engine", async () => {
+testFeature(manifest(`  route / {\n command_pass ssh\n }`), ["/proxy/route/command_pass"], "manifest validation for ssh and engine", async () => {
   const load = (route: string) => {
     const file = join(dir, `v-${Math.random()}.donly`);
     writeFileSync(file, manifest(route));
