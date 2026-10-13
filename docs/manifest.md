@@ -84,6 +84,10 @@ peticiones descifradas que viajan por el túnel.
 route [MÉTODO] <patrón> {
   respond <estado> "<cuerpo>"
 }
+
+route {                      # sin argumentos: todas las peticiones
+  respond 404 "not found"
+}
 ```
 
 - **Método** (opcional): `GET`, `POST`, etc. Sin método, la ruta aplica a cualquier método.
@@ -91,6 +95,9 @@ route [MÉTODO] <patrón> {
   esquema, el host, la ruta y el query: `https://example.com/a/b?x=1`. No está anclada: busca
   coincidencia en cualquier parte de la URL. Ancla con `^` y `$` si lo necesitas, y recuerda
   que `.` coincide con cualquier carácter.
+- **Sin argumentos**: `route { … }` coincide con **todas** las peticiones (HTTP y HTTPS, cualquier
+  método). Como gana la primera ruta que coincide, ponla **al final**: las rutas declaradas
+  después de ella nunca se alcanzan.
 - **Orden**: gana la **primera** ruta que coincida; pon las más específicas arriba.
 - **Sin coincidencia**: el proxy responde `200 ok`.
 - Cada `route` debe tener **exactamente una** de estas acciones; con ninguna o con más de una,

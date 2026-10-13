@@ -99,7 +99,8 @@ export const loadConfig = async (
         }
         return {
           method: route.args.length > 1 ? String(route.args[0]).toUpperCase() : null,
-          pattern: new RegExp(String(route.args[route.args.length - 1])),
+          // `route { … }` without arguments matches every request.
+          pattern: route.args.length === 0 ? /(?:)/ : new RegExp(String(route.args[route.args.length - 1])),
           action: respond
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass

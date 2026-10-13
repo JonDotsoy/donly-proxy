@@ -17,7 +17,7 @@ Para declarar una feature nueva a partir de un ejemplo de manifest y de lo esper
 `bun run features`. `bun run features:check` (usado en CI) falla si el archivo está desactualizado.
 
 <!-- features:summary -->
-Soportadas: **46** · Soportadas y probadas: **40** · Sin pruebas: **6**
+Soportadas: **48** · Soportadas y probadas: **42** · Sin pruebas: **6**
 <!-- /features:summary -->
 
 | Feature | Descripción | Soportada | Probada | Tests |
@@ -32,6 +32,8 @@ Soportadas: **46** · Soportadas y probadas: **40** · Sin pruebas: **6**
 | `route.method` | `route` limitada a un método HTTP | ✅ | ✅ | route can be limited by method |
 | `route.first-match-wins` | Gana la primera `route` que coincide | ✅ | ❌ |  |
 | `route.no-match-ok` | Sin ruta que coincida responde `200 ok` | ✅ | ✅ | requests that match no route respond ok |
+| `route.catch-all` | `route { … }` sin argumentos coincide con todas las peticiones (HTTP y HTTPS, cualquier método) | ✅ | ✅ | a route without arguments matches every request<br>its pattern is a real wildcard, not the text 'undefined' |
+| `route.catch-all.order` | Las rutas declaradas antes tienen prioridad; la ruta sin argumentos recoge el resto | ✅ | ✅ | earlier routes win and the catch-all takes the rest |
 | `route.respond` | `respond <estado> "<cuerpo>"` | ✅ | ✅ | GET http://example.com through the proxy is answered by the route<br>GET https://example.com through the proxy is answered by the route |
 | `route.validation.single-action` | Cada `route` exige exactamente una acción (`respond`, `proxy_pass` o `command_pass`) | ✅ | ❌ |  |
 | `proxy_pass` | Reenvía método, ruta, query, cabeceras y cuerpo a otro servidor | ✅ | ✅ | proxy_pass forwards method, path, query and body to the target |
