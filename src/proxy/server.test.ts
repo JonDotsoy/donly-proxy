@@ -230,6 +230,7 @@ testFeature(snapshotPayload, ["/proxy/log_file"], "log_file snapshot", async (pa
     .filter((entry) => entry.type !== "listening")
     .map((entry) => {
       entry.timestamp = "<timestamp>";
+      delete entry.performance_timestamp; // a high-resolution clock reading: never the same twice
       if (entry.headers.date) entry.headers.date = "<date>";
       if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${ids.size + 1}>`);
       entry.transaction_id = ids.get(entry.transaction_id);
