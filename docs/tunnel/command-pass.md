@@ -200,9 +200,15 @@ ejecuta el host remoto:
 | --- | --- | --- |
 | `curl` (por defecto) | `curl` con la petición | `curl`, `base64`, `mktemp`, `sh` |
 | `node` | `node` con el mismo script que [`command_pass node`](#node) (`http.request` / `https.request`) | `node` |
+| `wget` | `wget -q -S -O -` (el estado y las cabeceras salen por stderr) | `wget` (BusyBox o GNU), `mktemp`, `cat`, `sh` |
 
-`engine` solo se admite con `ssh` y `kubectl`; con un valor distinto de `curl` / `node`, o con
+`engine` solo se admite con `ssh` y `kubectl`; con un valor distinto de `curl` / `node` / `wget`, o con
 otro comando, el arranque falla.
+
+`engine wget` solo puede hacer **GET y POST** (un cuerpo implica POST; el cuerpo se pasa a
+`--post-file` por un archivo temporal): cualquier otro método responde `502 bad gateway`. `wget`
+no descomprime ni entrega el cuerpo de las respuestas `4xx` / `5xx`; el proxy devuelve igualmente
+su estado y cabeceras, con el cuerpo vacío.
 
 ### Seguridad: los datos de la petición no pasan por el shell remoto
 
@@ -264,13 +270,14 @@ kubectl). El `<comando>` es `sh -c '<línea fija>'` con `engine curl`, y
 
 ### `engine`
 
-Igual que en [`ssh`](#engine): `curl` (por defecto) o `node`. Lo que debe existir **dentro del
+Igual que en [`ssh`](#engine): `curl` (por defecto), `node` o `wget`. Lo que debe existir **dentro del
 contenedor**:
 
 | `engine` | Requiere en el contenedor |
 | --- | --- |
 | `curl` | `sh`, `curl`, `base64` y `mktemp` |
 | `node` | `node` |
+| `wget` | `sh`, `wget`, `mktemp` y `cat` |
 
 ### Seguridad
 
@@ -291,3 +298,27 @@ forma exacta de `kubectl exec`, que ningún dato de la petición llega al shell,
 y la validación del manifiesto.
 
 Ver también: [`proxy_pass`](proxy-pass.md), [referencia del manifiesto](../manifest.md).
+
+## kubectl_pass
+
+Forma anidada de [`command_pass kubectl`](#kubectl): la directiva nombra el pod y el
+`command_pass` hijo nombra **qué comando se ejecuta dentro** (`curl`, `wget` o `node`), con sus
+opciones.
+
+```
+route https?://api.internal/ {
+  kubectl_pass "-n" "prod" "--context" "dev" "deploy/api" {
+    command_pass curl "--max-time" "5"
+  }
+}
+```
+
+- Los argumentos de `kubectl_pass` son los de `command_pass kubectl`: opciones de
+  `kubectl exec` seguidas del destino (último). Sin destino, el arranque falla.
+- Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
+  comando, o sin hijo, el arranque falla. Sus argumentos son **opciones adicionales del comando
+  remoto** (`curl`: tras los flags fijos; `wget`: antes de la URL; `node`: antes del script, sin
+  espacios). Siguen las mismas reglas de `engine` (`wget` solo GET y POST).
+- [`concurrency`](#concurrencia) va dentro del `command_pass` hijo.
+- Un `route` no puede combinar `kubectl_pass` con otra acción.
+- El `log_file` registra el `kubectl exec …` completo, igual que con `command_pass kubectl`.

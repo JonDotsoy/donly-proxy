@@ -25,7 +25,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[] };
+    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[] };
 }
 
 export interface ProxyConfig {
@@ -69,10 +69,41 @@ export const loadConfig = async (
         const respond = child("respond", route);
         const proxyPass = child("proxy_pass", route);
         const commandPass = child("command_pass", route);
-        if ([respond, proxyPass, commandPass].filter(Boolean).length !== 1) {
+        const kubectlPass = child("kubectl_pass", route);
+        if ([respond, proxyPass, commandPass, kubectlPass].filter(Boolean).length !== 1) {
           throw new Error(
-            `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\` o \`command_pass\``,
+            `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\`, \`command_pass\` o \`kubectl_pass\``,
           );
+        }
+        const method = route.args.length > 1 ? String(route.args[0]).toUpperCase() : null;
+        // `route { … }` without arguments matches every request.
+        const pattern = route.args.length === 0 ? /(?:)/ : new RegExp(String(route.args[route.args.length - 1]));
+        if (kubectlPass) {
+          // kubectl_pass <kubectl options…> <target> { command_pass <curl|wget|node> [options…] }
+          const inner = child("command_pass", kubectlPass);
+          const innerCommand = inner?.args[0];
+          if (kubectlPass.args.length < 1) {
+            throw new Error(`route ${name}: kubectl_pass requiere el destino (pod o tipo/nombre)`);
+          }
+          if (!inner || (innerCommand !== "curl" && innerCommand !== "wget" && innerCommand !== "node")) {
+            throw new Error(`route ${name}: kubectl_pass requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
+          }
+          const innerConcurrency = child("concurrency", inner)?.args[0];
+          if (innerConcurrency !== undefined && !(typeof innerConcurrency === "number" && Number.isInteger(innerConcurrency) && innerConcurrency >= 1)) {
+            throw new Error(`route ${name}: concurrency debe ser un entero positivo, no "${innerConcurrency}"`);
+          }
+          return {
+            method,
+            pattern,
+            action: {
+              kind: "command_pass",
+              command: "kubectl",
+              engine: innerCommand,
+              concurrency: Number(innerConcurrency ?? 1),
+              args: kubectlPass.args.map(String),
+              engineArgs: inner.args.slice(1).map(String),
+            },
+          };
         }
         if (commandPass && !["curl", "node", "ssh", "kubectl"].includes(String(commandPass.args[0]))) {
           throw new Error(`route ${name}: command_pass solo soporta "curl", "node", "ssh" y "kubectl", no "${commandPass.args[0]}"`);
@@ -89,8 +120,8 @@ export const loadConfig = async (
         if (engine !== undefined && !remote) {
           throw new Error(`route ${name}: engine solo aplica a command_pass ssh y kubectl`);
         }
-        if (engine !== undefined && engine !== "curl" && engine !== "node") {
-          throw new Error(`route ${name}: engine solo soporta "curl" y "node", no "${engine}"`);
+        if (engine !== undefined && engine !== "curl" && engine !== "node" && engine !== "wget") {
+          throw new Error(`route ${name}: engine solo soporta "curl", "node" y "wget", no "${engine}"`);
         }
         if (remote && commandPass!.args.length < 2) {
           throw new Error(
@@ -98,9 +129,8 @@ export const loadConfig = async (
           );
         }
         return {
-          method: route.args.length > 1 ? String(route.args[0]).toUpperCase() : null,
-          // `route { … }` without arguments matches every request.
-          pattern: route.args.length === 0 ? /(?:)/ : new RegExp(String(route.args[route.args.length - 1])),
+          method,
+          pattern,
           action: respond
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
@@ -184,6 +214,7 @@ const commandPass = async (
   command: Command,
   engine: Engine | undefined,
   args: string[],
+  engineArgs: string[] | undefined,
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
@@ -194,7 +225,7 @@ const commandPass = async (
   }
   let executed: string[] | undefined;
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, onCommand: (c: string[]) => (executed = c) };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, onCommand: (c: string[]) => (executed = c) };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -267,7 +298,7 @@ export const createProxyServer = ({
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs);
         } finally {
           release();
         }

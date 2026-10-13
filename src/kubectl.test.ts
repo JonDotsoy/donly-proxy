@@ -53,6 +53,11 @@ beforeAll(async () => {
       engine node
     }
   }
+  route http://127.0.0.1:${port}/pass/ {
+    kubectl_pass "-n" "prod" "deploy/api" {
+      command_pass curl "--max-time" "5"
+    }
+  }
   route http://127.0.0.1:${port}/default/ {
     command_pass kubectl "pod/api-0"
   }`),
@@ -149,5 +154,29 @@ test("[command_pass.kubectl.validation] manifest validation for kubectl", async 
     return loadConfig(file);
   };
   expect(load(`route / {\n command_pass kubectl\n }`)).rejects.toThrow("pod o tipo/nombre");
-  expect(load(`route / {\n command_pass kubectl pod/x {\n engine wget\n }\n }`)).rejects.toThrow("engine solo soporta");
+  expect(load(`route / {\n command_pass kubectl pod/x {\n engine perl\n }\n }`)).rejects.toThrow("engine solo soporta");
+});
+
+test("[kubectl_pass] kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options", async () => {
+  const res = await fetch(`http://127.0.0.1:${port}/pass/path?x=1`, { proxy, method: "POST", body: "payload" });
+  expect(res.status).toBe(200);
+  expect(await res.json()).toMatchObject({ method: "POST", url: "/pass/path?x=1", body: "payload" });
+  const args = kubectlArgs();
+  expect(args.slice(0, 6)).toEqual(["exec", "-i", "-q", "-n", "prod", "deploy/api"]);
+  expect(args.slice(args.indexOf("--") + 1, args.indexOf("--") + 3)).toEqual(["sh", "-c"]);
+  expect(args.at(-1)).toContain("curl -K");
+  expect(args.at(-1)).toContain("'--max-time' '5'");
+});
+
+test("[kubectl_pass.validation] manifest validation for kubectl_pass", async () => {
+  const load = (route: string) => {
+    const file = join(dir, `v-${Math.random()}.donly`);
+    writeFileSync(file, manifest(route));
+    return loadConfig(file);
+  };
+  expect(load(`route / {\n kubectl_pass {\n command_pass curl\n }\n }`)).rejects.toThrow("pod o tipo/nombre");
+  expect(load(`route / {\n kubectl_pass pod/x\n }`)).rejects.toThrow("requiere un command_pass hijo");
+  expect(load(`route / {\n kubectl_pass pod/x {\n command_pass ssh\n }\n }`)).rejects.toThrow('no "ssh"');
+  expect(load(`route / {\n kubectl_pass pod/x {\n command_pass curl {\n concurrency 0\n }\n }\n }`)).rejects.toThrow("entero positivo");
+  expect(load(`route / {\n respond 200 "x"\n kubectl_pass pod/x {\n command_pass curl\n }\n }`)).rejects.toThrow("exactamente uno");
 });
