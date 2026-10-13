@@ -79,7 +79,7 @@ const mask = (entries: any[]) => {
   const ids = new Map<string, string>();
   return entries.map((entry) => {
     if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${ids.size + 1}>`);
-    return { ...entry, timestamp: "<timestamp>", transaction_id: ids.get(entry.transaction_id), headers: { ...entry.headers, ...(entry.headers.date && { date: "<date>" }) } };
+    return { ...entry, timestamp: "<timestamp>", performance_timestamp: "<performance>", transaction_id: ids.get(entry.transaction_id), ...(entry.headers && { headers: { ...entry.headers, ...(entry.headers.date && { date: "<date>" }) } }) };
   });
 };
 
@@ -98,12 +98,33 @@ cluster(manifestPayload, ["/proxy/route/kubectl_pass"], "echo-pod is not reachab
   expect(res.headers.get("x-echo")).toBe("yes");
   expect(await res.json()).toMatchObject({ method: "POST", url: "/via-conn-pod?x=1", custom: "abc", body: "payload" });
 
-  // The proxy log shows the request left through conn-pod.
-  const [request, response] = readLog().slice(before);
-  expect(request).toMatchObject({ type: "request", method: "POST", url: `http://${HOST}/via-conn-pod?x=1` });
-  expect(response).toMatchObject({ type: "response", status: 200, transaction_id: request.transaction_id });
+  // The proxy log of the transaction: request, kubectl, node, node exit, kubectl end and response, in that order.
+  const entries = readLog().slice(before);
+  expect(entries.map((entry) => [entry.type, entry.program])).toEqual([
+    ["request", undefined],
+    ["command", "kubectl"],
+    ["command", "node"],
+    ["command_exit", "node"],
+    ["command_exit", "kubectl"],
+    ["response", undefined],
+  ]);
+  const [request, kubectlStart, nodeStart, nodeExit, kubectlExit, response] = entries;
+  expect(request).toMatchObject({ method: "POST", url: `http://${HOST}/via-conn-pod?x=1` });
+  expect(kubectlStart.command).toEqual(["kubectl", "exec", "-i", "-q", "--context", CONTEXT, "--namespace", NAMESPACE, "conn-pod", "--", "node", "--input-type=module", "-"]);
+  expect(nodeStart.command).toEqual(["node", "--input-type=module", "-"]);
+  expect(nodeExit.exit_code).toBe(0);
+  expect(kubectlExit.exit_code).toBe(0);
+  expect(response).toMatchObject({ status: 200 });
   expect(response.command.slice(0, 3)).toEqual(["kubectl", "exec", "-i"]);
-  expect(response.command).toContain("conn-pod");
+
+  // Every entry shares the transaction id and carries a ms timestamp plus a Performance API one.
+  for (const entry of entries) {
+    expect(entry.transaction_id).toBe(request.transaction_id);
+    expect(entry.timestamp).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+    expect(entry.performance_timestamp).toBeTypeOf("number");
+  }
+  const times = entries.map((entry) => entry.performance_timestamp);
+  expect(times).toEqual([...times].sort((x, y) => x - y));
   expect(mask(readLog().slice(before))).toMatchSnapshot();
 }, 60_000);
 

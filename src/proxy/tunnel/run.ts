@@ -14,6 +14,7 @@ export const run = (
   onCommand?: (command: string[]) => void,
   /** Extra environment variables for the process (secrets go here, never in `argv`). */
   env?: Record<string, string>,
+  onExit?: (code: number | null) => void,
 ) =>
   new Promise<RunResult>((resolve, reject) => {
     onCommand?.([command, ...argv]);
@@ -25,5 +26,8 @@ export const run = (
     child.on("error", reject);
     child.stdin.on("error", () => {});
     child.stdin.end(input);
-    child.on("close", (code) => resolve({ code, stdout: Buffer.concat(out), stderr: Buffer.concat(err) }));
+    child.on("close", (code) => {
+      onExit?.(code);
+      resolve({ code, stdout: Buffer.concat(out), stderr: Buffer.concat(err) });
+    });
   });

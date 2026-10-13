@@ -93,7 +93,9 @@ const readLog = (): any[] => {
 const logged = async (url: string) => {
   const before = readLog().length;
   await (await fetch(url, { proxy })).text();
-  const [request, response] = readLog().slice(before);
+  const entries = readLog().slice(before);
+  const request = entries.find((entry) => entry.type === "request");
+  const response = entries.find((entry) => entry.type === "response");
   return { request, response };
 };
 

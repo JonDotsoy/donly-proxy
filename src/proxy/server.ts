@@ -334,6 +334,7 @@ const commandPass = async (
   args: string[],
   engineArgs: string[] | undefined,
   password: string | undefined,
+  emit: (entry: Record<string, unknown>) => void,
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
@@ -343,8 +344,20 @@ const commandPass = async (
     }
   }
   let executed: string[] | undefined;
+  // kubectl runs the engine after `--`: both programs are logged, and the exit code of kubectl
+  // is the one of the engine (`kubectl exec` forwards it).
+  const onCommand = (c: string[]) => {
+    executed = c;
+    emit({ type: "command", program: c[0], command: c });
+    const remote = command === "kubectl" ? c.indexOf("--") : -1;
+    if (remote >= 0) emit({ type: "command", program: c[remote + 1], command: c.slice(remote + 1) });
+  };
+  const onExit = (code: number | null) => {
+    if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code });
+    emit({ type: "command_exit", program: executed?.[0], exit_code: code });
+  };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand: (c: string[]) => (executed = c) };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onExit };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -396,7 +409,8 @@ export const createProxyServer = ({
   if (logFile) mkdirSync(dirname(logFile), { recursive: true });
 
   const log = (entry: Record<string, unknown>) => {
-    if (logFile) appendFileSync(logFile, JSON.stringify({ timestamp: new Date().toISOString(), ...entry }) + "\n");
+    // `timestamp` is the wall clock (ms); `performance_timestamp` is the exact moment from the Performance API.
+    if (logFile) appendFileSync(logFile, JSON.stringify({ timestamp: new Date().toISOString(), performance_timestamp: performance.timeOrigin + performance.now(), ...entry }) + "\n");
   };
 
   // One semaphore per command_pass route: `concurrency` processes at a time, the rest queue up.
@@ -406,7 +420,7 @@ export const createProxyServer = ({
     return limits.get(route)!;
   };
 
-  const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string) => {
+  const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string, emit: (entry: Record<string, unknown>) => void) => {
     const action = route?.action;
     if (!route || !action) return text(200, "ok");
     switch (action.kind) {
@@ -417,7 +431,7 @@ export const createProxyServer = ({
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password, emit);
         } finally {
           release();
         }
@@ -439,7 +453,7 @@ export const createProxyServer = ({
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
-    const reply = await answer(route, req, body, url);
+    const reply = await answer(route, req, body, url, (entry) => log({ ...transaction, ...entry }));
 
     log({
       ...transaction,
