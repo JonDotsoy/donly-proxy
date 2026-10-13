@@ -1,0 +1,16 @@
+{
+  "name": "donly-proxy",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/cli/main.ts",
+    "test": "bun test",
+    "features": "bun scripts/features.ts",
+    "features:check": "bun scripts/features.ts --check"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "donly": "^0.0.32"
+  }
+}

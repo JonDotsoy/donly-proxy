@@ -1,0 +1,56 @@
+# Two pods for kubectl_pass:
+#   conn-pod  the pod `kubectl_pass` execs into (it only has to keep running and have node).
+#   echo-pod  receives the request and prints one JSON line per request (see `kubectl logs echo-pod`).
+# echo-pod is not exposed: its Service is a ClusterIP, so only pods in the cluster (conn-pod) reach it.
+# Kubernetes names cannot contain "_": the pods are conn-pod / echo-pod.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: donly-proxy-two-pods
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: conn-pod
+  namespace: donly-proxy-two-pods
+  labels: { app: conn-pod }
+spec:
+  containers:
+    - name: conn
+      image: localhost/donly-proxy-echo:test
+      imagePullPolicy: Never
+      command: ["sleep", "infinity"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: echo-pod
+  namespace: donly-proxy-two-pods
+  labels: { app: echo-pod }
+spec:
+  containers:
+    - name: echo
+      image: localhost/donly-proxy-echo:test
+      imagePullPolicy: Never
+      ports: [{ containerPort: 8080 }]
+      command:
+        - node
+        - -e
+        - |
+          require("node:http").createServer(async (req, res) => {
+            const body = Buffer.concat(await Array.fromAsync(req)).toString();
+            const entry = { method: req.method, url: req.url, headers: req.headers, custom: req.headers["x-custom"], body };
+            console.log(JSON.stringify(entry));
+            res.setHeader("x-echo", "yes");
+            res.end(JSON.stringify(entry));
+          }).listen(8080);
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-pod
+  namespace: donly-proxy-two-pods
+spec:
+  type: ClusterIP
+  selector: { app: echo-pod }
+  ports: [{ port: 80, targetPort: 8080 }]

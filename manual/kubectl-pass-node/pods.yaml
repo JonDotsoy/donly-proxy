@@ -1,0 +1,44 @@
+# conn-pod: the pod `kubectl_pass` execs into (needs node). echo-pod: receives the request, only reachable from inside the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: donly-manual
+---
+apiVersion: v1
+kind: Pod
+metadata: { name: conn-pod, namespace: donly-manual, labels: { app: conn-pod } }
+spec:
+  containers:
+    - name: conn
+      image: localhost/donly-manual-echo:test
+      imagePullPolicy: Never
+      command: ["sleep", "infinity"]
+---
+apiVersion: v1
+kind: Pod
+metadata: { name: echo-pod, namespace: donly-manual, labels: { app: echo-pod } }
+spec:
+  containers:
+    - name: echo
+      image: localhost/donly-manual-echo:test
+      imagePullPolicy: Never
+      ports: [{ containerPort: 8080 }]
+      command:
+        - node
+        - -e
+        - |
+          require("node:http").createServer(async (req, res) => {
+            const body = Buffer.concat(await Array.fromAsync(req)).toString();
+            const entry = { method: req.method, url: req.url, custom: req.headers["x-custom"], body };
+            console.log(JSON.stringify(entry));
+            res.setHeader("x-echo", "yes");
+            res.end(JSON.stringify(entry));
+          }).listen(8080);
+---
+apiVersion: v1
+kind: Service
+metadata: { name: echo-pod, namespace: donly-manual }
+spec:
+  type: ClusterIP
+  selector: { app: echo-pod }
+  ports: [{ port: 80, targetPort: 8080 }]
