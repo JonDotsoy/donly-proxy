@@ -453,7 +453,9 @@ Kubernetes no admiten `_`, por eso son `conn-pod` y `echo-pod`.
 
 ```
 route {
-  kubectl_pass "-n" "donly-proxy-two-pods" "conn-pod" {
+  kubectl_pass "conn-pod" {
+    context kind-kind-cluster
+    namespace donly-proxy-two-pods
     command_pass node
   }
 }

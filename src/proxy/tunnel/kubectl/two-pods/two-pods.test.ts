@@ -21,7 +21,9 @@ const manifestPayload = `proxy {
   port 0
   log_file "./proxy.ndjson"
   route {
-    kubectl_pass "--context" "${CONTEXT}" "-n" "${NAMESPACE}" "conn-pod" {
+    kubectl_pass "conn-pod" {
+      context ${CONTEXT}
+      namespace ${NAMESPACE}
       command_pass node
     }
   }
