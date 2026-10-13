@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DON } from "donly";
 import { ensureCerts } from "./certs";
 import { curl } from "./curl";
+import { Semaphore } from "./semaphore";
 import { nodeRequest } from "./node";
 import type { Engine } from "./remote";
 import { sshRequest } from "./ssh";
@@ -24,7 +25,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: Command; engine?: Engine; args: string[] };
+    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[] };
 }
 
 export interface ProxyConfig {
@@ -76,6 +77,13 @@ export const loadConfig = async (
         if (commandPass && !["curl", "node", "ssh", "kubectl"].includes(String(commandPass.args[0]))) {
           throw new Error(`route ${name}: command_pass solo soporta "curl", "node", "ssh" y "kubectl", no "${commandPass.args[0]}"`);
         }
+        const concurrencyValue = commandPass && child("concurrency", commandPass)?.args[0];
+        if (
+          concurrencyValue !== undefined &&
+          !(typeof concurrencyValue === "number" && Number.isInteger(concurrencyValue) && concurrencyValue >= 1)
+        ) {
+          throw new Error(`route ${name}: concurrency debe ser un entero positivo, no "${concurrencyValue}"`);
+        }
         const engine = commandPass && child("engine", commandPass)?.args[0];
         const remote = commandPass?.args[0] === "ssh" || commandPass?.args[0] === "kubectl";
         if (engine !== undefined && !remote) {
@@ -96,7 +104,7 @@ export const loadConfig = async (
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
               ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
-              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", args: commandPass!.args.slice(1).map(String) },
+              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", concurrency: Number(concurrencyValue ?? 1), args: commandPass!.args.slice(1).map(String) },
         };
       }),
   };
@@ -236,6 +244,32 @@ export const createProxyServer = ({
     if (logFile) appendFileSync(logFile, JSON.stringify({ timestamp: new Date().toISOString(), ...entry }) + "\n");
   };
 
+  // One semaphore per command_pass route: `concurrency` processes at a time, the rest queue up.
+  const limits = new Map<Route, Semaphore>();
+  const limitOf = (route: Route, concurrency: number) => {
+    if (!limits.has(route)) limits.set(route, new Semaphore(concurrency));
+    return limits.get(route)!;
+  };
+
+  const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string) => {
+    const action = route?.action;
+    if (!route || !action) return text(200, "ok");
+    switch (action.kind) {
+      case "respond":
+        return text(action.status, action.body);
+      case "proxy_pass":
+        return forward(req, body, url, action.target);
+      case "command_pass": {
+        const release = await limitOf(route, action.concurrency).acquire();
+        try {
+          return await commandPass(req, body, url, action.command, action.engine, action.args);
+        } finally {
+          release();
+        }
+      }
+    }
+  };
+
   const server = http.createServer(async (req, res) => {
     const url = requestUrl(req);
     const body = Buffer.concat(await Array.fromAsync(req));
@@ -250,14 +284,7 @@ export const createProxyServer = ({
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
-    const reply =
-      route?.action.kind === "proxy_pass"
-        ? await forward(req, body, url, route.action.target)
-        : route?.action.kind === "command_pass"
-          ? await commandPass(req, body, url, route.action.command, route.action.engine, route.action.args)
-          : route?.action.kind === "respond"
-          ? text(route.action.status, route.action.body)
-          : text(200, "ok");
+    const reply = await answer(route, req, body, url);
 
     log({ ...transaction, type: "response", status: reply.status, headers: reply.headers, ...encodePayload(reply.body) });
     res.writeHead(reply.status, reply.headers);

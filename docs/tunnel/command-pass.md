@@ -20,12 +20,36 @@ route https://example.com/ {
 ```
 
 El primer argumento es el comando (cualquier otro hace fallar el arranque). Los argumentos
-siguientes, opcionales, son **opciones adicionales del comando**, una por cadena.
+siguientes, opcionales, son **opciones adicionales del comando**, una por cadena. Directivas
+hijas opcionales: [`concurrency`](#concurrencia) y, con `ssh` / `kubectl`, [`engine`](#engine).
 
 En ambos casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
 `PATH`, y si falla, no está instalado o no devuelve una respuesta válida el proxy contesta
 `502 bad gateway: <comando> exited with <código>: <salida>`. Las cabeceras de conexión, `host`,
 `content-length` y `content-encoding` no se devuelven al cliente.
+
+## Concurrencia
+
+Por defecto, cada `command_pass` ejecuta **un solo proceso a la vez**: si llegan más peticiones a
+la misma ruta mientras hay un proceso en curso, esperan en una cola y se atienden en **orden de
+llegada**. Para permitir varios procesos en paralelo, usa la directiva hija `concurrency`:
+
+```
+route https?://example.com/ {
+  command_pass curl {
+    concurrency 4
+  }
+}
+```
+
+- El valor debe ser un **entero positivo**; con otro (`0`, negativo, decimal, texto) el arranque
+  falla con `concurrency debe ser un entero positivo`.
+- El límite es **por ruta**: cada `route` con `command_pass` tiene su propia cola y su propio
+  límite (rutas distintas no se bloquean entre sí). Vale para todos los comandos (`curl`, `node`,
+  `ssh`, `kubectl`).
+- No hay límite de espera: las peticiones en cola esperan hasta que se libera un lugar.
+- Un proceso que falla (o responde `502`) libera su lugar igual que uno que termina bien.
+- `proxy_pass` y `respond` no se ven afectados.
 
 ## curl
 

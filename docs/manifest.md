@@ -128,6 +128,7 @@ route https?://example.com/ {
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass o command_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |
+| `concurrency` que no es un entero positivo | `route …: concurrency debe ser un entero positivo, no "…"` |
 | `engine` distinto de `curl` / `node`, o usado fuera de `ssh` y `kubectl` | `route …: engine solo soporta …` / `engine solo aplica a command_pass ssh y kubectl` |
 | Patrón de `route` que no es una regex válida | Error de `RegExp` |
 | `proxy_pass` con una URL inválida | Error de `URL` |

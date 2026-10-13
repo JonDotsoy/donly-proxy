@@ -17,7 +17,7 @@ Para declarar una feature nueva a partir de un ejemplo de manifest y de lo esper
 `bun run features`. `bun run features:check` (usado en CI) falla si el archivo está desactualizado.
 
 <!-- features:summary -->
-Soportadas: **40** · Soportadas y probadas: **34** · Sin pruebas: **6**
+Soportadas: **44** · Soportadas y probadas: **38** · Sin pruebas: **6**
 <!-- /features:summary -->
 
 | Feature | Descripción | Soportada | Probada | Tests |
@@ -59,6 +59,10 @@ Soportadas: **40** · Soportadas y probadas: **34** · Sin pruebas: **6**
 | `command_pass.kubectl.no-shell-injection` | Los datos de la petición no llegan al shell del contenedor | ✅ | ✅ | request data never reaches the command line or a shell |
 | `command_pass.kubectl.error` | `502 bad gateway` si `kubectl` falla | ✅ | ✅ | kubectl failures are reported as a bad gateway |
 | `command_pass.kubectl.validation` | Validación del manifest para `kubectl` y `engine` | ✅ | ✅ | manifest validation for kubectl |
+| `command_pass.concurrency.default` | `command_pass` ejecuta un proceso a la vez por defecto; las demás peticiones esperan en cola | ✅ | ✅ | runs one process at a time by default |
+| `command_pass.concurrency.limit` | `concurrency <n>` permite hasta `n` procesos en paralelo por ruta | ✅ | ✅ | concurrency <n> allows n processes in parallel<br>each route has its own limit<br>loadConfig reads concurrency, defaulting to 1 |
+| `command_pass.concurrency.queue` | Las peticiones en espera se atienden en orden de llegada y un fallo libera el lugar | ✅ | ✅ | waiting requests are served in arrival order<br>a failing process frees its place for the next request |
+| `command_pass.concurrency.validation` | `concurrency` debe ser un entero positivo | ✅ | ✅ | concurrency must be a positive integer |
 | `command_pass.validation` | `command_pass` rechaza comandos desconocidos | ✅ | ✅ | command_pass only supports known commands |
 | `log_file.transactions` | Una línea `request` y otra `response` por transacción, con `transaction_id` compartido | ✅ | ✅ | log_file records request and response sharing a transaction id<br>fetch through the proxy goes through it and is logged |
 | `log_file.ndjson-only` | `log_file` solo admite la extensión `.ndjson` | ✅ | ✅ | log_file only supports .ndjson |
