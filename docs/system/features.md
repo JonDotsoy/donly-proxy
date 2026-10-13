@@ -12,7 +12,8 @@ Tabla de las features del proxy, si están **soportadas** y si están **probadas
 - **Probada**: ✅ hay al menos un test y todos pasan · 🔴 algún test de la feature falla · ❌ no hay
   tests.
 
-Para agregar una feature: añade una fila `| \`id\` | descripción | ✅ | | |` y ejecuta
+Para declarar una feature nueva a partir de un ejemplo de manifest y de lo esperado, usa el skill
+`/new-feature` (`.claude/skills/new-feature/SKILL.md`). Para agregarla a mano: añade una fila `| \`id\` | descripción | ✅ | | |` y ejecuta
 `bun run features`. `bun run features:check` (usado en CI) falla si el archivo está desactualizado.
 
 <!-- features:summary -->
