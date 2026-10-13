@@ -43,9 +43,12 @@ testFeature(`proxy {\n  host "0.0.0.0"\n  port 0\n}\n`, ["/proxy/host"], "should
   expect((await load(payload)).host).toBe("0.0.0.0");
 });
 
+// The IPv6 tests need a host with IPv6 support: run them with DONLY_TEST_IPV6=1.
+const ipv6 = process.env.DONLY_TEST_IPV6 ? testFeature : testFeature.skip;
+
 // IPv6: `::1` is the loopback address and `::` all the interfaces.
 for (const host of ["::1", "::"]) {
-  testFeature(
+  ipv6(
     `proxy {\n  host "${host}"\n  port 0\n  route {\n    respond 200 "ok"\n  }\n}\n`,
     ["/proxy/host"],
     `should listen on the IPv6 host ${host}`,
@@ -70,7 +73,7 @@ for (const host of ["::1", "::"]) {
 
 // Other notations of the same IPv6 loopback address: the proxy listens on `::1` whatever the spelling.
 for (const host of ["0:0:0:0:0:0:0:1", "0000:0000:0000:0000:0000:0000:0000:0001", "::0001", "0::1", "[::1]"]) {
-  testFeature(
+  ipv6(
     `proxy {\n  host "${host}"\n  port 0\n  route {\n    respond 200 "ok"\n  }\n}\n`,
     ["/proxy/host"],
     `should accept the IPv6 notation ${host}`,
@@ -92,7 +95,7 @@ for (const host of ["0:0:0:0:0:0:0:1", "0000:0000:0000:0000:0000:0000:0000:0001"
 }
 
 // An IPv4-mapped IPv6 address is reachable through its IPv4 form.
-testFeature(
+ipv6(
   `proxy {\n  host "::ffff:127.0.0.1"\n  port 0\n  route {\n    respond 200 "ok"\n  }\n}\n`,
   ["/proxy/host"],
   "should accept the IPv4-mapped IPv6 notation ::ffff:127.0.0.1",
