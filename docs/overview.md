@@ -14,7 +14,7 @@ bun src/cli/main.ts otro.donly     # usa otro manifiesto
 bun test
 ```
 
-Con el servidor levantado (puerto 8080 por defecto):
+Con el servidor levantado (el `manifest.donly` de la raíz usa el puerto 8080; sin `port` se asigna uno libre y se imprime al arrancar):
 
 ```sh
 curl -x http://127.0.0.1:8080 http://example.com/            # -> ok

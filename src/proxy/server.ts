@@ -56,7 +56,7 @@ export const loadConfig = async (
 
   return {
     host: String(child("host")?.args[0] ?? "127.0.0.1"),
-    port: Number(child("port")?.args[0] ?? 8080),
+    port: Number(child("port")?.args[0] ?? 0),
     ssl: {
       cert: resolve(String(child("cert", ssl)?.args[0] ?? "./certs/cert.pem")),
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),

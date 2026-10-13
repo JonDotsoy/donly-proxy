@@ -29,7 +29,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 | Directiva | Valor | Por defecto | Descripción |
 | --- | --- | --- | --- |
 | `host` | string | `"127.0.0.1"` | Dirección en la que escucha. |
-| `port` | número | `8080` | Puerto. `0` asigna uno libre. |
+| `port` | número | `0` | Puerto. Si se omite o es `0`, el sistema asigna uno libre. |
 | `ssl` | bloque | ver abajo | Certificado usado para terminar el TLS de los túneles `CONNECT`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |
 | `route` | bloque | sin rutas | Regla por petición. Se pueden declarar varias. |
