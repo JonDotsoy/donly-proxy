@@ -1,33 +1,37 @@
-import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { CurlRequest, CurlResponse } from "./curl";
+import { run, type RunResult } from "./run";
 
 const script = fileURLToPath(new URL("./node-request.mjs", import.meta.url));
+
+export const scriptSource = () => readFileSync(script, "utf8");
+
+/** The request in the JSON shape `node-request.mjs` expects. */
+export const nodeInput = ({ method, url, headers, body }: CurlRequest) => ({
+  method,
+  url,
+  headers,
+  body: body.toString("base64"),
+});
+
+/** Turns what `node-request.mjs` wrote into a response, or throws. */
+export const parseNodeResult = ({ code, stdout, stderr }: RunResult, label = "node"): CurlResponse => {
+  if (code !== 0) {
+    throw new Error(`${label} exited with ${code}: ${stderr.toString().trim() || "no output"}`);
+  }
+  try {
+    const result = JSON.parse(stdout.toString());
+    return { status: result.status, headers: result.headers, body: Buffer.from(result.body, "base64") };
+  } catch {
+    throw new Error(`${label} returned an invalid response: ${stderr.toString().trim()}`);
+  }
+};
 
 /**
  * Hands a request over to a `node` process that performs it with
  * `http.request` / `https.request` (see `node-request.mjs`).
  * `args` are extra node options, placed before the script.
  */
-export const nodeRequest = ({ method, url, headers, body, args }: CurlRequest) =>
-  new Promise<CurlResponse>((resolve, reject) => {
-    const child = spawn("node", [...args, script], { stdio: ["pipe", "pipe", "pipe"] });
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
-    child.stdout.on("data", (chunk) => out.push(chunk));
-    child.stderr.on("data", (chunk) => err.push(chunk));
-    child.on("error", reject);
-    child.stdin.on("error", () => {});
-    child.stdin.end(JSON.stringify({ method, url, headers, body: body.toString("base64") }));
-    child.on("close", (code) => {
-      if (code !== 0) {
-        return reject(new Error(`node exited with ${code}: ${Buffer.concat(err).toString().trim() || "no output"}`));
-      }
-      try {
-        const result = JSON.parse(Buffer.concat(out).toString());
-        resolve({ status: result.status, headers: result.headers, body: Buffer.from(result.body, "base64") });
-      } catch {
-        reject(new Error(`node returned an invalid response: ${Buffer.concat(err).toString().trim()}`));
-      }
-    });
-  });
+export const nodeRequest = async (request: CurlRequest) =>
+  parseNodeResult(await run("node", [...request.args, script], JSON.stringify(nodeInput(request))));

@@ -1,7 +1,7 @@
 # `command_pass`
 
 Pasa la petición a un comando externo, que la ejecuta contra su URL original. Comandos
-soportados: [`curl`](#curl) y [`node`](#node).
+soportados: [`curl`](#curl), [`node`](#node) y [`ssh`](#ssh).
 
 ```
 route http://example.com/ {
@@ -10,6 +10,12 @@ route http://example.com/ {
 
 route https://example.com/ {
   command_pass node "--no-warnings"
+}
+
+route https://example.com/ {
+  command_pass ssh "-p" "2222" "user@gateway.example.com" {
+    engine node
+  }
 }
 ```
 
@@ -125,5 +131,68 @@ El proxy se comunica con el script mediante JSON:
 del `PATH`, y comprueba que el proxy lanza `node --no-warnings …/node-request.mjs`, que la
 petición llega a un servidor HTTP y a uno HTTPS con método, cabeceras, ruta, query y cuerpo
 correctos, y que un destino caído produce un `502`.
+
+## ssh
+
+Ejecuta la petición **en otra máquina** a través de `ssh`, usando `curl` o `node` allí como
+motor. Sirve para que el tráfico salga desde un host remoto (un bastión, un servidor con otra
+IP, etc.).
+
+```
+route https?://example.com/ {
+  command_pass ssh "-p" "2222" "-i" "~/.ssh/id_proxy" "user@gateway.example.com" {
+    engine curl
+  }
+}
+```
+
+### Argumentos
+
+Los argumentos después de `ssh` son **opciones de ssh seguidas del destino**, que debe ser el
+**último** (`[opciones…] usuario@host`). Sin destino el arranque falla.
+
+El proxy agrega `-T -q -o BatchMode=yes`: sin terminal, sin mensajes de ssh y sin pedir
+contraseñas (hay que autenticar con llave o agente). Las opciones que pongas en el manifiesto
+van antes y, para `-o`, ssh respeta la primera que recibe, por lo que pueden sobrescribir esos
+valores.
+
+### `engine`
+
+Directiva hija de `command_pass` que elige qué ejecuta el host remoto:
+
+| `engine` | En el host remoto se ejecuta | Requiere en el remoto |
+| --- | --- | --- |
+| `curl` (por defecto) | `curl` con la petición | `curl`, `base64`, `mktemp`, `sh` |
+| `node` | `node` con el mismo script que [`command_pass node`](#node) (`http.request` / `https.request`) | `node` |
+
+`engine` solo se admite con `ssh`; con otro valor distinto de `curl` / `node`, o con otro
+comando, el arranque falla.
+
+### Seguridad: los datos de la petición no pasan por el shell remoto
+
+ssh entrega el comando remoto a un shell, así que la URL, las cabeceras y el cuerpo (que
+controla el cliente) **nunca** se escriben en esa línea de comandos:
+
+- `engine curl`: el comando remoto es fijo salvo un literal en base64; contiene la
+  configuración de curl (`url`, `request`, `header`, escapada para `curl -K`). Se escribe a un
+  archivo temporal que se borra al terminar, y el cuerpo viaja por stdin.
+- `engine node`: el comando remoto es `node --input-type=module -`. Por stdin llega el script
+  precedido de una línea que carga la petición desde un literal en base64.
+
+Cabeceras con caracteres de control se rechazan (`502`).
+
+### Respuesta y errores
+
+La respuesta se interpreta igual que con el motor local (ver [curl](#curl) y [node](#node)). Si
+ssh falla (conexión rechazada, autenticación, motor no instalado en el remoto…) el cliente
+recibe `502 bad gateway: ssh curl exited with <código>: <salida>` (o `ssh node …`).
+
+### Pruebas
+
+`src/ssh.test.ts` pone un `ssh` falso al inicio del `PATH` que registra sus argumentos y ejecuta
+localmente el comando remoto con `sh -c`, tal como lo haría el shell del host remoto. Comprueba
+ambos motores, el motor por defecto, la forma de la línea de comandos de ssh, que ningún dato de
+la petición (incluidas comillas y `$(…)` maliciosos) llega al shell, los errores `502` y la
+validación del manifiesto.
 
 Ver también: [`proxy_pass`](proxy-pass.md), [referencia del manifiesto](../manifest.md).

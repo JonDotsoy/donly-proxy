@@ -10,6 +10,7 @@ import { DON } from "donly";
 import { ensureCerts } from "./certs";
 import { curl } from "./curl";
 import { nodeRequest } from "./node";
+import { sshRequest, type Engine } from "./ssh";
 
 export interface Route {
   /** `null` matches any method. */
@@ -19,7 +20,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: "curl" | "node"; args: string[] };
+    | { kind: "command_pass"; command: "curl" | "node" | "ssh"; engine?: Engine; args: string[] };
 }
 
 export interface ProxyConfig {
@@ -68,8 +69,18 @@ export const loadConfig = async (
             `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\` o \`command_pass\``,
           );
         }
-        if (commandPass && commandPass.args[0] !== "curl" && commandPass.args[0] !== "node") {
-          throw new Error(`route ${name}: command_pass solo soporta "curl" y "node", no "${commandPass.args[0]}"`);
+        if (commandPass && !["curl", "node", "ssh"].includes(String(commandPass.args[0]))) {
+          throw new Error(`route ${name}: command_pass solo soporta "curl", "node" y "ssh", no "${commandPass.args[0]}"`);
+        }
+        const engine = commandPass && child("engine", commandPass)?.args[0];
+        if (engine !== undefined && commandPass!.args[0] !== "ssh") {
+          throw new Error(`route ${name}: engine solo aplica a command_pass ssh`);
+        }
+        if (engine !== undefined && engine !== "curl" && engine !== "node") {
+          throw new Error(`route ${name}: engine solo soporta "curl" y "node", no "${engine}"`);
+        }
+        if (commandPass?.args[0] === "ssh" && commandPass.args.length < 2) {
+          throw new Error(`route ${name}: command_pass ssh requiere el destino (usuario@host)`);
         }
         return {
           method: route.args.length > 1 ? String(route.args[0]).toUpperCase() : null,
@@ -78,7 +89,7 @@ export const loadConfig = async (
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
               ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
-              : { kind: "command_pass", command: commandPass!.args[0] as "curl" | "node", args: commandPass!.args.slice(1).map(String) },
+              : { kind: "command_pass", command: commandPass!.args[0] as "curl" | "node" | "ssh", engine: (engine as Engine | undefined) ?? "curl", args: commandPass!.args.slice(1).map(String) },
         };
       }),
   };
@@ -152,7 +163,8 @@ const commandPass = async (
   req: http.IncomingMessage,
   body: Buffer,
   url: string,
-  command: "curl" | "node",
+  command: "curl" | "node" | "ssh",
+  engine: Engine | undefined,
   args: string[],
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
@@ -163,7 +175,12 @@ const commandPass = async (
     }
   }
   try {
-    const response = await (command === "node" ? nodeRequest : curl)({ method: req.method ?? "GET", url, headers, body, args });
+    const request = { method: req.method ?? "GET", url, headers, body, args };
+    const response = await (command === "ssh"
+      ? sshRequest(request, engine ?? "curl")
+      : command === "node"
+        ? nodeRequest(request)
+        : curl(request));
     return {
       ...response,
       headers: Object.fromEntries(
@@ -228,7 +245,7 @@ export const createProxyServer = ({
       route?.action.kind === "proxy_pass"
         ? await forward(req, body, url, route.action.target)
         : route?.action.kind === "command_pass"
-          ? await commandPass(req, body, url, route.action.command, route.action.args)
+          ? await commandPass(req, body, url, route.action.command, route.action.engine, route.action.args)
           : route?.action.kind === "respond"
           ? text(route.action.status, route.action.body)
           : text(200, "ok");

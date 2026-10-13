@@ -99,7 +99,7 @@ route [MÉTODO] <patrón> {
 | --- | --- |
 | [`respond`](#respond) | Responde con un estado y cuerpo fijos. |
 | [`proxy_pass`](tunnel/proxy-pass.md) | Reenvía la petición a otro servidor. |
-| [`command_pass`](tunnel/command-pass.md) | Pasa la petición a `curl` o a un proceso `node`. |
+| [`command_pass`](tunnel/command-pass.md) | Pasa la petición a `curl`, a un proceso `node` o a otra máquina por `ssh`. |
 
 #### `respond`
 
@@ -126,6 +126,8 @@ route https?://example.com/ {
 | --- | --- |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass o command_pass` |
-| `command_pass` con un comando distinto de `curl` o `node` | `route …: command_pass solo soporta "curl" y "node"` |
+| `command_pass` con un comando distinto de `curl`, `node` o `ssh` | `route …: command_pass solo soporta "curl", "node" y "ssh"` |
+| `command_pass ssh` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` |
+| `engine` distinto de `curl` / `node`, o usado fuera de `ssh` | `route …: engine solo soporta …` / `engine solo aplica a command_pass ssh` |
 | Patrón de `route` que no es una regex válida | Error de `RegExp` |
 | `proxy_pass` con una URL inválida | Error de `URL` |

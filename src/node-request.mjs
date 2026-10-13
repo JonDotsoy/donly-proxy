@@ -1,14 +1,20 @@
 // Runs in a separate `node` process spawned by the proxy (`command_pass node`).
-// Reads { method, url, headers, body (base64) } as JSON from stdin, performs the
+// Reads { method, url, headers, body (base64) } as JSON from stdin (or globalThis.__donlyRequest), performs the
 // request with http.request / https.request and writes { status, headers, body (base64) }
 // as JSON to stdout. Any failure goes to stderr with a non-zero exit code.
 import http from "node:http";
 import https from "node:https";
 import zlib from "node:zlib";
 
-const chunks = [];
-for await (const chunk of process.stdin) chunks.push(chunk);
-const { method, url, headers, body } = JSON.parse(Buffer.concat(chunks).toString());
+// Run through `ssh ... node -`, stdin is this script itself, so the request arrives
+// in `globalThis.__donlyRequest` instead.
+let input = globalThis.__donlyRequest;
+if (!input) {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  input = JSON.parse(Buffer.concat(chunks).toString());
+}
+const { method, url, headers, body } = input;
 
 const target = new URL(url);
 if (target.protocol !== "http:" && target.protocol !== "https:") {
