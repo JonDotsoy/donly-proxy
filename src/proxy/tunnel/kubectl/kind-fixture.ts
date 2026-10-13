@@ -14,12 +14,12 @@ import { testFeature } from "../../../utils/test_utils/test-feature/test-feature
 export const CONTEXT = "kind-kind-cluster";
 const NODE_CONTAINER = "kind-cluster-control-plane";
 export const NAMESPACE = "donly-proxy-test";
-const IMAGE = "localhost/donly-proxy-echo:test";
+export const IMAGE = "localhost/donly-proxy-echo:test";
 const HOST = `echo.${NAMESPACE}.svc.cluster.local`;
 
 export type KindEngine = "curl" | "wget" | "node";
 
-const sh = (cmd: string[], input?: Uint8Array) => Bun.spawnSync(cmd, { stdin: input, stdout: "pipe", stderr: "pipe" });
+export const sh = (cmd: string[], input?: Uint8Array) => Bun.spawnSync(cmd, { stdin: input, stdout: "pipe", stderr: "pipe" });
 const ok = (cmd: string[]) => {
   try {
     return sh(cmd).exitCode === 0;
@@ -27,7 +27,7 @@ const ok = (cmd: string[]) => {
     return false;
   }
 };
-const must = (cmd: string[], input?: Uint8Array) => {
+export const must = (cmd: string[], input?: Uint8Array) => {
   const result = sh(cmd, input);
   if (result.exitCode !== 0) throw new Error(`${cmd.join(" ")} failed: ${result.stderr.toString()}`);
   return result.stdout;
@@ -48,17 +48,24 @@ http.createServer(async (req, res) => {
 }).listen(8080);
 `;
 
-/** Builds the echo image, imports it into the kind node and deploys it. Shared by every test file. */
-const deploy = async () => {
+/** Builds the echo image (node + curl) and imports it into the kind node (containerd). Runs once per test run. */
+export const loadImage = async () => {
   const dir = mkdtempSync(join(tmpdir(), "donly-proxy-kind-"));
-
-  // 1. podman builds the echo server image and imports it into the kind node (containerd).
   writeFileSync(join(dir, "echo.mjs"), echoServer);
   writeFileSync(join(dir, "Containerfile"), 'FROM docker.io/library/node:alpine\nRUN apk add --no-cache curl\nCOPY echo.mjs /echo.mjs\nCMD ["node", "/echo.mjs"]\n');
   must(["podman", "build", "-t", IMAGE, dir]);
   const archive = join(dir, "echo.tar");
   must(["podman", "save", "--format", "docker-archive", "-o", archive, IMAGE]);
   must(["podman", "exec", "-i", NODE_CONTAINER, "ctr", "-n", "k8s.io", "images", "import", "-"], await Bun.file(archive).bytes());
+};
+
+const imageLoaded = globalThis as { __donlyKindImage?: Promise<void> };
+export const ensureImage = () => (imageLoaded.__donlyKindImage ??= loadImage());
+
+/** Builds the echo image, imports it into the kind node and deploys it. Shared by every test file. */
+const deploy = async () => {
+  // 1. podman builds the echo server image and imports it into the kind node (containerd).
+  await ensureImage();
 
   // 2. The Service in the cluster.
   const manifestYaml = `

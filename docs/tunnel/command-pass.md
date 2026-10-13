@@ -443,6 +443,26 @@ route https?://api.internal/ {
 - Un `route` no puede combinar `kubectl_pass` con otra acción.
 - El `log_file` registra el `kubectl exec …` completo, igual que con `command_pass kubectl`.
 
+### Ejemplo: dos pods (`conn-pod` y `echo-pod`)
+
+`src/proxy/tunnel/kubectl/two-pods/pods.yaml` despliega dos pods: `conn-pod` (el pod al que
+entra `kubectl_pass`) y `echo-pod` (recibe la petición y escribe una línea JSON por cada una;
+se ve con `kubectl logs echo-pod`). `echo-pod` solo tiene un Service `ClusterIP`: no está
+expuesto, solo es accesible desde dentro del cluster, es decir, desde `conn-pod`. Los nombres de
+Kubernetes no admiten `_`, por eso son `conn-pod` y `echo-pod`.
+
+```
+route {
+  kubectl_pass "-n" "donly-proxy-two-pods" "conn-pod" {
+    command_pass node
+  }
+}
+```
+
+Un `fetch` directo a `http://echo-pod.donly-proxy-two-pods.svc.cluster.local/` falla; el mismo
+`fetch` a través del proxy llega a `echo-pod` por `conn-pod`. El test está en
+`src/proxy/tunnel/kubectl/two-pods/` y necesita el cluster `kind-kind-cluster` (si no, se omite).
+
 ## ssh_pass
 
 Forma anidada de [`command_pass ssh`](#ssh), igual que [`kubectl_pass`](#kubectl_pass): la
