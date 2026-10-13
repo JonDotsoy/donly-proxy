@@ -138,23 +138,28 @@ export const loadConfig = async (
         const proxyPass = child("proxy_pass", route);
         const commandPass = child("command_pass", route);
         const kubectlPass = child("kubectl_pass", route);
-        if ([respond, proxyPass, commandPass, kubectlPass].filter(Boolean).length !== 1) {
+        const sshPass = child("ssh_pass", route);
+        if ([respond, proxyPass, commandPass, kubectlPass, sshPass].filter(Boolean).length !== 1) {
           throw new Error(
-            `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\`, \`command_pass\` o \`kubectl_pass\``,
+            `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\`, \`command_pass\`, \`kubectl_pass\` o \`ssh_pass\``,
           );
         }
         const method = route.args.length > 1 ? String(route.args[0]).toUpperCase() : null;
         // `route { … }` without arguments matches every request.
         const pattern = route.args.length === 0 ? /(?:)/ : new RegExp(String(route.args[route.args.length - 1]));
-        if (kubectlPass) {
+        const pass = kubectlPass ?? sshPass;
+        if (pass) {
           // kubectl_pass <kubectl options…> <target> { command_pass <curl|wget|node> [options…] }
-          const inner = child("command_pass", kubectlPass);
+          // ssh_pass <ssh options…> <destination> { command_pass <curl|wget|node> [options…] }
+          const directive = kubectlPass ? "kubectl_pass" : "ssh_pass";
+          const command = kubectlPass ? "kubectl" : "ssh";
+          const inner = child("command_pass", pass);
           const innerCommand = inner?.args[0];
-          if (kubectlPass.args.length < 1) {
-            throw new Error(`route ${name}: kubectl_pass requiere el destino (pod o tipo/nombre)`);
+          if (pass.args.length < 1) {
+            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre" : "usuario@host"})`);
           }
           if (!inner || (innerCommand !== "curl" && innerCommand !== "wget" && innerCommand !== "node")) {
-            throw new Error(`route ${name}: kubectl_pass requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
+            throw new Error(`route ${name}: ${directive} requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
           }
           const innerConcurrency = child("concurrency", inner)?.args[0];
           if (innerConcurrency !== undefined && !(typeof innerConcurrency === "number" && Number.isInteger(innerConcurrency) && innerConcurrency >= 1)) {
@@ -165,11 +170,11 @@ export const loadConfig = async (
             pattern,
             action: {
               kind: "command_pass",
-              command: "kubectl",
+              command,
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
-              // kubectl options, the context / namespace selectors, then the target (always last).
-              args: [...kubectlPass.args.slice(0, -1).map(String), ...selectorArgs(name, kubectlPass), String(kubectlPass.args.at(-1))],
+              // The options of the line, the context / namespace selectors (kubectl), then the target (always last).
+              args: [...pass.args.slice(0, -1).map(String), ...(kubectlPass ? selectorArgs(name, kubectlPass) : []), String(pass.args.at(-1))],
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
             },
           };

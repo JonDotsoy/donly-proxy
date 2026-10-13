@@ -423,3 +423,26 @@ route https?://api.internal/ {
 - [`concurrency`](#concurrencia) va dentro del `command_pass` hijo.
 - Un `route` no puede combinar `kubectl_pass` con otra acción.
 - El `log_file` registra el `kubectl exec …` completo, igual que con `command_pass kubectl`.
+
+## ssh_pass
+
+Forma anidada de [`command_pass ssh`](#ssh), igual que [`kubectl_pass`](#kubectl_pass): la
+directiva nombra el destino y el `command_pass` hijo nombra **qué comando se ejecuta en el host
+remoto** (`curl`, `wget` o `node`), con sus opciones.
+
+```
+route https?://api.internal/ {
+  ssh_pass "-p" "2222" "user@remote.test" {
+    command_pass curl "--max-time" "5"
+  }
+}
+```
+
+- Los argumentos de `ssh_pass` son los de `command_pass ssh`: opciones de `ssh` seguidas del
+  destino (último). Sin destino, el arranque falla con `ssh_pass requiere el destino`.
+- Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
+  comando, o sin hijo, el arranque falla con `ssh_pass requiere un command_pass hijo`. Sus
+  argumentos y subdirectivas (`concurrency`, `extra_args`, `max_time`, `insecure`, `retry`)
+  siguen las mismas reglas que en `kubectl_pass`.
+- Un `route` no puede combinar `ssh_pass` con otra acción.
+- El `log_file` registra el `ssh …` completo, igual que con `command_pass ssh`.
