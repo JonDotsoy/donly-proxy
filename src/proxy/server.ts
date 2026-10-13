@@ -49,6 +49,12 @@ const maxTimeArgs = (name: string, command: string, directive: Directive): strin
   return ["--max-time", String(value)];
 };
 
+/** Options from the child directives of a `command_pass`: `extra_args <value…>`, then `max_time`. */
+const optionArgs = (name: string, command: string, directive: Directive): string[] => [
+  ...directive.children.filter((c) => c.name === "extra_args").flatMap((c) => c.args.map(String)),
+  ...maxTimeArgs(name, command, directive),
+];
+
 const defaultManifest = new URL("../../manifest.donly", import.meta.url);
 
 /** Reads the `proxy { ... }` block of a `.donly` manifest. */
@@ -113,7 +119,7 @@ export const loadConfig = async (
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
               args: kubectlPass.args.map(String),
-              engineArgs: [...inner.args.slice(1).map(String), ...maxTimeArgs(name, innerCommand, inner)],
+              engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
             },
           };
         }
@@ -147,7 +153,7 @@ export const loadConfig = async (
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
               ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
-              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", concurrency: Number(concurrencyValue ?? 1), args: [...commandPass!.args.slice(1).map(String), ...maxTimeArgs(name, String(commandPass!.args[0]), commandPass!)] },
+              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", concurrency: Number(concurrencyValue ?? 1), args: [...commandPass!.args.slice(1).map(String), ...optionArgs(name, String(commandPass!.args[0]), commandPass!)] },
         };
       }),
   };

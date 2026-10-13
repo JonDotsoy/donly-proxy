@@ -21,7 +21,7 @@ route https://example.com/ {
 
 El primer argumento es el comando (cualquier otro hace fallar el arranque). Los argumentos
 siguientes, opcionales, son **opciones adicionales del comando**, una por cadena. Directivas
-hijas opcionales: [`concurrency`](#concurrencia), [`max_time`](#tiempo-máximo-con-curl) (solo `curl`) y, con `ssh` / `kubectl`, [`engine`](#engine).
+hijas opcionales: [`concurrency`](#concurrencia), [`extra_args`](#argumentos-extra), [`max_time`](#tiempo-máximo-con-curl) (solo `curl`) y, con `ssh` / `kubectl`, [`engine`](#engine).
 
 En ambos casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
 `PATH`, y si falla, no está instalado o no devuelve una respuesta válida el proxy contesta
@@ -38,6 +38,28 @@ y la respuesta es un `502`. El cuerpo de la petición (stdin) no forma parte de 
 ```json
 {"type":"response","status":200,"command":["curl","--silent","--compressed","--proto","=http,https","…","--url","http://example.com/"],"headers":{…},"payload":"…"}
 ```
+
+## Argumentos extra
+
+`extra_args <valor…>` es una directiva hija que añade opciones al comando, igual que los
+argumentos de la línea `command_pass`, pero escritos como valores sueltos:
+
+```
+route https?://example.com/ {
+  command_pass curl {
+    extra_args --foo tar --biz lol
+  }
+}
+```
+
+Curl recibe `--foo tar --biz lol` como cuatro argumentos separados. Los números se pasan como
+texto y un valor con espacios o caracteres de shell (`"x-a: b; c"`, `"$(…)"`) sigue siendo **un
+solo argumento**: el comando se lanza sin shell.
+
+- Orden: primero los argumentos de la línea `command_pass`, luego `extra_args` (en el orden en
+  que se declaren) y al final [`max_time`](#tiempo-máximo-con-curl).
+- Vale para todos los comandos (`curl`, `node`, `ssh`, `kubectl`) y para el `command_pass` hijo
+  de `kubectl_pass`.
 
 ## Tiempo máximo con curl
 
