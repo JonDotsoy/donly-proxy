@@ -396,6 +396,22 @@ route https?://api.internal/ {
 
 - Los argumentos de `kubectl_pass` son los de `command_pass kubectl`: opciones de
   `kubectl exec` seguidas del destino (último). Sin destino, el arranque falla.
+- `context <nombre>` y `namespace <nombre>` son subdirectivas que seleccionan el cluster y el
+  namespace; equivalen a `"--context" "<nombre>" "--namespace" "<nombre>"` y se añaden después de
+  las opciones de la línea y antes del destino:
+
+  ```
+  route https?://api.internal/ {
+    kubectl_pass "deploy/api" {
+      context dev
+      namespace prod
+      command_pass curl
+    }
+  }
+  ```
+
+  El valor debe ser un nombre (texto no vacío); con otro (`namespace 5`, `context ""`) el
+  arranque falla con `namespace debe ser un nombre` / `context debe ser un nombre`.
 - Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
   comando, o sin hijo, el arranque falla. Sus argumentos son **opciones adicionales del comando
   remoto** (`curl`: tras los flags fijos; `wget`: antes de la URL; `node`: antes del script, sin

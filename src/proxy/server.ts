@@ -79,6 +79,18 @@ const optionArgs = (name: string, command: string, directive: Directive): string
   ...retryArgs(name, command, directive),
 ];
 
+/** `context <name>` and `namespace <name>` inside a `kubectl_pass`: they become `--context` / `--namespace`. */
+const selectorArgs = (name: string, directive: Directive): string[] =>
+  (["context", "namespace"] as const).flatMap((selector) => {
+    const child = directive.children.find((c) => c.name === selector);
+    if (!child) return [];
+    const value = child.args[0];
+    if (typeof value !== "string" || value === "") {
+      throw new Error(`route ${name}: ${selector} debe ser un nombre, no "${value}"`);
+    }
+    return [`--${selector}`, value];
+  });
+
 const defaultManifest = new URL("../../manifest.donly", import.meta.url);
 
 /** Reads the `proxy { ... }` block of a `.donly` manifest. */
@@ -142,7 +154,8 @@ export const loadConfig = async (
               command: "kubectl",
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
-              args: kubectlPass.args.map(String),
+              // kubectl options, the context / namespace selectors, then the target (always last).
+              args: [...kubectlPass.args.slice(0, -1).map(String), ...selectorArgs(name, kubectlPass), String(kubectlPass.args.at(-1))],
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
             },
           };
