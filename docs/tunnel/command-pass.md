@@ -1,7 +1,7 @@
 # `command_pass`
 
 Pasa la petición a un comando externo, que la ejecuta contra su URL original. Comandos
-soportados: [`curl`](#curl), [`node`](#node) y [`ssh`](#ssh).
+soportados: [`curl`](#curl), [`node`](#node), [`ssh`](#ssh) y [`kubectl`](#kubectl).
 
 ```
 route http://example.com/ {
@@ -158,15 +158,16 @@ valores.
 
 ### `engine`
 
-Directiva hija de `command_pass` que elige qué ejecuta el host remoto:
+Directiva hija de `command_pass` (válida con `ssh` y [`kubectl`](#kubectl)) que elige qué
+ejecuta el host remoto:
 
 | `engine` | En el host remoto se ejecuta | Requiere en el remoto |
 | --- | --- | --- |
 | `curl` (por defecto) | `curl` con la petición | `curl`, `base64`, `mktemp`, `sh` |
 | `node` | `node` con el mismo script que [`command_pass node`](#node) (`http.request` / `https.request`) | `node` |
 
-`engine` solo se admite con `ssh`; con otro valor distinto de `curl` / `node`, o con otro
-comando, el arranque falla.
+`engine` solo se admite con `ssh` y `kubectl`; con un valor distinto de `curl` / `node`, o con
+otro comando, el arranque falla.
 
 ### Seguridad: los datos de la petición no pasan por el shell remoto
 
@@ -194,5 +195,64 @@ localmente el comando remoto con `sh -c`, tal como lo haría el shell del host r
 ambos motores, el motor por defecto, la forma de la línea de comandos de ssh, que ningún dato de
 la petición (incluidas comillas y `$(…)` maliciosos) llega al shell, los errores `502` y la
 validación del manifiesto.
+
+## kubectl
+
+Ejecuta la petición **dentro de un pod de Kubernetes** con `kubectl exec`, usando `curl` o `node`
+como motor. Sirve para que la petición salga desde dentro del clúster (por ejemplo, para llegar
+a un servicio interno).
+
+```
+route https?://api.internal/ {
+  command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
+    engine curl
+  }
+}
+```
+
+### Argumentos
+
+Los argumentos después de `kubectl` son **opciones de `kubectl exec` seguidas del destino**, que
+debe ser el **último**: un pod (`api-0`) o `tipo/nombre` (`deploy/api`, `pod/api-0`). Sin
+destino el arranque falla. Opciones útiles: `-n <namespace>`, `--context <ctx>`,
+`-c <contenedor>`, `--kubeconfig <ruta>`.
+
+El proxy ejecuta:
+
+```
+kubectl exec -i -q <opciones> <destino> -- <comando>
+```
+
+sin shell local ni terminal (`-i` para pasar stdin, `-q` para suprimir los avisos de
+kubectl). El `<comando>` es `sh -c '<línea fija>'` con `engine curl`, y
+`node --input-type=module -` con `engine node`.
+
+### `engine`
+
+Igual que en [`ssh`](#engine): `curl` (por defecto) o `node`. Lo que debe existir **dentro del
+contenedor**:
+
+| `engine` | Requiere en el contenedor |
+| --- | --- |
+| `curl` | `sh`, `curl`, `base64` y `mktemp` |
+| `node` | `node` |
+
+### Seguridad
+
+Aplican las mismas garantías que con `ssh`: ningún dato de la petición (URL, cabeceras, cuerpo)
+se escribe en la línea de comandos; la configuración viaja en base64 y el cuerpo por stdin.
+
+### Respuesta y errores
+
+Se interpreta igual que con `ssh`. Si `kubectl` falla (pod inexistente, sin permisos, sin
+conexión al clúster, motor no instalado en la imagen…) el cliente recibe
+`502 bad gateway: kubectl curl exited with <código>: <salida>` (o `kubectl node …`).
+
+### Pruebas
+
+`src/kubectl.test.ts` pone un `kubectl` falso al inicio del `PATH` que registra sus argumentos y
+ejecuta localmente lo que va después de `--`. Comprueba ambos motores, el motor por defecto, la
+forma exacta de `kubectl exec`, que ningún dato de la petición llega al shell, los errores `502`
+y la validación del manifiesto.
 
 Ver también: [`proxy_pass`](proxy-pass.md), [referencia del manifiesto](../manifest.md).

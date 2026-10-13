@@ -10,7 +10,11 @@ import { DON } from "donly";
 import { ensureCerts } from "./certs";
 import { curl } from "./curl";
 import { nodeRequest } from "./node";
-import { sshRequest, type Engine } from "./ssh";
+import type { Engine } from "./remote";
+import { sshRequest } from "./ssh";
+import { kubectlRequest } from "./kubectl";
+
+type Command = "curl" | "node" | "ssh" | "kubectl";
 
 export interface Route {
   /** `null` matches any method. */
@@ -20,7 +24,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: "curl" | "node" | "ssh"; engine?: Engine; args: string[] };
+    | { kind: "command_pass"; command: Command; engine?: Engine; args: string[] };
 }
 
 export interface ProxyConfig {
@@ -69,18 +73,21 @@ export const loadConfig = async (
             `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\` o \`command_pass\``,
           );
         }
-        if (commandPass && !["curl", "node", "ssh"].includes(String(commandPass.args[0]))) {
-          throw new Error(`route ${name}: command_pass solo soporta "curl", "node" y "ssh", no "${commandPass.args[0]}"`);
+        if (commandPass && !["curl", "node", "ssh", "kubectl"].includes(String(commandPass.args[0]))) {
+          throw new Error(`route ${name}: command_pass solo soporta "curl", "node", "ssh" y "kubectl", no "${commandPass.args[0]}"`);
         }
         const engine = commandPass && child("engine", commandPass)?.args[0];
-        if (engine !== undefined && commandPass!.args[0] !== "ssh") {
-          throw new Error(`route ${name}: engine solo aplica a command_pass ssh`);
+        const remote = commandPass?.args[0] === "ssh" || commandPass?.args[0] === "kubectl";
+        if (engine !== undefined && !remote) {
+          throw new Error(`route ${name}: engine solo aplica a command_pass ssh y kubectl`);
         }
         if (engine !== undefined && engine !== "curl" && engine !== "node") {
           throw new Error(`route ${name}: engine solo soporta "curl" y "node", no "${engine}"`);
         }
-        if (commandPass?.args[0] === "ssh" && commandPass.args.length < 2) {
-          throw new Error(`route ${name}: command_pass ssh requiere el destino (usuario@host)`);
+        if (remote && commandPass!.args.length < 2) {
+          throw new Error(
+            `route ${name}: command_pass ${commandPass!.args[0]} requiere el destino (${commandPass!.args[0] === "ssh" ? "usuario@host" : "pod o tipo/nombre"})`,
+          );
         }
         return {
           method: route.args.length > 1 ? String(route.args[0]).toUpperCase() : null,
@@ -89,7 +96,7 @@ export const loadConfig = async (
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
               ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
-              : { kind: "command_pass", command: commandPass!.args[0] as "curl" | "node" | "ssh", engine: (engine as Engine | undefined) ?? "curl", args: commandPass!.args.slice(1).map(String) },
+              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", args: commandPass!.args.slice(1).map(String) },
         };
       }),
   };
@@ -163,7 +170,7 @@ const commandPass = async (
   req: http.IncomingMessage,
   body: Buffer,
   url: string,
-  command: "curl" | "node" | "ssh",
+  command: Command,
   engine: Engine | undefined,
   args: string[],
 ): Promise<Reply> => {
@@ -178,9 +185,11 @@ const commandPass = async (
     const request = { method: req.method ?? "GET", url, headers, body, args };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
-      : command === "node"
-        ? nodeRequest(request)
-        : curl(request));
+      : command === "kubectl"
+        ? kubectlRequest(request, engine ?? "curl")
+        : command === "node"
+          ? nodeRequest(request)
+          : curl(request));
     return {
       ...response,
       headers: Object.fromEntries(

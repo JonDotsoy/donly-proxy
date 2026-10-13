@@ -139,6 +139,6 @@ test("manifest validation for ssh and engine", async () => {
   };
   expect(load(`route / {\n command_pass ssh\n }`)).rejects.toThrow("requiere el destino");
   expect(load(`route / {\n command_pass ssh host {\n engine wget\n }\n }`)).rejects.toThrow("engine solo soporta");
-  expect(load(`route / {\n command_pass curl {\n engine node\n }\n }`)).rejects.toThrow("solo aplica a command_pass ssh");
+  expect(load(`route / {\n command_pass curl {\n engine node\n }\n }`)).rejects.toThrow("solo aplica a command_pass ssh y kubectl");
   expect(load(`route / {\n command_pass rsh host\n }`)).rejects.toThrow("solo soporta");
 });
