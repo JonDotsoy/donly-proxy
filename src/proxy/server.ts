@@ -59,11 +59,24 @@ const insecureArgs = (name: string, command: string, directive: Directive): stri
   return value ? ["--insecure"] : [];
 };
 
-/** Options from the child directives of a `command_pass`: `extra_args <value…>`, `insecure`, then `max_time`. */
+/** `retry <n>` inside a `command_pass curl`: it becomes `--retry <n>`. */
+const retryArgs = (name: string, command: string, directive: Directive): string[] => {
+  const retry = directive.children.find((c) => c.name === "retry");
+  if (!retry) return [];
+  if (command !== "curl") throw new Error(`route ${name}: retry solo aplica a command_pass curl`);
+  const value = retry.args[0];
+  if (!(typeof value === "number" && Number.isInteger(value) && value >= 0)) {
+    throw new Error(`route ${name}: retry debe ser un entero no negativo, no "${value}"`);
+  }
+  return ["--retry", String(value)];
+};
+
+/** Options from the child directives of a `command_pass`: `extra_args <value…>`, `insecure`, `max_time`, then `retry`. */
 const optionArgs = (name: string, command: string, directive: Directive): string[] => [
   ...directive.children.filter((c) => c.name === "extra_args").flatMap((c) => c.args.map(String)),
   ...insecureArgs(name, command, directive),
   ...maxTimeArgs(name, command, directive),
+  ...retryArgs(name, command, directive),
 ];
 
 const defaultManifest = new URL("../../manifest.donly", import.meta.url);

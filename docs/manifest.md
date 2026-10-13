@@ -140,6 +140,7 @@ route https?://example.com/ {
 | `concurrency` que no es un entero positivo | `route …: concurrency debe ser un entero positivo, no "…"` |
 | `insecure` con un valor que no es `true` / `false`, o fuera de `command_pass curl` | `route …: insecure debe ser true o false, no "…"` / `insecure solo aplica a command_pass curl` |
 | `max_time` que no es un número positivo, o fuera de `command_pass curl` | `route …: max_time debe ser un número positivo, no "…"` / `max_time solo aplica a command_pass curl` |
+| `retry` que no es un entero no negativo, o fuera de `command_pass curl` | `route …: retry debe ser un entero no negativo, no "…"` / `retry solo aplica a command_pass curl` |
 | `engine` distinto de `curl` / `node` / `wget`, o usado fuera de `ssh` y `kubectl` | `route …: engine solo soporta …` / `engine solo aplica a command_pass ssh y kubectl` |
 | Patrón de `route` que no es una regex válida | Error de `RegExp` |
 | `proxy_pass` con una URL inválida | Error de `URL` |
