@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **79** · ✅ pasan: **73** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
+Specs: **85** · ✅ pasan: **79** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -72,6 +72,7 @@ Specs: **79** · ✅ pasan: **73** · 🔴 fallan: **1** · ⏳ sin resultado: *
 | should accept the IPv6 notation 0::1 | ✅ | <code>host "0::1"</code> |
 | should accept the IPv6 notation 0:0:0:0:0:0:0:1 | ✅ | <code>host "0:0:0:0:0:0:0:1"</code> |
 | should accept the IPv6 notation 0000:0000:0000:0000:0000:0000:0000:0001 | ✅ | <code>host "0000:0000:0000:0000:0000:0000:0000:0001"</code> |
+| should combine max_time with the options given as arguments | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;max_time 2.5</code><br><code>}</code><br><code>command_pass curl</code> |
 | should default the host to 127.0.0.1 when the manifest has none | ✅ |  |
 | should default the port to 0 when the manifest has none | ✅ |  |
 | should keep the host declared in the manifest | ✅ | <code>host "0.0.0.0"</code> |
@@ -81,8 +82,13 @@ Specs: **79** · ✅ pasan: **73** · 🔴 fallan: **1** · ⏳ sin resultado: *
 | should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
 | should listen on the IPv6 host ::1 | ✅ | <code>host "::1"</code> |
 | should load the proxy block of the manifest | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 3000</code><br><code>}</code> |
+| should not pass --max-time to curl without max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;max_time 2.5</code><br><code>}</code><br><code>command_pass curl</code> |
+| should pass --max-time 5 to curl when command_pass curl has max_time 5 | ✅ | <code>max_time 5</code><br><code>max_time 2.5</code> |
+| should pass --max-time to the curl run by kubectl_pass | ✅ | <code>max_time 5</code> |
 | should read the port from the manifest | 🔴 | <code>port 3000</code> |
 | should read the port from the manifest | ✅ | <code>port 3000</code> |
+| should reject a max_time that is not a positive number | ✅ | <code>max_time 0</code> |
+| should reject max_time outside command_pass curl | ✅ | <code>max_time 5</code> |
 | ssh failures are reported as a bad gateway | ✅ | <code>command_pass ssh "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass ssh "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>}</code><br><code>command_pass ssh "user@remote.test"</code> |
 | the status and headers are read from the last response printed by -S | ✅ | <code>engine wget</code> |
 | waiting requests are served in arrival order | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |

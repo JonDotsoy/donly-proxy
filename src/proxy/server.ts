@@ -6,7 +6,7 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DON } from "donly";
+import { DON, type Directive } from "donly";
 import { ensureCerts } from "./certs";
 import { curl } from "./tunnel/curl/curl";
 import { Semaphore } from "./semaphore";
@@ -36,6 +36,18 @@ export interface ProxyConfig {
   /** Absolute path of the `.ndjson` transaction log, if configured. */
   logFile?: string;
 }
+
+/** `max_time <seconds>` inside a `command_pass curl`: it becomes `--max-time <seconds>`. */
+const maxTimeArgs = (name: string, command: string, directive: Directive): string[] => {
+  const maxTime = directive.children.find((c) => c.name === "max_time");
+  if (!maxTime) return [];
+  if (command !== "curl") throw new Error(`route ${name}: max_time solo aplica a command_pass curl`);
+  const value = maxTime.args[0];
+  if (!(typeof value === "number" && value > 0)) {
+    throw new Error(`route ${name}: max_time debe ser un número positivo, no "${value}"`);
+  }
+  return ["--max-time", String(value)];
+};
 
 const defaultManifest = new URL("../../manifest.donly", import.meta.url);
 
@@ -101,7 +113,7 @@ export const loadConfig = async (
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
               args: kubectlPass.args.map(String),
-              engineArgs: inner.args.slice(1).map(String),
+              engineArgs: [...inner.args.slice(1).map(String), ...maxTimeArgs(name, innerCommand, inner)],
             },
           };
         }
@@ -135,7 +147,7 @@ export const loadConfig = async (
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
               ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
-              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", concurrency: Number(concurrencyValue ?? 1), args: commandPass!.args.slice(1).map(String) },
+              : { kind: "command_pass", command: commandPass!.args[0] as Command, engine: (engine as Engine | undefined) ?? "curl", concurrency: Number(concurrencyValue ?? 1), args: [...commandPass!.args.slice(1).map(String), ...maxTimeArgs(name, String(commandPass!.args[0]), commandPass!)] },
         };
       }),
   };

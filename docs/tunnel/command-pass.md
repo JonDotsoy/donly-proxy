@@ -21,7 +21,7 @@ route https://example.com/ {
 
 El primer argumento es el comando (cualquier otro hace fallar el arranque). Los argumentos
 siguientes, opcionales, son **opciones adicionales del comando**, una por cadena. Directivas
-hijas opcionales: [`concurrency`](#concurrencia) y, con `ssh` / `kubectl`, [`engine`](#engine).
+hijas opcionales: [`concurrency`](#concurrencia), [`max_time`](#tiempo-máximo-con-curl) (solo `curl`) y, con `ssh` / `kubectl`, [`engine`](#engine).
 
 En ambos casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
 `PATH`, y si falla, no está instalado o no devuelve una respuesta válida el proxy contesta
@@ -38,6 +38,27 @@ y la respuesta es un `502`. El cuerpo de la petición (stdin) no forma parte de 
 ```json
 {"type":"response","status":200,"command":["curl","--silent","--compressed","--proto","=http,https","…","--url","http://example.com/"],"headers":{…},"payload":"…"}
 ```
+
+## Tiempo máximo con curl
+
+`max_time <segundos>` es una directiva hija de `command_pass curl` equivalente a pasar
+`"--max-time" "<segundos>"`:
+
+```
+route https?://example.com/ {
+  command_pass curl {
+    max_time 5
+  }
+}
+```
+
+- El valor debe ser un **número positivo** (admite decimales, p. ej. `2.5`); con otro (`0`,
+  negativo, texto o una cadena entre comillas) el arranque falla con
+  `max_time debe ser un número positivo`.
+- Solo aplica a `curl`; con otro comando el arranque falla con
+  `max_time solo aplica a command_pass curl`.
+- Va después de los argumentos de la propia línea (`command_pass curl "--insecure" { … }`) y
+  también se puede usar en el `command_pass curl` hijo de `kubectl_pass`.
 
 ## Concurrencia
 
