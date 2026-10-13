@@ -8,12 +8,12 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DON } from "donly";
 import { ensureCerts } from "./certs";
-import { curl } from "./curl";
+import { curl } from "./tunnel/curl/curl";
 import { Semaphore } from "./semaphore";
-import { nodeRequest } from "./node";
-import type { Engine } from "./remote";
-import { sshRequest } from "./ssh";
-import { kubectlRequest } from "./kubectl";
+import { nodeRequest } from "./tunnel/node/node";
+import type { Engine } from "./tunnel/remote";
+import { sshRequest } from "./tunnel/ssh/ssh";
+import { kubectlRequest } from "./tunnel/kubectl/kubectl";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
 
@@ -37,7 +37,7 @@ export interface ProxyConfig {
   logFile?: string;
 }
 
-const defaultManifest = new URL("../manifest.donly", import.meta.url);
+const defaultManifest = new URL("../../manifest.donly", import.meta.url);
 
 /** Reads the `proxy { ... }` block of a `.donly` manifest. */
 export const loadConfig = async (
@@ -345,10 +345,3 @@ export const createProxyServer = ({
 
   return server;
 };
-
-if (import.meta.main) {
-  const config = await loadConfig(process.argv[2]);
-  createProxyServer(config).listen(config.port, config.host, () => {
-    console.log(`proxy listening on ${config.host}:${config.port}`);
-  });
-}

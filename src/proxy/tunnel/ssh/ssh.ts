@@ -1,6 +1,6 @@
-import type { CurlRequest, CurlResponse } from "./curl";
-import { parseRemoteResult, remoteCommand, type Engine } from "./remote";
-import { run } from "./run";
+import type { CurlRequest, CurlResponse } from "../types";
+import { parseRemoteResult, remoteCommand, type Engine } from "../remote";
+import { run } from "../run";
 
 /**
  * Runs the request on a remote host over `ssh` with the chosen engine (`curl` or `node`).

@@ -121,7 +121,7 @@ route https://internal.example.com/ {
 
 ### Pruebas
 
-`src/curl.test.ts` coloca un `curl` falso (un script `.sh`) al inicio del `PATH` y comprueba que
+`src/proxy/tunnel/curl/curl.test.ts` coloca un `curl` falso (un script `.sh`) al inicio del `PATH` y comprueba que
 la petición pasa por él: que recibe la URL, el método, las cabeceras, los argumentos del
 manifiesto y el cuerpo, y que su respuesta llega al cliente. Si cambias el contrato con `curl`
 (los flags de arriba), ajusta también ese script.
@@ -139,7 +139,7 @@ route https?://example.com/ {
 
 ### Qué hace el proxy
 
-Ejecuta `node <argumentos del manifiesto> src/node-request.mjs`. Los argumentos del manifiesto
+Ejecuta `node <argumentos del manifiesto> src/proxy/tunnel/node/node-request.mjs`. Los argumentos del manifiesto
 son **opciones de node** y van antes del script (`--no-warnings`, `--use-openssl-ca`, etc.).
 
 El proxy se comunica con el script mediante JSON:
@@ -162,7 +162,7 @@ El proxy se comunica con el script mediante JSON:
 
 ### Pruebas
 
-`src/node.test.ts` pone un `node` que registra sus argumentos y ejecuta el node real al inicio
+`src/proxy/tunnel/node/node.test.ts` pone un `node` que registra sus argumentos y ejecuta el node real al inicio
 del `PATH`, y comprueba que el proxy lanza `node --no-warnings …/node-request.mjs`, que la
 petición llega a un servidor HTTP y a uno HTTPS con método, cabeceras, ruta, query y cuerpo
 correctos, y que un destino caído produce un `502`.
@@ -231,7 +231,7 @@ recibe `502 bad gateway: ssh curl exited with <código>: <salida>` (o `ssh node 
 
 ### Pruebas
 
-`src/ssh.test.ts` pone un `ssh` falso al inicio del `PATH` que registra sus argumentos y ejecuta
+`src/proxy/tunnel/ssh/ssh.test.ts` pone un `ssh` falso al inicio del `PATH` que registra sus argumentos y ejecuta
 localmente el comando remoto con `sh -c`, tal como lo haría el shell del host remoto. Comprueba
 ambos motores, el motor por defecto, la forma de la línea de comandos de ssh, que ningún dato de
 la petición (incluidas comillas y `$(…)` maliciosos) llega al shell, los errores `502` y la
@@ -292,7 +292,7 @@ conexión al clúster, motor no instalado en la imagen…) el cliente recibe
 
 ### Pruebas
 
-`src/kubectl.test.ts` pone un `kubectl` falso al inicio del `PATH` que registra sus argumentos y
+`src/proxy/tunnel/kubectl/kubectl.test.ts` pone un `kubectl` falso al inicio del `PATH` que registra sus argumentos y
 ejecuta localmente lo que va después de `--`. Comprueba ambos motores, el motor por defecto, la
 forma exacta de `kubectl exec`, que ningún dato de la petición llega al shell, los errores `502`
 y la validación del manifiesto.

@@ -17,7 +17,7 @@ Para declarar una feature nueva a partir de un ejemplo de manifest y de lo esper
 `bun run features`. `bun run features:check` (usado en CI) falla si el archivo está desactualizado.
 
 <!-- features:summary -->
-Soportadas: **52** · Soportadas y probadas: **38** · Sin pruebas: **14**
+Soportadas: **53** · Soportadas y probadas: **40** · Sin pruebas: **13**
 <!-- /features:summary -->
 
 | Feature | Descripción | Soportada | Probada | Tests |
@@ -28,6 +28,7 @@ Soportadas: **52** · Soportadas y probadas: **38** · Sin pruebas: **14**
 | `manifest.load` | Configuración con `manifest.donly` (`host`, `port`) | ✅ | ✅ | manifest.donly configures the proxy |
 | `manifest.relative-paths` | Rutas de `log_file` y `ssl` relativas a la carpeta del manifest | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
 | `ssl.autogen` | Certificado autofirmado generado con `openssl` si no existe | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
+| `manifest.features` | Lista las features de un manifest: marca con `++` las líneas de las directivas que coinciden con unas rutas (`src/features/list-features.ts`) | ✅ | ✅ | marks the lines of the directives matching the paths<br>marks every matching directive of several paths<br>a block directive marks only its own line<br>without matches nothing is marked |
 | `route.regex` | `route` con patrón regex sobre la URL completa | ✅ | 🔴 | GET http://example.com through the proxy is answered by the route<br>🔴 GET https://example.com through the proxy is answered by the route |
 | `route.method` | `route` limitada a un método HTTP | ✅ | ✅ | route can be limited by method |
 | `route.first-match-wins` | Gana la primera `route` que coincide | ✅ | ❌ |  |
@@ -41,7 +42,7 @@ Soportadas: **52** · Soportadas y probadas: **38** · Sin pruebas: **14**
 | `proxy_pass.target-path` | La ruta del destino reemplaza a la original | ✅ | ✅ | proxy_pass with a target path replaces the path |
 | `proxy_pass.error` | `502 bad gateway` si el destino falla | ✅ | ❌ |  |
 | `proxy_pass.redirects` | Seguir las redirecciones del destino | ❌ | ❌ |  |
-| `command_pass.curl` | `command_pass curl`: la petición pasa por el comando `curl` | ✅ | ✅ | command_pass curl runs the curl found in PATH<br>command_pass curl hands the request to curl |
+| `command_pass.curl` | `command_pass curl`: la petición pasa por el comando `curl` | ✅ | ✅ | command_pass curl hands the request to curl<br>command_pass curl runs the curl found in PATH |
 | `command_pass.curl.head` | `curl` con peticiones `HEAD` (`--head`) | ✅ | ❌ |  |
 | `command_pass.curl.error` | `502 bad gateway` si `curl` falla | ✅ | ✅ | command_pass curl reports a bad gateway when curl fails |
 | `command_pass.node` | `command_pass node`: proceso `node` con `http.request` | ✅ | ✅ | command_pass node performs the request with http.request |
@@ -61,12 +62,12 @@ Soportadas: **52** · Soportadas y probadas: **38** · Sin pruebas: **14**
 | `command_pass.kubectl.default-engine` | `kubectl` usa `curl` si no hay `engine` | ✅ | ✅ | command_pass kubectl uses curl when no engine is given |
 | `command_pass.kubectl.no-shell-injection` | Los datos de la petición no llegan al shell del contenedor | ✅ | ✅ | request data never reaches the command line or a shell |
 | `command_pass.kubectl.error` | `502 bad gateway` si `kubectl` falla | ✅ | ✅ | kubectl failures are reported as a bad gateway |
-| `command_pass.kubectl.kind` | `command_pass kubectl` contra un Service echo desplegado con podman en el cluster `kind-kind-cluster` (se omite si no existe) | ✅ | ✅ | command_pass kubectl with engine curl reaches an echo Service in the kind-kind-cluster<br>command_pass kubectl with engine wget reaches an echo Service in the kind-kind-cluster<br>command_pass kubectl with engine node reaches an echo Service in the kind-kind-cluster<br>wget answers GET requests and reports the status of failed ones |
+| `command_pass.kubectl.kind` | `command_pass kubectl` contra un Service echo desplegado con podman en el cluster `kind-kind-cluster` (se omite si no existe) | ✅ | ✅ | command_pass kubectl with engine wget reaches an echo Service in the kind-kind-cluster<br>wget answers GET requests and reports the status of failed ones<br>command_pass kubectl with engine curl reaches an echo Service in the kind-kind-cluster<br>command_pass kubectl with engine node reaches an echo Service in the kind-kind-cluster |
 | `kubectl_pass` | `kubectl_pass <opciones> <destino> { command_pass curl\|wget\|node [opciones] }`: ejecuta la petición dentro del pod con el comando anidado | ✅ | ✅ | kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options |
 | `kubectl_pass.validation` | Validación del manifest para `kubectl_pass` (destino, `command_pass` hijo, `concurrency`) | ✅ | ✅ | manifest validation for kubectl_pass |
 | `command_pass.kubectl.validation` | Validación del manifest para `kubectl` y `engine` | ✅ | ✅ | manifest validation for kubectl |
 | `command_pass.concurrency.default` | `command_pass` ejecuta un proceso a la vez por defecto; las demás peticiones esperan en cola | ✅ | ✅ | runs one process at a time by default |
-| `command_pass.concurrency.limit` | `concurrency <n>` permite hasta `n` procesos en paralelo por ruta | ✅ | 🔴 | 🔴 concurrency <n> allows n processes in parallel<br>each route has its own limit<br>loadConfig reads concurrency, defaulting to 1 |
+| `command_pass.concurrency.limit` | `concurrency <n>` permite hasta `n` procesos en paralelo por ruta | ✅ | ✅ | concurrency <n> allows n processes in parallel<br>each route has its own limit<br>loadConfig reads concurrency, defaulting to 1 |
 | `command_pass.concurrency.queue` | Las peticiones en espera se atienden en orden de llegada y un fallo libera el lugar | ✅ | ✅ | waiting requests are served in arrival order<br>a failing process frees its place for the next request |
 | `command_pass.concurrency.validation` | `concurrency` debe ser un entero positivo | ✅ | ✅ | concurrency must be a positive integer |
 | `log_file.command` | La línea `response` de un `command_pass` registra el comando ejecutado (`curl`, `node`, `ssh` o `kubectl`) con todos sus argumentos | ✅ | ✅ | logs the curl command that was executed<br>logs the node command that was executed<br>logs the ssh command that was executed, including the remote command<br>logs the kubectl command that was executed |

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { CurlRequest, CurlResponse } from "./curl";
-import { run, type RunResult } from "./run";
+import type { CurlRequest, CurlResponse } from "../types";
+import { run, type RunResult } from "../run";
 
 const script = fileURLToPath(new URL("./node-request.mjs", import.meta.url));
 

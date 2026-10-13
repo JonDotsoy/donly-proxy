@@ -21,7 +21,7 @@ caso de error?, ¿qué pasa con HTTPS?), pregunta; lo que se declare es el contr
 ## Flujo
 
 1. **Lee el contexto.** `docs/manifest.md` (referencia del manifest), `docs/system/features.md`
-   (tabla de features) y el test más parecido en `src/*.test.ts`.
+   (tabla de features) y el test más parecido en `src/**/*.test.ts`.
 2. **Elige el id** de la feature: minúsculas, puntos como jerarquía, p. ej. `route.headers`,
    `command_pass.ssh.timeout`. Revisa que no exista ya en la tabla.
 3. **Declárala en la tabla** (`docs/system/features.md`) con una fila nueva, en el grupo que
@@ -43,9 +43,9 @@ caso de error?, ¿qué pasa con HTTPS?), pregunta; lo que se declare es el contr
    propio test (p. ej. `x`, `x.error`, `x.validation`).
 5. **Ejecuta los tests y comprueba que fallan por la razón correcta** (`bun test <archivo>`). Un
    test que pasa antes de implementar no declara nada.
-6. **Implementa** hasta que pasen. Código en `src/` (config en `loadConfig` de `src/server.ts`,
-   acciones de ruta en el handler de `createProxyServer`, comandos externos en `src/curl.ts`,
-   `src/node.ts`, `src/ssh.ts`, `src/kubectl.ts`, `src/remote.ts`). Sigue el estilo del código
+6. **Implementa** hasta que pasen. Código en `src/` (config en `loadConfig` de `src/proxy/server.ts`,
+   acciones de ruta en el handler de `createProxyServer`, comandos externos en `src/proxy/tunnel/`:
+   `curl/`, `wget/`, `node/`, `ssh/`, `kubectl/` y `remote.ts`). Sigue el estilo del código
    vecino.
 7. **Marca la feature como soportada** (`❌` → `✅` en *Soportada*) y **documéntala**: referencia en
    `docs/manifest.md` y, si es un `proxy_pass`/`command_pass`, en `docs/tunnel/`. Cuida que
@@ -118,8 +118,8 @@ test("[id.de.la.feature.validation] manifest inválido", async () => {
   fijos) y construye el manifest después de conocer su puerto.
 - **Comandos externos (`curl`, `node`, `ssh`, `kubectl`)**: no dependas del binario real. Pon un
   script falso al inicio del `PATH` que registre sus argumentos (`printf '%s\0' "$@"`) y ejecute lo
-  necesario; restaura `PATH` en `afterAll`. Mira `src/curl.test.ts`, `src/ssh.test.ts` y
-  `src/kubectl.test.ts`.
+  necesario; restaura `PATH` en `afterAll`. Mira `src/proxy/tunnel/curl/curl.test.ts`,
+  `src/proxy/tunnel/ssh/ssh.test.ts` y `src/proxy/tunnel/kubectl/kubectl.test.ts`.
 - **Datos de la petición** (URL, cabeceras, cuerpo) nunca deben interpolarse en una línea de
   comandos ni en un shell; si la feature ejecuta comandos, agrega un test `no-shell-injection`.
 - **Log**: si la feature afecta al log, comprueba las líneas `.ndjson` o actualiza el snapshot

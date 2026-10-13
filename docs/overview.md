@@ -10,7 +10,7 @@ cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `c
 ```sh
 bun install
 bun start                        # usa ./manifest.donly
-bun src/server.ts otro.donly     # usa otro manifiesto
+bun src/cli/main.ts otro.donly     # usa otro manifiesto
 bun test
 ```
 
@@ -54,13 +54,17 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 
 | Archivo | Contenido |
 | --- | --- |
-| `src/server.ts` | Servidor, lectura del manifiesto, rutas y log. Se ejecuta con `bun src/server.ts`. |
-| `src/curl.ts` | Ejecución del binario `curl` para `command_pass`. |
-| `src/node.ts`, `src/node-request.mjs` | Proceso `node` (`http.request` / `https.request`) para `command_pass node`. |
-| `src/ssh.ts`, `src/kubectl.ts`, `src/remote.ts` | Ejecución remota con motor `curl` o `node` por `ssh` o `kubectl exec` (`command_pass ssh` / `kubectl`). |
-| `src/run.ts` | Lanza un comando sin shell y recoge su salida. |
-| `src/certs.ts` | Generación del certificado autofirmado con `openssl`. |
-| `src/*.test.ts` | Pruebas (`bun test`). Corren en CI en cada pull request. |
+| `src/cli/main.ts` | Punto de entrada: lee el manifiesto y arranca el servidor. Se ejecuta con `bun src/cli/main.ts`. |
+| `src/proxy/server.ts` | Servidor, lectura del manifiesto, rutas y log. |
+| `src/proxy/certs.ts`, `src/proxy/semaphore.ts` | Certificado autofirmado con `openssl`; cola de `concurrency`. |
+| `src/proxy/tunnel/run.ts`, `types.ts`, `quote.ts` | Lanza un comando sin shell y recoge su salida; tipos de petición y respuesta; citado para el shell remoto. |
+| `src/proxy/tunnel/remote.ts` | Elige el motor (`curl`, `wget` o `node`) de la ejecución remota. |
+| `src/proxy/tunnel/curl/` | Ejecución del binario `curl` (`curl.ts`) y su línea de comando remota (`remote.ts`). |
+| `src/proxy/tunnel/wget/` | Motor `wget` remoto (solo GET y POST). |
+| `src/proxy/tunnel/node/` | Proceso `node` (`http.request` / `https.request`): `node.ts`, `node-request.mjs`, `remote.ts`. |
+| `src/proxy/tunnel/ssh/` | `command_pass ssh`. |
+| `src/proxy/tunnel/kubectl/` | `command_pass kubectl` y `kubectl_pass`; `curl/`, `wget/` y `node/` guardan las pruebas contra un cluster kind por motor (`kind-fixture.ts` las comparte). |
+| `src/**/*.test.ts` | Pruebas (`bun test`), junto al código que prueban. Corren en CI en cada pull request. |
 
 ## Requisitos y límites
 

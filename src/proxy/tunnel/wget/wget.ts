@@ -1,8 +1,6 @@
-import type { CurlRequest, CurlResponse } from "./curl";
-import type { RunResult } from "./run";
-
-// Everything that reaches the remote shell is either fixed text or a quoted literal.
-const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
+import type { CurlRequest, CurlResponse } from "../types";
+import { quote } from "../quote";
+import type { RunResult } from "../run";
 
 const checked = (value: string) => {
   if (/[\u0000-\u001f\u007f]/.test(value)) throw new Error("control characters are not allowed in a request sent with wget");

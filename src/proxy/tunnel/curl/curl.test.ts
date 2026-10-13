@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-import { createProxyServer, loadConfig } from "./server";
+import { createProxyServer, loadConfig } from "../../server";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-curl-"));
 const bin = join(dir, "bin");

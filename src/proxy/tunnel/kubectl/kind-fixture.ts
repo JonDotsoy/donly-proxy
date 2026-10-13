@@ -4,17 +4,19 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type http from "node:http";
-import { createProxyServer, loadConfig } from "./server";
+import { createProxyServer, loadConfig } from "../../server";
 
 // End to end against a real cluster: podman builds an echo server image, it is loaded into
-// the kind node and deployed as a Service, and `command_pass kubectl` reaches that Service
-// from inside a pod. The cluster must be exactly `kind-kind-cluster`; without podman, kubectl
-// or that cluster the tests are skipped.
-const CONTEXT = "kind-kind-cluster";
+// the kind node and deployed as a Service, and `kubectl_pass` / `command_pass kubectl` reach
+// that Service from inside a pod. The cluster must be exactly `kind-kind-cluster`; without
+// podman, kubectl or that cluster the tests are skipped.
+export const CONTEXT = "kind-kind-cluster";
 const NODE_CONTAINER = "kind-cluster-control-plane";
-const NAMESPACE = "donly-proxy-test";
-const ENGINES = ["curl", "wget", "node"] as const;
+export const NAMESPACE = "donly-proxy-test";
 const IMAGE = "localhost/donly-proxy-echo:test";
+const HOST = `echo.${NAMESPACE}.svc.cluster.local`;
+
+export type KindEngine = "curl" | "wget" | "node";
 
 const sh = (cmd: string[], input?: Uint8Array) => Bun.spawnSync(cmd, { stdin: input, stdout: "pipe", stderr: "pipe" });
 const ok = (cmd: string[]) => {
@@ -30,11 +32,11 @@ const must = (cmd: string[], input?: Uint8Array) => {
   return result.stdout;
 };
 
-const available =
+export const available =
   ok(["podman", "version"]) &&
   ok(["kubectl", "--context", CONTEXT, "get", "nodes"]) &&
   ok(["podman", "container", "exists", NODE_CONTAINER]);
-const cluster = available ? test : test.skip;
+export const cluster = available ? test : test.skip;
 
 const echoServer = `
 import http from "node:http";
@@ -45,15 +47,8 @@ http.createServer(async (req, res) => {
 }).listen(8080);
 `;
 
-const kubectl = (...args: string[]) => must(["kubectl", "--context", CONTEXT, ...args]);
-
-let server: http.Server;
-let logFile: string;
-let proxy: string;
-const saved = { NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };
-
-beforeAll(async () => {
-  if (!available) return;
+/** Builds the echo image, imports it into the kind node and deploys it. Shared by every test file. */
+const deploy = async () => {
   const dir = mkdtempSync(join(tmpdir(), "donly-proxy-kind-"));
 
   // 1. podman builds the echo server image and imports it into the kind node (containerd).
@@ -89,72 +84,91 @@ spec:
 `;
   must(["kubectl", "--context", CONTEXT, "delete", "namespace", NAMESPACE, "--ignore-not-found", "--wait=true"]);
   must(["kubectl", "--context", CONTEXT, "apply", "-f", "-"], new TextEncoder().encode(manifestYaml));
-  kubectl("-n", NAMESPACE, "wait", "--for=condition=Ready", "pod/echo", "--timeout=120s");
+  must(["kubectl", "--context", CONTEXT, "-n", NAMESPACE, "wait", "--for=condition=Ready", "pod/echo", "--timeout=120s"]);
 
   // kube-proxy programs the Service a moment after the pod is Ready: wait until it answers.
-  const probe = ["kubectl", "--context", CONTEXT, "-n", NAMESPACE, "exec", "echo", "--", "node", "-e", `fetch("http://echo.${NAMESPACE}.svc.cluster.local/").then(() => {}, () => process.exit(1))`];
+  const probe = ["kubectl", "--context", CONTEXT, "-n", NAMESPACE, "exec", "echo", "--", "node", "-e", `fetch("http://${HOST}/").then(() => {}, () => process.exit(1))`];
   for (let attempt = 0; sh(probe).exitCode !== 0; attempt++) {
     if (attempt >= 60) throw new Error("the echo Service never became reachable");
     await Bun.sleep(1000);
   }
+  process.on("exit", () => {
+    sh(["kubectl", "--context", CONTEXT, "delete", "namespace", NAMESPACE, "--ignore-not-found", "--wait=false"]);
+  });
+};
 
-  // 3. The proxy, whose routes run the request inside the echo pod.
-  writeFileSync(
-    join(dir, "manifest.donly"),
-    `proxy {
-  host "127.0.0.1"
-  port 0
-  log_file "./proxy.ndjson"
-${ENGINES.map(
-    (engine) =>
-      engine === "node"
-        ? `  route http://echo.${NAMESPACE}.svc.cluster.local/node/ {
+const deployed = globalThis as { __donlyKindDeployed?: Promise<void> };
+
+/** The manifest route that sends `/<engine>/` through the echo pod. */
+const route = (engine: KindEngine) =>
+  engine === "node"
+    ? `  route http://${HOST}/node/ {
     command_pass kubectl "--context" "${CONTEXT}" "-n" "${NAMESPACE}" "pod/echo" {
       engine node
     }
   }
 `
-        : `  route http://echo.${NAMESPACE}.svc.cluster.local/${engine}/ {
+    : `  route http://${HOST}/${engine}/ {
     kubectl_pass "--context" "${CONTEXT}" "-n" "${NAMESPACE}" "pod/echo" {
       command_pass ${engine}
     }
   }
-`,
-  ).join("")}}
-`,
-  );
-  logFile = join(dir, "proxy.ndjson");
-  process.env.NO_PROXY = process.env.no_proxy = "";
-  server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  proxy = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-}, 300_000);
+`;
 
-afterAll(() => {
-  if (!available) return;
-  server?.close();
-  for (const [key, value] of [["NO_PROXY", saved.NO_PROXY], ["no_proxy", saved.no_proxy]] as const) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
-  sh(["kubectl", "--context", CONTEXT, "delete", "namespace", NAMESPACE, "--ignore-not-found", "--wait=false"]);
-});
+/**
+ * Deploys the echo Service (once) and starts a proxy with a route for `engine`.
+ * Call it at the top level of a test file.
+ */
+export const useKind = (engine: KindEngine) => {
+  let server: http.Server;
+  let logFile: string;
+  let proxy: string;
+  const saved = { NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };
 
-const readLog = (): any[] =>
-  existsSync(logFile) ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [];
+  beforeAll(async () => {
+    if (!available) return;
+    await (deployed.__donlyKindDeployed ??= deploy());
+    const dir = mkdtempSync(join(tmpdir(), "donly-proxy-kind-proxy-"));
+    writeFileSync(join(dir, "manifest.donly"), `proxy {\n  host "127.0.0.1"\n  port 0\n  log_file "./proxy.ndjson"\n${route(engine)}}\n`);
+    logFile = join(dir, "proxy.ndjson");
+    process.env.NO_PROXY = process.env.no_proxy = "";
+    server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    proxy = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  }, 300_000);
 
-for (const engine of ENGINES) {
+  afterAll(() => {
+    if (!available) return;
+    server?.close();
+    for (const [key, value] of [["NO_PROXY", saved.NO_PROXY], ["no_proxy", saved.no_proxy]] as const) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  const readLog = (): any[] =>
+    existsSync(logFile) ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [];
+
+  return {
+    url: (path: string) => `http://${HOST}/${engine}/${path}`,
+    proxy: () => proxy,
+    readLog,
+  };
+};
+
+/** The shared check: a POST through the proxy reaches the echo pod and both log lines are written. */
+export const echoTest = (engine: KindEngine, kind: ReturnType<typeof useKind>) =>
   cluster(`[command_pass.kubectl.kind] command_pass kubectl with engine ${engine} reaches an echo Service in the kind-kind-cluster`, async () => {
-    const url = `http://echo.${NAMESPACE}.svc.cluster.local/${engine}/path?x=1`;
-    const before = readLog().length;
-    const res = await fetch(url, { proxy, method: "POST", body: "payload", headers: { "x-custom": "abc" } });
+    const url = kind.url("path?x=1");
+    const before = kind.readLog().length;
+    const res = await fetch(url, { proxy: kind.proxy(), method: "POST", body: "payload", headers: { "x-custom": "abc" } });
     const text = await res.clone().text();
     expect(res.status, text).toBe(200);
     expect(res.headers.get("x-echo")).toBe("yes");
     expect(await res.json()).toEqual({ method: "POST", url: `/${engine}/path?x=1`, custom: "abc", body: "payload" });
 
     // The log holds both the request and the command_pass that carried it to the pod.
-    const [request, response, ...rest] = readLog().slice(before);
+    const [request, response, ...rest] = kind.readLog().slice(before);
     expect(rest).toEqual([]);
     expect(request).toMatchObject({ type: "request", method: "POST", url, headers: { "x-custom": "abc" }, payload: "payload" });
     expect(response).toMatchObject({ type: "response", status: 200, transaction_id: request.transaction_id });
@@ -166,13 +180,3 @@ for (const engine of ENGINES) {
     expect(response.command).toContain("--");
     expect(response.command.join(" ")).toContain(engine === "node" ? "node --input-type=module -" : `${engine} `);
   }, 60_000);
-}
-
-cluster("[command_pass.kubectl.kind] wget answers GET requests and reports the status of failed ones", async () => {
-  const get = await fetch(`http://echo.${NAMESPACE}.svc.cluster.local/wget/get`, { proxy });
-  expect(get.status).toBe(200);
-  expect((await get.json()).method).toBe("GET");
-  const put = await fetch(`http://echo.${NAMESPACE}.svc.cluster.local/wget/put`, { proxy, method: "PUT", body: "x" });
-  expect(put.status).toBe(502);
-  expect(await put.text()).toContain("wget only supports GET and POST");
-}, 60_000);

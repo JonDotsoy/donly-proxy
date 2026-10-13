@@ -2,7 +2,7 @@
 
 El proxy se configura con un archivo en formato [DON](https://don.jon.soy/). Por defecto se lee
 `manifest.donly` en la raíz del proyecto; se puede indicar otro como primer argumento:
-`bun src/server.ts ruta/al/manifest.donly`.
+`bun src/cli/main.ts ruta/al/manifest.donly`.
 
 Todo va dentro de un único bloque `proxy`:
 

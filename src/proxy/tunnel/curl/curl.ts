@@ -1,23 +1,5 @@
-import { run, type RunResult } from "./run";
-
-export interface CurlRequest {
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  body: Buffer;
-  /** Extra command options from the manifest (curl options, node options or ssh options). */
-  args: string[];
-  /** Extra options for the remote engine (`kubectl_pass … { command_pass curl <options> }`). */
-  engineArgs?: string[];
-  /** Called with the full command line (program and arguments) right before it runs. */
-  onCommand?: (command: string[]) => void;
-}
-
-export interface CurlResponse {
-  status: number;
-  headers: Record<string, string | string[]>;
-  body: Buffer;
-}
+import { run, type RunResult } from "../run";
+import type { CurlRequest, CurlResponse } from "../types";
 
 /**
  * Fixed curl flags shared by the local and the remote (ssh) runs. The body comes out of
