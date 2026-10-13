@@ -60,13 +60,13 @@ afterAll(() => {
   upstream.close();
 });
 
-test("GET http://example.com through the proxy responds ok", async () => {
+test("[http.proxy][route.regex][route.respond] GET http://example.com through the proxy is answered by the route", async () => {
   const res = await fetch("http://example.com", { proxy });
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("good");
 });
 
-test("GET https://example.com through the proxy responds ok", async () => {
+test("[https.tunnel][route.regex][route.respond] GET https://example.com through the proxy is answered by the route", async () => {
   const res = await fetch("https://example.com", {
     proxy,
     tls: { rejectUnauthorized: false },
@@ -75,13 +75,13 @@ test("GET https://example.com through the proxy responds ok", async () => {
   expect(await res.text()).toBe("good");
 });
 
-test("manifest.donly configures the proxy", () => {
+test("[manifest.load] manifest.donly configures the proxy", () => {
   expect(config.host).toBe("127.0.0.1");
   expect(config.port).toBe(0);
   expect(config.ssl.cert.endsWith("certs/cert.pem")).toBe(true);
 });
 
-test("route can be limited by method", async () => {
+test("[route.method] route can be limited by method", async () => {
   const get = await fetch("http://example.com", { proxy });
   expect(await get.text()).toBe("good");
   const post = await fetch("http://example.com", { proxy, method: "POST" });
@@ -89,13 +89,13 @@ test("route can be limited by method", async () => {
   expect(await post.text()).toBe("created");
 });
 
-test("requests that match no route respond ok", async () => {
+test("[route.no-match-ok] requests that match no route respond ok", async () => {
   const res = await fetch("http://other.test/x", { proxy });
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok");
 });
 
-test("proxy_pass forwards method, path, query and body to the target", async () => {
+test("[proxy_pass] proxy_pass forwards method, path, query and body to the target", async () => {
   const res = await fetch("http://pass.test/a/b?x=1", { proxy, method: "POST", body: "hello" });
   expect(res.headers.get("x-upstream")).toBe("yes");
   expect(await res.json()).toEqual({
@@ -106,17 +106,17 @@ test("proxy_pass forwards method, path, query and body to the target", async () 
   });
 });
 
-test("proxy_pass works through an https tunnel", async () => {
+test("[proxy_pass.https] proxy_pass works through an https tunnel", async () => {
   const res = await fetch("https://pass.test/secure", { proxy, tls: { rejectUnauthorized: false } });
   expect((await res.json()).url).toBe("/secure");
 });
 
-test("proxy_pass with a target path replaces the path", async () => {
+test("[proxy_pass.target-path] proxy_pass with a target path replaces the path", async () => {
   const res = await fetch("http://fixed.test/ignored?y=2", { proxy });
   expect((await res.json()).url).toBe("/fixed?y=2");
 });
 
-test("log_file records request and response sharing a transaction id", async () => {
+test("[log_file.transactions] log_file records request and response sharing a transaction id", async () => {
   const logFile = join(dir, "logs/proxy.ndjson");
   const before = readFileSync(logFile, "utf8").split("\n").filter(Boolean).length;
   await (await fetch("http://example.com/log?z=1", { proxy, method: "POST", body: "ping" })).text();
@@ -140,13 +140,13 @@ test("log_file records request and response sharing a transaction id", async () 
   expect(response.payload).toBe("created");
 });
 
-test("log_file only supports .ndjson", async () => {
+test("[log_file.ndjson-only] log_file only supports .ndjson", async () => {
   const bad = join(dir, "bad.donly");
   writeFileSync(bad, `proxy {\n  log_file "./proxy.log"\n}\n`);
   expect(loadConfig(bad)).rejects.toThrow(".ndjson");
 });
 
-test("log_file is resolved relative to the manifest, not the cwd", async () => {
+test("[manifest.relative-paths][ssl.autogen] log_file and ssl are resolved relative to the manifest, not the cwd", async () => {
   const base = mkdtempSync(join(tmpdir(), "donly-proxy-rel-"));
   mkdirSync(join(base, "conf"));
   const relManifest = join(base, "conf/manifest.donly");
@@ -184,7 +184,7 @@ test("log_file is resolved relative to the manifest, not the cwd", async () => {
   expect(existsSync(join(base, "ssl/cert.pem"))).toBe(true);
 });
 
-test("log_file snapshot", async () => {
+test("[log_file.snapshot] log_file snapshot", async () => {
   const snapDir = mkdtempSync(join(tmpdir(), "donly-proxy-snap-"));
   const snapManifest = join(snapDir, "manifest.donly");
   writeFileSync(
@@ -241,7 +241,7 @@ test("log_file snapshot", async () => {
   expect(masked).toMatchSnapshot();
 });
 
-test("command_pass curl hands the request to curl", async () => {
+test("[command_pass.curl] command_pass curl hands the request to curl", async () => {
   const res = await fetch("http://curl.test/via/curl?k=v", { proxy, method: "PUT", body: "data", headers: { "x-custom": "1" } });
   expect(res.status).toBe(200);
   expect(res.headers.get("x-upstream")).toBe("yes");
@@ -253,7 +253,7 @@ test("command_pass curl hands the request to curl", async () => {
   });
 });
 
-test("command_pass curl reports a bad gateway when curl fails", async () => {
+test("[command_pass.curl.error] command_pass curl reports a bad gateway when curl fails", async () => {
   const dead = join(mkdtempSync(join(tmpdir(), "donly-proxy-dead-")), "manifest.donly");
   writeFileSync(dead, `proxy {\n  route http://dead.test/ {\n    command_pass curl "--connect-to" "dead.test:80:127.0.0.1:1"\n  }\n}\n`);
   const deadConfig = await loadConfig(dead);
@@ -268,7 +268,7 @@ test("command_pass curl reports a bad gateway when curl fails", async () => {
   }
 });
 
-test("command_pass only supports curl", async () => {
+test("[command_pass.validation] command_pass only supports known commands", async () => {
   const bad = join(dir, "bad-command.donly");
   writeFileSync(bad, `proxy {\n  route / {\n    command_pass wget\n  }\n}\n`);
   expect(loadConfig(bad)).rejects.toThrow("solo soporta");

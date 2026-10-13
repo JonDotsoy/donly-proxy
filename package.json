@@ -3,7 +3,9 @@
   "type": "module",
   "scripts": {
     "start": "bun src/server.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "features": "bun scripts/features.ts",
+    "features:check": "bun scripts/features.ts --check"
   },
   "devDependencies": {
     "@types/bun": "latest"

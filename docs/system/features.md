@@ -1,0 +1,66 @@
+# Features
+
+Tabla de las features del proxy, si están **soportadas** y si están **probadas**.
+
+- Las columnas **Feature**, **Descripción** y **Soportada** se escriben a mano.
+- Las columnas **Probada** y **Tests** las genera `bun run features` a partir de los títulos de
+  los tests; no las edites.
+- Un test pertenece a una feature cuando su título lleva el id de la feature entre corchetes,
+  por ejemplo `test("[proxy_pass.https] proxy_pass works through an https tunnel", …)`. Un título
+  puede llevar varios ids. El script falla si un test no lleva ningún id, si el id no está en la
+  tabla o si algún test falla.
+- **Probada**: ✅ hay al menos un test y todos pasan · 🔴 algún test de la feature falla · ❌ no hay
+  tests.
+
+Para agregar una feature: añade una fila `| \`id\` | descripción | ✅ | | |` y ejecuta
+`bun run features`. `bun run features:check` (usado en CI) falla si el archivo está desactualizado.
+
+<!-- features:summary -->
+Soportadas: **40** · Soportadas y probadas: **34** · Sin pruebas: **6**
+<!-- /features:summary -->
+
+| Feature | Descripción | Soportada | Probada | Tests |
+| --- | --- | --- | --- | --- |
+| `http.proxy` | Proxy HTTP: peticiones con URL absoluta | ✅ | ✅ | GET http://example.com through the proxy is answered by the route<br>fetch through the proxy goes through it and is logged |
+| `https.tunnel` | Proxy HTTPS: túnel `CONNECT` con el TLS terminado en el proxy | ✅ | ✅ | GET https://example.com through the proxy is answered by the route |
+| `http2` | HTTP/2 y HTTP/3 | ❌ | ❌ |  |
+| `manifest.load` | Configuración con `manifest.donly` (`host`, `port`) | ✅ | ✅ | manifest.donly configures the proxy |
+| `manifest.relative-paths` | Rutas de `log_file` y `ssl` relativas a la carpeta del manifest | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
+| `ssl.autogen` | Certificado autofirmado generado con `openssl` si no existe | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
+| `route.regex` | `route` con patrón regex sobre la URL completa | ✅ | ✅ | GET http://example.com through the proxy is answered by the route<br>GET https://example.com through the proxy is answered by the route |
+| `route.method` | `route` limitada a un método HTTP | ✅ | ✅ | route can be limited by method |
+| `route.first-match-wins` | Gana la primera `route` que coincide | ✅ | ❌ |  |
+| `route.no-match-ok` | Sin ruta que coincida responde `200 ok` | ✅ | ✅ | requests that match no route respond ok |
+| `route.respond` | `respond <estado> "<cuerpo>"` | ✅ | ✅ | GET http://example.com through the proxy is answered by the route<br>GET https://example.com through the proxy is answered by the route |
+| `route.validation.single-action` | Cada `route` exige exactamente una acción (`respond`, `proxy_pass` o `command_pass`) | ✅ | ❌ |  |
+| `proxy_pass` | Reenvía método, ruta, query, cabeceras y cuerpo a otro servidor | ✅ | ✅ | proxy_pass forwards method, path, query and body to the target |
+| `proxy_pass.https` | `proxy_pass` sobre tráfico HTTPS (túnel) | ✅ | ✅ | proxy_pass works through an https tunnel |
+| `proxy_pass.target-path` | La ruta del destino reemplaza a la original | ✅ | ✅ | proxy_pass with a target path replaces the path |
+| `proxy_pass.error` | `502 bad gateway` si el destino falla | ✅ | ❌ |  |
+| `proxy_pass.redirects` | Seguir las redirecciones del destino | ❌ | ❌ |  |
+| `command_pass.curl` | `command_pass curl`: la petición pasa por el comando `curl` | ✅ | ✅ | command_pass curl hands the request to curl<br>command_pass curl runs the curl found in PATH |
+| `command_pass.curl.head` | `curl` con peticiones `HEAD` (`--head`) | ✅ | ❌ |  |
+| `command_pass.curl.error` | `502 bad gateway` si `curl` falla | ✅ | ✅ | command_pass curl reports a bad gateway when curl fails |
+| `command_pass.node` | `command_pass node`: proceso `node` con `http.request` | ✅ | ✅ | command_pass node performs the request with http.request |
+| `command_pass.node.https` | `command_pass node` con `https.request` | ✅ | ✅ | command_pass node performs https requests with https.request |
+| `command_pass.node.compressed` | `node` descomprime respuestas `gzip` / `deflate` / `br` | ✅ | ❌ |  |
+| `command_pass.node.error` | `502 bad gateway` si `node` falla | ✅ | ✅ | command_pass node reports a bad gateway when the request fails |
+| `command_pass.ssh.curl` | `command_pass ssh` con `engine curl` | ✅ | ✅ | command_pass ssh with engine curl runs the request on the remote host |
+| `command_pass.ssh.node` | `command_pass ssh` con `engine node` | ✅ | ✅ | command_pass ssh with engine node runs the request on the remote host |
+| `command_pass.ssh.default-engine` | `ssh` usa `curl` si no hay `engine` | ✅ | ✅ | command_pass ssh uses curl when no engine is given |
+| `command_pass.ssh.no-shell-injection` | Los datos de la petición no llegan al shell remoto de `ssh` | ✅ | ✅ | request data never reaches the remote command line or a shell |
+| `command_pass.ssh.error` | `502 bad gateway` si `ssh` falla | ✅ | ✅ | ssh failures are reported as a bad gateway |
+| `command_pass.ssh.validation` | Validación del manifest para `ssh` y `engine` | ✅ | ✅ | manifest validation for ssh and engine |
+| `command_pass.ssh.password` | Autenticación por contraseña en `ssh` (solo llaves o agente) | ❌ | ❌ |  |
+| `command_pass.kubectl.curl` | `command_pass kubectl` con `engine curl` | ✅ | ✅ | command_pass kubectl with engine curl runs the request inside the pod |
+| `command_pass.kubectl.node` | `command_pass kubectl` con `engine node` | ✅ | ✅ | command_pass kubectl with engine node runs the request inside the pod |
+| `command_pass.kubectl.default-engine` | `kubectl` usa `curl` si no hay `engine` | ✅ | ✅ | command_pass kubectl uses curl when no engine is given |
+| `command_pass.kubectl.no-shell-injection` | Los datos de la petición no llegan al shell del contenedor | ✅ | ✅ | request data never reaches the command line or a shell |
+| `command_pass.kubectl.error` | `502 bad gateway` si `kubectl` falla | ✅ | ✅ | kubectl failures are reported as a bad gateway |
+| `command_pass.kubectl.validation` | Validación del manifest para `kubectl` y `engine` | ✅ | ✅ | manifest validation for kubectl |
+| `command_pass.validation` | `command_pass` rechaza comandos desconocidos | ✅ | ✅ | command_pass only supports known commands |
+| `log_file.transactions` | Una línea `request` y otra `response` por transacción, con `transaction_id` compartido | ✅ | ✅ | log_file records request and response sharing a transaction id<br>fetch through the proxy goes through it and is logged |
+| `log_file.ndjson-only` | `log_file` solo admite la extensión `.ndjson` | ✅ | ✅ | log_file only supports .ndjson |
+| `log_file.snapshot` | Formato exacto del log (snapshot) | ✅ | ✅ | log_file snapshot |
+| `log_file.no-proxy-no-log` | Las peticiones que no pasan por el proxy no escriben log | ✅ | ✅ | fetch without proxy reaches the local server and writes no log<br>a later fetch without proxy still adds nothing to the log |
+| `log_file.payload-base64` | Cuerpos que no son UTF-8 se guardan en base64 | ✅ | ❌ |  |

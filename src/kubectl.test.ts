@@ -77,7 +77,7 @@ afterAll(() => {
 const kubectlArgs = () => readFileSync(argsFile, "utf8").split("\0").slice(0, -1);
 
 for (const engine of ["curl", "node"] as const) {
-  test(`command_pass kubectl with engine ${engine} runs the request inside the pod`, async () => {
+  test(`[command_pass.kubectl.${engine}] command_pass kubectl with engine ${engine} runs the request inside the pod`, async () => {
     const res = await fetch(`http://127.0.0.1:${port}/${engine}/path?x=1`, {
       proxy,
       method: "POST",
@@ -103,13 +103,13 @@ for (const engine of ["curl", "node"] as const) {
   });
 }
 
-test("command_pass kubectl uses curl when no engine is given", async () => {
+test("[command_pass.kubectl.default-engine] command_pass kubectl uses curl when no engine is given", async () => {
   const res = await fetch(`http://127.0.0.1:${port}/default/`, { proxy });
   expect((await res.json()).url).toBe("/default/");
   expect(kubectlArgs().at(-1)).toContain("curl -K");
 });
 
-test("request data never reaches the command line or a shell", async () => {
+test("[command_pass.kubectl.no-shell-injection] request data never reaches the command line or a shell", async () => {
   const evil = `'; touch ${evilFile}; echo '`;
   for (const route of ["curl", "node"]) {
     const res = await fetch(`http://127.0.0.1:${port}/${route}/${encodeURIComponent(evil)}$(touch%20${evilFile})`, {
@@ -127,7 +127,7 @@ test("request data never reaches the command line or a shell", async () => {
   expect(existsSync(evilFile)).toBe(false);
 });
 
-test("kubectl failures are reported as a bad gateway", async () => {
+test("[command_pass.kubectl.error] kubectl failures are reported as a bad gateway", async () => {
   const failing = join(dir, "failing");
   mkdirSync(failing);
   writeFileSync(join(failing, "kubectl"), '#!/bin/sh\necho \'Error from server (NotFound): pods "api-0" not found\' >&2\nexit 1\n');
@@ -142,7 +142,7 @@ test("kubectl failures are reported as a bad gateway", async () => {
   }
 });
 
-test("manifest validation for kubectl", async () => {
+test("[command_pass.kubectl.validation] manifest validation for kubectl", async () => {
   const load = (route: string) => {
     const file = join(dir, `v-${Math.random()}.donly`);
     writeFileSync(file, manifest(route));

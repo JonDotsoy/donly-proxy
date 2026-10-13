@@ -51,14 +51,14 @@ const readLog = () =>
     ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
     : [];
 
-test("fetch without proxy reaches the local server and writes no log", async () => {
+test("[log_file.no-proxy-no-log] fetch without proxy reaches the local server and writes no log", async () => {
   const res = await fetch(target);
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("hello from 3001");
   expect(existsSync(logFile)).toBe(false);
 });
 
-test("fetch through the proxy goes through it and is logged", async () => {
+test("[http.proxy][log_file.transactions] fetch through the proxy goes through it and is logged", async () => {
   const res = await fetch(target, { proxy });
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok"); // no route: the proxy answers by itself
@@ -73,7 +73,7 @@ test("fetch through the proxy goes through it and is logged", async () => {
   expect(response.transaction_id).toBe(request.transaction_id);
 });
 
-test("a later fetch without proxy still adds nothing to the log", async () => {
+test("[log_file.no-proxy-no-log] a later fetch without proxy still adds nothing to the log", async () => {
   const before = readLog().length;
   expect(await (await fetch(target)).text()).toBe("hello from 3001");
   expect(readLog()).toHaveLength(before);

@@ -84,7 +84,7 @@ afterAll(() => {
   httpsUpstream.close();
 });
 
-test("command_pass node performs the request with http.request", async () => {
+test("[command_pass.node] command_pass node performs the request with http.request", async () => {
   const res = await fetch(`http://127.0.0.1:${httpPort}/a/b?x=1`, {
     proxy,
     method: "POST",
@@ -107,7 +107,7 @@ test("command_pass node performs the request with http.request", async () => {
   expect(args[1]).toEndWith("node-request.mjs");
 });
 
-test("command_pass node performs https requests with https.request", async () => {
+test("[command_pass.node.https] command_pass node performs https requests with https.request", async () => {
   const res = await fetch(`https://127.0.0.1:${httpsPort}/secure?y=2`, {
     proxy,
     tls: { rejectUnauthorized: false },
@@ -116,7 +116,7 @@ test("command_pass node performs https requests with https.request", async () =>
   expect(await res.json()).toMatchObject({ method: "GET", url: "/secure?y=2" });
 });
 
-test("command_pass node reports a bad gateway when the request fails", async () => {
+test("[command_pass.node.error] command_pass node reports a bad gateway when the request fails", async () => {
   const down = http.createServer();
   const port = await listen(down);
   down.close();

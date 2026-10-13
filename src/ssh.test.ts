@@ -72,7 +72,7 @@ afterAll(() => {
 const sshArgs = () => readFileSync(argsFile, "utf8").split("\0").slice(0, -1);
 
 for (const engine of ["curl", "node"] as const) {
-  test(`command_pass ssh with engine ${engine} runs the request on the remote host`, async () => {
+  test(`[command_pass.ssh.${engine}] command_pass ssh with engine ${engine} runs the request on the remote host`, async () => {
     const res = await fetch(`http://127.0.0.1:${port}/${engine}/path?x=1`, {
       proxy,
       method: "POST",
@@ -92,13 +92,13 @@ for (const engine of ["curl", "node"] as const) {
   });
 }
 
-test("command_pass ssh uses curl when no engine is given", async () => {
+test("[command_pass.ssh.default-engine] command_pass ssh uses curl when no engine is given", async () => {
   const res = await fetch(`http://127.0.0.1:${port}/default/`, { proxy });
   expect((await res.json()).url).toBe("/default/");
   expect(sshArgs().at(-1)).toContain("curl -K");
 });
 
-test("request data never reaches the remote command line or a shell", async () => {
+test("[command_pass.ssh.no-shell-injection] request data never reaches the remote command line or a shell", async () => {
   const evil = `'; touch ${evilFile}; echo '`;
   for (const route of ["curl", "node"]) {
     const res = await fetch(`http://127.0.0.1:${port}/${route}/${encodeURIComponent(evil)}$(touch%20${evilFile})`, {
@@ -116,7 +116,7 @@ test("request data never reaches the remote command line or a shell", async () =
   expect(existsSync(evilFile)).toBe(false);
 });
 
-test("ssh failures are reported as a bad gateway", async () => {
+test("[command_pass.ssh.error] ssh failures are reported as a bad gateway", async () => {
   const failing = join(dir, "failing");
   mkdirSync(failing);
   writeFileSync(join(failing, "ssh"), "#!/bin/sh\necho 'connection refused' >&2\nexit 255\n");
@@ -131,7 +131,7 @@ test("ssh failures are reported as a bad gateway", async () => {
   }
 });
 
-test("manifest validation for ssh and engine", async () => {
+test("[command_pass.ssh.validation] manifest validation for ssh and engine", async () => {
   const load = (route: string) => {
     const file = join(dir, `v-${Math.random()}.donly`);
     writeFileSync(file, manifest(route));

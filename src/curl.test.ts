@@ -58,7 +58,7 @@ afterAll(() => {
   server.close();
 });
 
-test("command_pass curl runs the curl found in PATH", async () => {
+test("[command_pass.curl] command_pass curl runs the curl found in PATH", async () => {
   const res = await fetch("http://fake.test/some/path?q=1", {
     proxy,
     method: "POST",

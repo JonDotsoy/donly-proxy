@@ -45,6 +45,7 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 
 ## Documentación
 
+- [`system/features.md`](system/features.md): tabla de features, cuáles están soportadas y cuáles probadas (se actualiza con `bun run features`).
 - [`manifest.md`](manifest.md): referencia del manifiesto (`host`, `port`, `ssl`, `log_file`, `route`).
 - [`tunnel/proxy-pass.md`](tunnel/proxy-pass.md): reenviar una ruta a otro servidor.
 - [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta a `curl`, `node`, `ssh` o `kubectl`.
