@@ -2,7 +2,7 @@
 
 Proxy HTTP/HTTPS configurable con un manifiesto [DON](https://don.jon.soy/) (`manifest.donly`).
 Por defecto responde `ok` a cualquier petición; con rutas (`route`) puede responder con un
-cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `curl`, a un proceso `node` , a otra máquina por `ssh` o a un pod con `kubectl`
+cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `curl`, a un proceso `node`, a otra máquina por `ssh` o a un pod con `kubectl`
 (`command_pass`). Cada transacción puede registrarse en un archivo `.ndjson`.
 
 ## Uso rápido
