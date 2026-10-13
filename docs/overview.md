@@ -2,7 +2,7 @@
 
 Proxy HTTP/HTTPS configurable con un manifiesto [DON](https://don.jon.soy/) (`manifest.donly`).
 Por defecto responde `ok` a cualquier petición; con rutas (`route`) puede responder con un
-cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla al comando `curl`
+cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `curl` o a un proceso `node`
 (`command_pass`). Cada transacción puede registrarse en un archivo `.ndjson`.
 
 ## Uso rápido
@@ -47,7 +47,7 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 
 - [`manifest.md`](manifest.md): referencia del manifiesto (`host`, `port`, `ssl`, `log_file`, `route`).
 - [`tunnel/proxy-pass.md`](tunnel/proxy-pass.md): reenviar una ruta a otro servidor.
-- [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta al comando `curl`.
+- [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta a `curl` o a un proceso `node`.
 
 ## Estructura del código
 
@@ -55,12 +55,13 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 | --- | --- |
 | `src/server.ts` | Servidor, lectura del manifiesto, rutas y log. Se ejecuta con `bun src/server.ts`. |
 | `src/curl.ts` | Ejecución del binario `curl` para `command_pass`. |
+| `src/node.ts`, `src/node-request.mjs` | Proceso `node` (`http.request` / `https.request`) para `command_pass node`. |
 | `src/certs.ts` | Generación del certificado autofirmado con `openssl`. |
 | `src/*.test.ts` | Pruebas (`bun test`). Corren en CI en cada pull request. |
 
 ## Requisitos y límites
 
 - [Bun](https://bun.sh) para ejecutar el servidor y las pruebas.
-- `openssl` instalado (solo si los certificados no existen) y `curl` (solo para `command_pass`).
+- `openssl` instalado (solo si los certificados no existen) y `curl` o `node` (solo para `command_pass`, según el comando que uses).
 - Solo HTTP/1.1. Los cuerpos se mantienen completos en memoria. No hay autenticación: no lo
   expongas fuera de `127.0.0.1` sin protegerlo.

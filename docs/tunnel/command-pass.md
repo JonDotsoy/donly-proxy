@@ -1,18 +1,29 @@
 # `command_pass`
 
-Pasa la petición a un comando externo, que la ejecuta contra su URL original. Hoy el único
-comando soportado es `curl`.
+Pasa la petición a un comando externo, que la ejecuta contra su URL original. Comandos
+soportados: [`curl`](#curl) y [`node`](#node).
 
 ```
 route http://example.com/ {
   command_pass curl "--max-time" "5"
 }
+
+route https://example.com/ {
+  command_pass node "--no-warnings"
+}
 ```
 
-El primer argumento es el comando (`curl`; cualquier otro hace fallar el arranque). Los
-argumentos siguientes, opcionales, son **opciones adicionales de curl**, una por cadena.
+El primer argumento es el comando (cualquier otro hace fallar el arranque). Los argumentos
+siguientes, opcionales, son **opciones adicionales del comando**, una por cadena.
 
-## Qué hace el proxy
+En ambos casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
+`PATH`, y si falla, no está instalado o no devuelve una respuesta válida el proxy contesta
+`502 bad gateway: <comando> exited with <código>: <salida>`. Las cabeceras de conexión, `host`,
+`content-length` y `content-encoding` no se devuelven al cliente.
+
+## curl
+
+### Qué hace el proxy
 
 Ejecuta `curl` (el que se encuentre en el `PATH`) sin shell, pasando los argumentos como lista:
 
@@ -36,7 +47,7 @@ curl --silent --compressed --proto =http,https \
   la llamada (`--insecure`, `--max-time`, `--connect-to`, `--proxy`, etc.).
 - Las redirecciones no se siguen (a menos que agregues `-L`).
 
-## Qué se devuelve al cliente
+### Qué se devuelve al cliente
 
 `curl` entrega el resultado por dos canales, para no mezclar el cuerpo con los metadatos:
 
@@ -49,7 +60,7 @@ El cliente recibe ese estado, esas cabeceras (sin las de conexión ni `content-e
 cuerpo. Si `curl` termina con error, no está instalado o no produjo un estado, el proxy
 responde `502` con `bad gateway: curl exited with <código>: <salida>`.
 
-## Ejemplos
+### Ejemplos
 
 Enviar una URL a otro destino sin cambiar el host de la petición, con `--connect-to`:
 
@@ -67,11 +78,52 @@ route https://internal.example.com/ {
 }
 ```
 
-## Pruebas
+### Pruebas
 
 `src/curl.test.ts` coloca un `curl` falso (un script `.sh`) al inicio del `PATH` y comprueba que
 la petición pasa por él: que recibe la URL, el método, las cabeceras, los argumentos del
 manifiesto y el cuerpo, y que su respuesta llega al cliente. Si cambias el contrato con `curl`
 (los flags de arriba), ajusta también ese script.
+
+## node
+
+Levanta un proceso `node` que ejecuta la petición con el módulo `http.request` (URL `http://`)
+o `https.request` (URL `https://`).
+
+```
+route https?://example.com/ {
+  command_pass node "--no-warnings"
+}
+```
+
+### Qué hace el proxy
+
+Ejecuta `node <argumentos del manifiesto> src/node-request.mjs`. Los argumentos del manifiesto
+son **opciones de node** y van antes del script (`--no-warnings`, `--use-openssl-ca`, etc.).
+
+El proxy se comunica con el script mediante JSON:
+
+| Canal | Contenido |
+| --- | --- |
+| stdin | `{ "method", "url", "headers", "body" }`, con el cuerpo en base64. |
+| stdout | `{ "status", "headers", "body" }`, con el cuerpo en base64. |
+| stderr / código de salida | Si el script falla (conexión rechazada, protocolo no soportado…) escribe el motivo y sale con código `1`. |
+
+- El método, la URL completa, las cabeceras y el cuerpo de la petición se pasan tal cual. Se
+  omiten las cabeceras de conexión, `host`, `content-length` y `accept-encoding`; node calcula
+  `host` y `content-length` para el destino.
+- Si el destino responde comprimido (`gzip`, `deflate` o `br`), el script lo descomprime y
+  quita `content-encoding`.
+- Las redirecciones no se siguen.
+- La verificación TLS la hace node con sus certificados habituales. Para un certificado propio
+  puedes usar las variables de entorno de node (`NODE_EXTRA_CA_CERTS`) en el entorno del proxy,
+  o la opción `--use-openssl-ca`.
+
+### Pruebas
+
+`src/node.test.ts` pone un `node` que registra sus argumentos y ejecuta el node real al inicio
+del `PATH`, y comprueba que el proxy lanza `node --no-warnings …/node-request.mjs`, que la
+petición llega a un servidor HTTP y a uno HTTPS con método, cabeceras, ruta, query y cuerpo
+correctos, y que un destino caído produce un `502`.
 
 Ver también: [`proxy_pass`](proxy-pass.md), [referencia del manifiesto](../manifest.md).

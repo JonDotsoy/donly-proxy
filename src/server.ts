@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DON } from "donly";
 import { ensureCerts } from "./certs";
 import { curl } from "./curl";
+import { nodeRequest } from "./node";
 
 export interface Route {
   /** `null` matches any method. */
@@ -18,7 +19,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: "curl"; args: string[] };
+    | { kind: "command_pass"; command: "curl" | "node"; args: string[] };
 }
 
 export interface ProxyConfig {
@@ -67,8 +68,8 @@ export const loadConfig = async (
             `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\` o \`command_pass\``,
           );
         }
-        if (commandPass && commandPass.args[0] !== "curl") {
-          throw new Error(`route ${name}: command_pass solo soporta "curl", no "${commandPass.args[0]}"`);
+        if (commandPass && commandPass.args[0] !== "curl" && commandPass.args[0] !== "node") {
+          throw new Error(`route ${name}: command_pass solo soporta "curl" y "node", no "${commandPass.args[0]}"`);
         }
         return {
           method: route.args.length > 1 ? String(route.args[0]).toUpperCase() : null,
@@ -77,7 +78,7 @@ export const loadConfig = async (
             ? { kind: "respond", status: Number(respond.args[0]), body: String(respond.args[1] ?? "") }
             : proxyPass
               ? { kind: "proxy_pass", target: new URL(String(proxyPass.args[0])) }
-              : { kind: "command_pass", command: "curl", args: commandPass!.args.slice(1).map(String) },
+              : { kind: "command_pass", command: commandPass!.args[0] as "curl" | "node", args: commandPass!.args.slice(1).map(String) },
         };
       }),
   };
@@ -146,11 +147,12 @@ const forward = async (
   }
 };
 
-/** Passes the request to the `curl` command, which performs it against the original URL. */
+/** Passes the request to an external command, which performs it against the original URL. */
 const commandPass = async (
   req: http.IncomingMessage,
   body: Buffer,
   url: string,
+  command: "curl" | "node",
   args: string[],
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
@@ -161,7 +163,7 @@ const commandPass = async (
     }
   }
   try {
-    const response = await curl({ method: req.method ?? "GET", url, headers, body, args });
+    const response = await (command === "node" ? nodeRequest : curl)({ method: req.method ?? "GET", url, headers, body, args });
     return {
       ...response,
       headers: Object.fromEntries(
@@ -226,7 +228,7 @@ export const createProxyServer = ({
       route?.action.kind === "proxy_pass"
         ? await forward(req, body, url, route.action.target)
         : route?.action.kind === "command_pass"
-          ? await commandPass(req, body, url, route.action.args)
+          ? await commandPass(req, body, url, route.action.command, route.action.args)
           : route?.action.kind === "respond"
           ? text(route.action.status, route.action.body)
           : text(200, "ok");

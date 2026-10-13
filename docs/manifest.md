@@ -99,7 +99,7 @@ route [MÉTODO] <patrón> {
 | --- | --- |
 | [`respond`](#respond) | Responde con un estado y cuerpo fijos. |
 | [`proxy_pass`](tunnel/proxy-pass.md) | Reenvía la petición a otro servidor. |
-| [`command_pass`](tunnel/command-pass.md) | Pasa la petición al comando `curl`. |
+| [`command_pass`](tunnel/command-pass.md) | Pasa la petición a `curl` o a un proceso `node`. |
 
 #### `respond`
 
@@ -126,6 +126,6 @@ route https?://example.com/ {
 | --- | --- |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass o command_pass` |
-| `command_pass` con un comando distinto de `curl` | `route …: command_pass solo soporta "curl"` |
+| `command_pass` con un comando distinto de `curl` o `node` | `route …: command_pass solo soporta "curl" y "node"` |
 | Patrón de `route` que no es una regex válida | Error de `RegExp` |
 | `proxy_pass` con una URL inválida | Error de `URL` |
