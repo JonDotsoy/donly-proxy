@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **103** · ✅ pasan: **97** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
+Specs: **105** · ✅ pasan: **98** · 🔴 fallan: **1** · ⏳ sin resultado: **6** · ⏭️ omitidas: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -73,6 +73,8 @@ Specs: **103** · ✅ pasan: **97** · 🔴 fallan: **1** · ⏳ sin resultado: 
 | should accept the IPv6 notation 0:0:0:0:0:0:0:1 | ✅ | <code>host "0:0:0:0:0:0:0:1"</code> |
 | should accept the IPv6 notation 0000:0000:0000:0000:0000:0000:0000:0001 | ✅ | <code>host "0000:0000:0000:0000:0000:0000:0000:0001"</code> |
 | should add the extra_args to the arguments of command_pass ssh | ✅ | <code>extra_args "-p" 2222</code> |
+| should call http://httpbin.io/get through kubectl_pass from the pod | ✅ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass curl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;retry 3</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;extra_args --retry-all-errors --retry-delay 2</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should call https://httpbin.io/get through kubectl_pass from the pod | ⏳ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass curl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;retry 3</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;extra_args --retry-all-errors --retry-delay 2</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should combine max_time with the options given as arguments | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;max_time 2.5</code><br><code>}</code><br><code>command_pass curl</code> |
 | should default the host to 127.0.0.1 when the manifest has none | ✅ |  |
 | should default the port to 0 when the manifest has none | ✅ |  |
@@ -83,7 +85,7 @@ Specs: **103** · ✅ pasan: **97** · 🔴 fallan: **1** · ⏳ sin resultado: 
 | should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
 | should listen on the IPv6 host ::1 | ✅ | <code>host "::1"</code> |
 | should load the proxy block of the manifest | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 3000</code><br><code>}</code> |
-| should not let the extra_args values reach a shell | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-JtZamQ/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-JtZamQ/pwned)"</code> |
+| should not let the extra_args values reach a shell | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-DWWcU8/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-DWWcU8/pwned)"</code> |
 | should not pass --insecure to curl with insecure false | ✅ | <code>insecure</code><br><code>insecure true</code><br><code>insecure false</code> |
 | should not pass --insecure to curl without insecure | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure true</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure false</code><br><code>}</code><br><code>command_pass curl</code> |
 | should not pass --max-time to curl without max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;max_time 2.5</code><br><code>}</code><br><code>command_pass curl</code> |
@@ -97,8 +99,8 @@ Specs: **103** · ✅ pasan: **97** · 🔴 fallan: **1** · ⏳ sin resultado: 
 | should pass --retry 5 to curl when command_pass curl has retry 5 | ✅ | <code>retry 5</code><br><code>retry 0</code> |
 | should pass --retry to the curl run by kubectl_pass | ✅ | <code>retry 5</code> |
 | should pass the extra_args to the curl run by kubectl_pass | ✅ | <code>extra_args --foo tar</code> |
-| should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-JtZamQ/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-JtZamQ/pwned)"</code> |
-| should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-JtZamQ/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-JtZamQ/pwned)"</code><br><code>}</code> |
+| should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-DWWcU8/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-DWWcU8/pwned)"</code> |
+| should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-DWWcU8/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-DWWcU8/pwned)"</code><br><code>}</code> |
 | should read the port from the manifest | 🔴 | <code>port 3000</code> |
 | should read the port from the manifest | ✅ | <code>port 3000</code> |
 | should reject a max_time that is not a positive number | ✅ | <code>max_time 0</code> |
