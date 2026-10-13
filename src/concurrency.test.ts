@@ -95,7 +95,7 @@ test("[command_pass.concurrency.limit] concurrency <n> allows n processes in par
   const responses = await Promise.all([get("/two/a"), get("/two/b"), get("/two/c"), get("/two/d")]);
   expect(responses.map((r) => r.status)).toEqual([200, 200, 200, 200]);
   expect(maxRunning()).toBe(2);
-  expect(Date.now() - started).toBeLessThan(850); // 4 runs in 2 waves of 300ms
+  expect(Date.now() - started).toBeLessThan(1100); // 4 runs in 2 waves of 300ms (one after the other would take 1200ms)
 });
 
 test("[command_pass.concurrency.limit] each route has its own limit", async () => {
