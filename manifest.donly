@@ -5,4 +5,7 @@ proxy {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
   }
+  route https?://example.com/ {
+    respond 200 "good"
+  }
 }
