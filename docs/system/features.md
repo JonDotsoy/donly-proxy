@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **90** · ✅ pasan: **84** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
+Specs: **97** · ✅ pasan: **91** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -83,16 +83,23 @@ Specs: **90** · ✅ pasan: **84** · 🔴 fallan: **1** · ⏳ sin resultado: *
 | should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
 | should listen on the IPv6 host ::1 | ✅ | <code>host "::1"</code> |
 | should load the proxy block of the manifest | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 3000</code><br><code>}</code> |
-| should not let the extra_args values reach a shell | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-CvyiPD/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-CvyiPD/pwned)"</code> |
+| should not let the extra_args values reach a shell | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-wC8lrm/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-wC8lrm/pwned)"</code> |
+| should not pass --insecure to curl with insecure false | ✅ | <code>insecure</code><br><code>insecure true</code><br><code>insecure false</code> |
+| should not pass --insecure to curl without insecure | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure true</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;insecure false</code><br><code>}</code><br><code>command_pass curl</code> |
 | should not pass --max-time to curl without max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;max_time 2.5</code><br><code>}</code><br><code>command_pass curl</code> |
+| should pass --insecure to curl when command_pass curl has insecure | ✅ | <code>insecure</code><br><code>insecure true</code><br><code>insecure false</code> |
+| should pass --insecure to curl with insecure true | ✅ | <code>insecure</code><br><code>insecure true</code><br><code>insecure false</code> |
+| should pass --insecure to the curl run by kubectl_pass | ✅ | <code>insecure</code> |
 | should pass --max-time 5 to curl when command_pass curl has max_time 5 | ✅ | <code>max_time 5</code><br><code>max_time 2.5</code> |
 | should pass --max-time to the curl run by kubectl_pass | ✅ | <code>max_time 5</code> |
 | should pass the extra_args to the curl run by kubectl_pass | ✅ | <code>extra_args --foo tar</code> |
-| should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-CvyiPD/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-CvyiPD/pwned)"</code> |
-| should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-CvyiPD/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-CvyiPD/pwned)"</code><br><code>}</code> |
+| should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-wC8lrm/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-wC8lrm/pwned)"</code> |
+| should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-wC8lrm/pwned" "$(touch /var/folders/mt/h4qw10qd4qb9lr1z10fddslr0000gp/T/donly-proxy-extra-args-wC8lrm/pwned)"</code><br><code>}</code> |
 | should read the port from the manifest | 🔴 | <code>port 3000</code> |
 | should read the port from the manifest | ✅ | <code>port 3000</code> |
 | should reject a max_time that is not a positive number | ✅ | <code>max_time 0</code> |
+| should reject an insecure that is not true or false | ✅ | <code>insecure maybe</code> |
+| should reject insecure outside command_pass curl | ✅ | <code>insecure</code> |
 | should reject max_time outside command_pass curl | ✅ | <code>max_time 5</code> |
 | ssh failures are reported as a bad gateway | ✅ | <code>command_pass ssh "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass ssh "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>}</code><br><code>command_pass ssh "user@remote.test"</code> |
 | the status and headers are read from the last response printed by -S | ✅ | <code>engine wget</code> |

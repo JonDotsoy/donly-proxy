@@ -49,9 +49,20 @@ const maxTimeArgs = (name: string, command: string, directive: Directive): strin
   return ["--max-time", String(value)];
 };
 
-/** Options from the child directives of a `command_pass`: `extra_args <value…>`, then `max_time`. */
+/** `insecure` inside a `command_pass curl` (or `insecure true`): it becomes `--insecure`. */
+const insecureArgs = (name: string, command: string, directive: Directive): string[] => {
+  const insecure = directive.children.find((c) => c.name === "insecure");
+  if (!insecure) return [];
+  if (command !== "curl") throw new Error(`route ${name}: insecure solo aplica a command_pass curl`);
+  const value = insecure.args[0] ?? true;
+  if (typeof value !== "boolean") throw new Error(`route ${name}: insecure debe ser true o false, no "${value}"`);
+  return value ? ["--insecure"] : [];
+};
+
+/** Options from the child directives of a `command_pass`: `extra_args <value…>`, `insecure`, then `max_time`. */
 const optionArgs = (name: string, command: string, directive: Directive): string[] => [
   ...directive.children.filter((c) => c.name === "extra_args").flatMap((c) => c.args.map(String)),
+  ...insecureArgs(name, command, directive),
   ...maxTimeArgs(name, command, directive),
 ];
 
