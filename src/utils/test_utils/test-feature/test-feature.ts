@@ -13,7 +13,7 @@ export interface SpecTest {
   description: string;
   /** The payload with the lines of the tested features marked (see `listFeatures`). */
   lint: string;
-  status: "pending" | "passed" | "failed";
+  status: "pending" | "passed" | "failed" | "skipped";
   /** Stack of the error of a failed test. */
   error?: string;
 }
@@ -51,18 +51,17 @@ const writeReport = () => {
   writeFileSync(reportFile, `${sections.join("\n")}`);
 };
 
-/**
- * Declares a test of the `features` (donly paths) of a payload. Generates an
- * id for the spec (a hash of description, payload and features, plus a counter when
- * the same spec is declared more than once) and saves it with
- * the description and the linted payload in `spec_tests.json`. When `run` is
- * given, it is registered as the test body and receives the payload.
- */
-export const testFeature = (
+type Run = (payload: string) => void | Promise<void>;
+type Register = (name: string, fn: () => Promise<void>, timeout?: number) => void;
+
+const declare = (
+  register: Register,
+  skipped: boolean,
   donlyPayload: string,
   features: string[],
   description: string,
-  run?: (payload: string) => void | Promise<void>,
+  run?: Run,
+  timeout?: number,
 ) => {
   const { features: lint } = listFeatures(donlyPayload, features, description);
   const hash = createHash("sha1")
@@ -73,20 +72,50 @@ export const testFeature = (
   const occurrence = calls.get(hash) ?? 0;
   calls.set(hash, occurrence + 1);
   const id = occurrence === 0 ? hash : `${hash}-${occurrence}`;
-  const spec: SpecTest = { id, description, lint, status: "pending" };
+  const spec: SpecTest = { id, description, lint, status: skipped ? "skipped" : "pending" };
   record(spec);
   // Bun shares this module between test files, so each file registers its own hook.
   afterAll(writeReport);
   if (run) {
-    test(`${description} (spec ${id})`, async () => {
-      try {
-        await run(donlyPayload);
-        record({ ...spec, status: "passed" });
-      } catch (error) {
-        record({ ...spec, status: "failed", error: error instanceof Error ? (error.stack ?? String(error)) : String(error) });
-        throw error;
-      }
-    });
+    register(
+      description,
+      async () => {
+        try {
+          await run(donlyPayload);
+          record({ ...spec, status: "passed" });
+        } catch (error) {
+          const failed = listFeatures(donlyPayload, features, description, "- ").features;
+          record({ ...spec, lint: failed, status: "failed", error: error instanceof Error ? (error.stack ?? String(error)) : String(error) });
+          throw error;
+        }
+      },
+      timeout,
+    );
   }
   return id;
 };
+
+/**
+ * Declares a test of the `features` (donly paths) of a payload. Generates an
+ * id for the spec (a hash of description, payload and features, plus a counter when
+ * the same spec is declared more than once) and saves it with the description and
+ * the linted payload in `spec_tests.json`. When `run` is given, it is registered as
+ * the test (named `description`) and receives the payload; a failure marks the
+ * lines of the features with `- ` in the report.
+ */
+export const testFeature = (
+  donlyPayload: string,
+  features: string[],
+  description: string,
+  run?: Run,
+  timeout?: number,
+) => declare(test, false, donlyPayload, features, description, run, timeout);
+
+/** Like `testFeature`, but the test is skipped. */
+testFeature.skip = (
+  donlyPayload: string,
+  features: string[],
+  description: string,
+  run?: Run,
+  timeout?: number,
+) => declare(test.skip, true, donlyPayload, features, description, run, timeout);

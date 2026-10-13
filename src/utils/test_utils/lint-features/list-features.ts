@@ -1,13 +1,15 @@
 import { DON, Directive } from "donly";
 
 export interface FeaturesListing {
-  /** The payload with every line of a matched directive marked with `++` (the rest are indented). */
+  /** The payload with every line of a matched directive marked with `marker` (the rest are indented). */
   features: string;
   message: string;
 }
 
-const matched = "++";
 const unmatched = "  ";
+
+/** Default prefix of the marked lines. */
+export const MATCHED = "+ ";
 
 /** Last line of the block opened right after (`line`, `column`), or `line` when no block opens there. */
 const blockEnd = (lines: string[], line: number, column: number) => {
@@ -34,13 +36,14 @@ const blockEnd = (lines: string[], line: number, column: number) => {
 /**
  * Lists the features of a donly payload: marks the lines of the directives
  * that match any of the `paths` (see `findAllDirectives` in `donly` for the
- * path syntax). A directive with a block is marked from its first line to
+ * path syntax) with `marker`. A directive with a block is marked from its first line to
  * the closing brace, children included.
  */
 export const listFeatures = (
   payload: string,
   paths: string[],
   message: string,
+  marker = MATCHED,
 ): FeaturesListing => {
   const root = DON.parse(payload);
   const source = payload.split("\n");
@@ -56,7 +59,7 @@ export const listFeatures = (
     }
   }
   const features = source
-    .map((text, line) => (text === "" ? text : `${marked.has(line) ? matched : unmatched}${text}`))
+    .map((text, line) => (text === "" ? text : `${marked.has(line) ? marker : unmatched}${text}`))
     .join("\n");
   return { features, message };
 };

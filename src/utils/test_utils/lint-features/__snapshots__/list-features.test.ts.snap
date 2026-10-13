@@ -2,16 +2,16 @@
 
 exports[`[manifest.features] marks the lines of the directives matching the paths 1`] = `
 "  proxy {
-++  port 3000
++   port 3000
   }
 "
 `;
 
 exports[`[manifest.features] marks every matching directive of several paths 1`] = `
 "  proxy {
-++  port 3000
++   port 3000
     route GET "a" {
-++    respond 200 "ok"
++     respond 200 "ok"
     }
   }
 "
@@ -20,9 +20,9 @@ exports[`[manifest.features] marks every matching directive of several paths 1`]
 exports[`[manifest.features] a block directive is marked up to its closing brace, children included 1`] = `
 "  proxy {
     port 3000
-++  route GET "a" {
-++    respond 200 "ok"
-++  }
++   route GET "a" {
++     respond 200 "ok"
++   }
   }
 "
 `;
@@ -35,21 +35,21 @@ exports[`[manifest.features] without matches nothing is marked 1`] = `
 `;
 
 exports[`[manifest.features] the root block marks the whole payload 1`] = `
-"++proxy {
-++  port 3000
-++  route GET "a" {
-++    respond 200 "ok"
-++  }
-++}
+"+ proxy {
++   port 3000
++   route GET "a" {
++     respond 200 "ok"
++   }
++ }
 "
 `;
 
 exports[`[manifest.features] braces and # inside strings and comments do not end a block 1`] = `
 "  proxy {
     # {
-++  route GET "a}" {
-++    respond 200 "ok"
-++  }
++   route GET "a}" {
++     respond 200 "ok"
++   }
     port 3000
   }
 "
