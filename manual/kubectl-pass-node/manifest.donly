@@ -1,0 +1,16 @@
+proxy {
+  host "127.0.0.1"
+  port 8080
+  log_file "./logs/proxy.ndjson"
+  ssl {
+    cert "./certs/cert.pem"
+    key "./certs/key.pem"
+  }
+  route {
+    kubectl_pass "conn-pod" {
+      context kind-donly-manual
+      namespace donly-manual
+      command_pass node
+    }
+  }
+}
