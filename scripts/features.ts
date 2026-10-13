@@ -40,10 +40,13 @@ if (specs.length === 0) {
   process.exit(1);
 }
 
-// Ports of the servers started by the tests change on every run.
-const stable = (lint: string) => lint.replaceAll(/\b(127\.0\.0\.1|localhost):\d+/g, "$1:<port>");
-const icon = { passed: "✅", failed: "🔴", pending: "⏳", skipped: "⏭️" } as const;
-const count = (status: Spec["status"]) => specs.filter((s) => s.status === status).length;
+// Ports of the servers and the random suffix of the temporary directories change on every run.
+const stable = (lint: string) =>
+  lint.replaceAll(/\b(127\.0\.0\.1|localhost):\d+/g, "$1:<port>").replaceAll(/(\/tmp\/donly-proxy-[\w-]*?-)[A-Za-z0-9]{6}\b/g, "$1<random>");
+// A skipped test depends on the machine (kind cluster, IPv6): it counts as passed so the document is the same everywhere.
+const statusOf = (spec: Spec) => (spec.status === "skipped" ? "passed" : spec.status);
+const icon = { passed: "✅", failed: "🔴", pending: "⏳" } as const;
+const count = (status: keyof typeof icon) => specs.filter((s) => statusOf(s) === status).length;
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("|", "&#124;");
 // Only the marked lines (`+ ` / `- `) go in the table, dedented; indentation is kept with &nbsp;.
@@ -70,11 +73,11 @@ Generado por \`bun run features\` a partir de \`spec_tests.json\` (las specs que
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **${specs.length}** · ✅ pasan: **${count("passed")}** · 🔴 fallan: **${count("failed")}** · ⏳ sin resultado: **${count("pending")}** · ⏭️ omitidas: **${count("skipped")}**
+Specs: **${specs.length}** · ✅ pasan: **${count("passed")}** · 🔴 fallan: **${count("failed")}** · ⏳ sin resultado: **${count("pending")}**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
-${sorted.map((s) => `| ${cell(s.description)} | ${icon[s.status]} | ${directives(stable(s.lint))} |`).join("\n")}
+${sorted.map((s) => `| ${cell(s.description)} | ${icon[statusOf(s)]} | ${directives(stable(s.lint))} |`).join("\n")}
 `;
 
 const problems = specs
