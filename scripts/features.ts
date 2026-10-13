@@ -1,115 +1,79 @@
 #!/usr/bin/env bun
 /**
- * Fills the "Probada" and "Tests" columns of docs/system/features.md from the titles of
- * the tests, so the table never claims a feature is tested when it is not.
+ * Generates docs/system/features.md from the specs recorded by `testFeature`
+ * (src/utils/test_utils/test-feature): every test declares the payload and the
+ * features it exercises, and the run saves them, linted, in
+ * `__test_features__/spec_tests.json`.
  *
- *   bun scripts/features.ts                  # runs `bun test` and rewrites the table
- *   bun scripts/features.ts --check          # same, but fails if the file is out of date
- *   bun scripts/features.ts --junit report.xml   # reuse a JUnit report instead of running the tests
+ *   bun scripts/features.ts            # runs `bun test` and rewrites the document
+ *   bun scripts/features.ts --check    # same, but fails if the document is out of date
+ *   bun scripts/features.ts --no-run   # reuse the existing spec_tests.json instead of running the tests
  *
- * Convention: a test belongs to a feature when its title contains the feature id in square
- * brackets, e.g. `test("[proxy_pass.https] proxy_pass works through an https tunnel", ...)`.
- * A title may carry several ids. The feature ids, descriptions and the "Soportada" column are
- * written by hand in the table; every row starts with the id in backticks.
+ * The run fails when a spec did not pass (failed, or pending because the test timed out).
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
+const specFile = join(root, "src/utils/test_utils/test-feature/__test_features__/spec_tests.json");
 const file = join(root, "docs/system/features.md");
 
 const args = process.argv.slice(2);
 const check = args.includes("--check");
-const junitArg = args.includes("--junit") ? args[args.indexOf("--junit") + 1] : undefined;
 
-interface TestCase {
-  title: string;
-  passed: boolean;
+interface Spec {
+  id: string;
+  description: string;
+  lint: string;
+  status: "pending" | "passed" | "failed" | "skipped";
 }
 
-const unescapeXml = (value: string) =>
-  value
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'")
-    .replaceAll("&amp;", "&");
+if (!args.includes("--no-run")) {
+  const run = spawnSync("bun", ["test"], { cwd: root, stdio: ["ignore", "ignore", "inherit"] });
+  if (run.error) throw run.error;
+}
 
-const readTests = (): TestCase[] => {
-  let report = junitArg;
-  if (!report) {
-    report = join(mkdtempSync(join(tmpdir(), "features-")), "junit.xml");
-    const run = spawnSync("bun", ["test", "--reporter=junit", `--reporter-outfile=${report}`], {
-      cwd: root,
-      stdio: ["ignore", "ignore", "inherit"],
-    });
-    if (run.error) throw run.error;
-  }
-  const xml = readFileSync(report, "utf8");
-  const tests: TestCase[] = [];
-  for (const [, attributes = "", inner = ""] of xml.matchAll(/<testcase\b([^>]*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g)) {
-    const title = /\bname="([^"]*)"/.exec(attributes)?.[1];
-    if (title === undefined) continue;
-    tests.push({ title: unescapeXml(title), passed: !/<(failure|error)\b/.test(inner) });
-  }
-  return tests;
-};
-
-const tagsOf = (title: string) => [...title.matchAll(/\[([a-z0-9][a-z0-9._-]*)\]/g)].map((m) => m[1]!);
-const cleanTitle = (title: string) => title.replace(/\[[a-z0-9][a-z0-9._-]*\]\s*/g, "").trim();
-const cell = (value: string) => value.replaceAll("|", "\\|");
-
-const tests = readTests();
-if (tests.length === 0) {
-  console.error("features: no tests found in the report");
+const specs: Spec[] = JSON.parse(readFileSync(specFile, "utf8"));
+if (specs.length === 0) {
+  console.error("features: no specs found in spec_tests.json");
   process.exit(1);
 }
 
-const original = readFileSync(file, "utf8");
-const known = new Set<string>();
-let supported = 0;
-let tested = 0;
+// Ports of the servers started by the tests change on every run.
+const stable = (lint: string) => lint.replaceAll(/\b(127\.0\.0\.1|localhost):\d+/g, "$1:<port>");
+const icon = { passed: "✅", failed: "🔴", pending: "⏳", skipped: "⏭️" } as const;
+const count = (status: Spec["status"]) => specs.filter((s) => s.status === status).length;
 
-const rewritten = original
-  .split("\n")
-  .map((line) => {
-    if (!/^\| `[^`]+` \|/.test(line)) return line;
-    const cells = line.slice(1, line.lastIndexOf("|")).split(/(?<!\\)\|/).map((c) => c.trim());
-    const [feature = "", description = "", support = ""] = cells;
-    const id = feature.replaceAll("`", "");
-    known.add(id);
+const sorted = [...specs].sort((a, b) => a.description.localeCompare(b.description) || stable(a.lint).localeCompare(stable(b.lint)));
+const fence = "```";
+const document = `# Features
 
-    const matching = tests.filter((t) => tagsOf(t.title).includes(id));
-    const status = matching.length === 0 ? "❌" : matching.every((t) => t.passed) ? "✅" : "🔴";
-    if (support.startsWith("✅")) {
-      supported++;
-      if (status === "✅") tested++;
-    }
-    const titles = matching.map((t) => `${t.passed ? "" : "🔴 "}${cell(cleanTitle(t.title))}`).join("<br>");
-    return `| ${feature} | ${description} | ${support} | ${status} | ${titles} |`;
-  })
-  .join("\n")
-  .replace(
-    /(<!-- features:summary -->)[\s\S]*?(<!-- \/features:summary -->)/,
-    `$1\nSoportadas: **${supported}** · Soportadas y probadas: **${tested}** · Sin pruebas: **${supported - tested}**\n$2`,
-  );
+Generado por \`bun run features\` a partir de \`spec_tests.json\` (las specs que registra
+\`testFeature\`, ver \`src/utils/test_utils/test-feature\`). No lo edites a mano.
 
-// Test titles that point at a feature that is not in the table (typos) or that carry no id.
-const problems: string[] = [];
-for (const test of tests) {
-  const ids = tagsOf(test.title);
-  if (ids.length === 0) problems.push(`test without a [feature-id]: "${test.title}"`);
-  for (const id of ids) if (!known.has(id)) problems.push(`unknown feature [${id}] in test: "${test.title}"`);
-}
-const failing = tests.filter((t) => !t.passed);
-for (const test of failing) problems.push(`failing test: "${test.title}"`);
+Cada spec es un test: las líneas marcadas con \`+\` son las directivas del manifest que el test
+ejercita (\`-\` si el test falla).
 
+Specs: **${specs.length}** · ✅ pasan: **${count("passed")}** · 🔴 fallan: **${count("failed")}** · ⏳ sin resultado: **${count("pending")}** · ⏭️ omitidas: **${count("skipped")}**
+
+${sorted.map((s) => `## ${s.description}\n\n**Status:** ${icon[s.status]} ${s.status}\n\n${fence}diff\n${stable(s.lint)}${fence}\n`).join("\n")}`;
+
+const problems = specs
+  .filter((s) => s.status === "failed" || s.status === "pending")
+  .map((s) => `${s.status} spec: "${s.description}"`);
+
+const original = (() => {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
+})();
 if (check) {
-  if (rewritten !== original) problems.push("docs/system/features.md is out of date: run `bun run features`");
-} else if (rewritten !== original) {
-  writeFileSync(file, rewritten);
+  if (document !== original) problems.push("docs/system/features.md is out of date: run `bun run features`");
+} else if (document !== original) {
+  writeFileSync(file, document);
   console.log("features: updated docs/system/features.md");
 } else {
   console.log("features: docs/system/features.md is up to date");

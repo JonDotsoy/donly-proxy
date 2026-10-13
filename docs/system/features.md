@@ -1,80 +1,1386 @@
 # Features
 
-Tabla de las features del proxy, si están **soportadas** y si están **probadas**.
+Generado por `bun run features` a partir de `spec_tests.json` (las specs que registra
+`testFeature`, ver `src/utils/test_utils/test-feature`). No lo edites a mano.
 
-- Las columnas **Feature**, **Descripción** y **Soportada** se escriben a mano.
-- Las columnas **Probada** y **Tests** las genera `bun run features` a partir de los títulos de
-  los tests; no las edites.
-- Un test pertenece a una feature cuando su título lleva el id de la feature entre corchetes,
-  por ejemplo `test("[proxy_pass.https] proxy_pass works through an https tunnel", …)`. Un título
-  puede llevar varios ids. El script falla si un test no lleva ningún id, si el id no está en la
-  tabla o si algún test falla.
-- **Probada**: ✅ hay al menos un test y todos pasan · 🔴 algún test de la feature falla · ❌ no hay
-  tests.
+Cada spec es un test: las líneas marcadas con `+` son las directivas del manifest que el test
+ejercita (`-` si el test falla).
 
-Para declarar una feature nueva a partir de un ejemplo de manifest y de lo esperado, usa el skill
-`/new-feature` (`.claude/skills/new-feature/SKILL.md`). Para agregarla a mano: añade una fila `| \`id\` | descripción | ✅ | | |` y ejecuta
-`bun run features`. `bun run features:check` (usado en CI) falla si el archivo está desactualizado.
+Specs: **65** · ✅ pasan: **59** · 🔴 fallan: **1** · ⏳ sin resultado: **5** · ⏭️ omitidas: **0**
 
-<!-- features:summary -->
-Soportadas: **53** · Soportadas y probadas: **40** · Sin pruebas: **13**
-<!-- /features:summary -->
+## a 4xx response keeps its status even though wget exits with an error
 
-| Feature | Descripción | Soportada | Probada | Tests |
-| --- | --- | --- | --- | --- |
-| `http.proxy` | Proxy HTTP: peticiones con URL absoluta | ✅ | ✅ | fetch through the proxy goes through it and is logged<br>GET http://example.com through the proxy is answered by the route |
-| `https.tunnel` | Proxy HTTPS: túnel `CONNECT` con el TLS terminado en el proxy | ✅ | 🔴 | 🔴 GET https://example.com through the proxy is answered by the route |
-| `http2` | HTTP/2 y HTTP/3 | ❌ | ❌ |  |
-| `manifest.load` | Configuración con `manifest.donly` (`host`, `port`) | ✅ | ✅ | manifest.donly configures the proxy |
-| `manifest.relative-paths` | Rutas de `log_file` y `ssl` relativas a la carpeta del manifest | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
-| `ssl.autogen` | Certificado autofirmado generado con `openssl` si no existe | ✅ | ✅ | log_file and ssl are resolved relative to the manifest, not the cwd |
-| `manifest.features` | Lista las features de un manifest: marca con `++` las líneas de las directivas que coinciden con unas rutas (`src/utils/test_utils/lint-features/list-features.ts`) | ✅ | ✅ | marks the lines of the directives matching the paths<br>marks every matching directive of several paths<br>a block directive marks only its own line<br>without matches nothing is marked |
-| `route.regex` | `route` con patrón regex sobre la URL completa | ✅ | 🔴 | GET http://example.com through the proxy is answered by the route<br>🔴 GET https://example.com through the proxy is answered by the route |
-| `route.method` | `route` limitada a un método HTTP | ✅ | ✅ | route can be limited by method |
-| `route.first-match-wins` | Gana la primera `route` que coincide | ✅ | ❌ |  |
-| `route.no-match-ok` | Sin ruta que coincida responde `200 ok` | ✅ | ✅ | requests that match no route respond ok |
-| `route.catch-all` | `route { … }` sin argumentos coincide con todas las peticiones (HTTP y HTTPS, cualquier método) | ✅ | 🔴 | 🔴 a route without arguments matches every request<br>its pattern is a real wildcard, not the text 'undefined' |
-| `route.catch-all.order` | Las rutas declaradas antes tienen prioridad; la ruta sin argumentos recoge el resto | ✅ | ✅ | earlier routes win and the catch-all takes the rest |
-| `route.respond` | `respond <estado> "<cuerpo>"` | ✅ | 🔴 | GET http://example.com through the proxy is answered by the route<br>🔴 GET https://example.com through the proxy is answered by the route |
-| `route.validation.single-action` | Cada `route` exige exactamente una acción (`respond`, `proxy_pass`, `command_pass` o `kubectl_pass`) | ✅ | ❌ |  |
-| `proxy_pass` | Reenvía método, ruta, query, cabeceras y cuerpo a otro servidor | ✅ | ✅ | proxy_pass forwards method, path, query and body to the target |
-| `proxy_pass.https` | `proxy_pass` sobre tráfico HTTPS (túnel) | ✅ | 🔴 | 🔴 proxy_pass works through an https tunnel |
-| `proxy_pass.target-path` | La ruta del destino reemplaza a la original | ✅ | ✅ | proxy_pass with a target path replaces the path |
-| `proxy_pass.error` | `502 bad gateway` si el destino falla | ✅ | ❌ |  |
-| `proxy_pass.redirects` | Seguir las redirecciones del destino | ❌ | ❌ |  |
-| `command_pass.curl` | `command_pass curl`: la petición pasa por el comando `curl` | ✅ | ✅ | command_pass curl hands the request to curl<br>command_pass curl runs the curl found in PATH |
-| `command_pass.curl.head` | `curl` con peticiones `HEAD` (`--head`) | ✅ | ❌ |  |
-| `command_pass.curl.error` | `502 bad gateway` si `curl` falla | ✅ | ✅ | command_pass curl reports a bad gateway when curl fails |
-| `command_pass.node` | `command_pass node`: proceso `node` con `http.request` | ✅ | ✅ | command_pass node performs the request with http.request |
-| `command_pass.node.https` | `command_pass node` con `https.request` | ✅ | 🔴 | 🔴 command_pass node performs https requests with https.request |
-| `command_pass.node.compressed` | `node` descomprime respuestas `gzip` / `deflate` / `br` | ✅ | ❌ |  |
-| `command_pass.node.error` | `502 bad gateway` si `node` falla | ✅ | ✅ | command_pass node reports a bad gateway when the request fails |
-| `command_pass.ssh.curl` | `command_pass ssh` con `engine curl` | ✅ | ✅ | command_pass ssh with engine curl runs the request on the remote host |
-| `command_pass.ssh.node` | `command_pass ssh` con `engine node` | ✅ | ✅ | command_pass ssh with engine node runs the request on the remote host |
-| `command_pass.wget` | `engine wget` en `ssh` y `kubectl` (solo GET y POST; el cuerpo y las cabeceras no pasan por el shell) | ✅ | ✅ | a GET becomes a fixed wget command line with quoted values<br>a body becomes a POST sent from a temporary file<br>request data cannot break out of the shell quoting<br>methods other than GET and POST are refused<br>the status and headers are read from the last response printed by -S<br>a 4xx response keeps its status even though wget exits with an error<br>without a status line the failure is reported |
-| `command_pass.ssh.default-engine` | `ssh` usa `curl` si no hay `engine` | ✅ | ✅ | command_pass ssh uses curl when no engine is given |
-| `command_pass.ssh.no-shell-injection` | Los datos de la petición no llegan al shell remoto de `ssh` | ✅ | ✅ | request data never reaches the remote command line or a shell |
-| `command_pass.ssh.error` | `502 bad gateway` si `ssh` falla | ✅ | ✅ | ssh failures are reported as a bad gateway |
-| `command_pass.ssh.validation` | Validación del manifest para `ssh` y `engine` | ✅ | ✅ | manifest validation for ssh and engine |
-| `command_pass.ssh.password` | Autenticación por contraseña en `ssh` (solo llaves o agente) | ❌ | ❌ |  |
-| `command_pass.kubectl.curl` | `command_pass kubectl` con `engine curl` | ✅ | ✅ | command_pass kubectl with engine curl runs the request inside the pod |
-| `command_pass.kubectl.node` | `command_pass kubectl` con `engine node` | ✅ | ✅ | command_pass kubectl with engine node runs the request inside the pod |
-| `command_pass.kubectl.default-engine` | `kubectl` usa `curl` si no hay `engine` | ✅ | ✅ | command_pass kubectl uses curl when no engine is given |
-| `command_pass.kubectl.no-shell-injection` | Los datos de la petición no llegan al shell del contenedor | ✅ | ✅ | request data never reaches the command line or a shell |
-| `command_pass.kubectl.error` | `502 bad gateway` si `kubectl` falla | ✅ | ✅ | kubectl failures are reported as a bad gateway |
-| `command_pass.kubectl.kind` | `command_pass kubectl` contra un Service echo desplegado con podman en el cluster `kind-kind-cluster` (se omite si no existe) | ✅ | ✅ | command_pass kubectl with engine wget reaches an echo Service in the kind-kind-cluster<br>wget answers GET requests and reports the status of failed ones<br>command_pass kubectl with engine curl reaches an echo Service in the kind-kind-cluster<br>command_pass kubectl with engine node reaches an echo Service in the kind-kind-cluster |
-| `kubectl_pass` | `kubectl_pass <opciones> <destino> { command_pass curl\|wget\|node [opciones] }`: ejecuta la petición dentro del pod con el comando anidado | ✅ | ✅ | kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options |
-| `kubectl_pass.validation` | Validación del manifest para `kubectl_pass` (destino, `command_pass` hijo, `concurrency`) | ✅ | ✅ | manifest validation for kubectl_pass |
-| `command_pass.kubectl.validation` | Validación del manifest para `kubectl` y `engine` | ✅ | ✅ | manifest validation for kubectl |
-| `command_pass.concurrency.default` | `command_pass` ejecuta un proceso a la vez por defecto; las demás peticiones esperan en cola | ✅ | ✅ | runs one process at a time by default |
-| `command_pass.concurrency.limit` | `concurrency <n>` permite hasta `n` procesos en paralelo por ruta | ✅ | ✅ | concurrency <n> allows n processes in parallel<br>each route has its own limit<br>loadConfig reads concurrency, defaulting to 1 |
-| `command_pass.concurrency.queue` | Las peticiones en espera se atienden en orden de llegada y un fallo libera el lugar | ✅ | ✅ | waiting requests are served in arrival order<br>a failing process frees its place for the next request |
-| `command_pass.concurrency.validation` | `concurrency` debe ser un entero positivo | ✅ | ✅ | concurrency must be a positive integer |
-| `log_file.command` | La línea `response` de un `command_pass` registra el comando ejecutado (`curl`, `node`, `ssh` o `kubectl`) con todos sus argumentos | ✅ | ✅ | logs the curl command that was executed<br>logs the node command that was executed<br>logs the ssh command that was executed, including the remote command<br>logs the kubectl command that was executed |
-| `log_file.command.only-command-pass` | Las rutas sin `command_pass` no registran `command` | ✅ | ✅ | routes without command_pass log no command |
-| `command_pass.validation` | `command_pass` rechaza comandos desconocidos | ✅ | ✅ | command_pass only supports known commands |
-| `log_file.transactions` | Una línea `request` y otra `response` por transacción, con `transaction_id` compartido | ✅ | ✅ | fetch through the proxy goes through it and is logged<br>log_file records request and response sharing a transaction id |
-| `log_file.ndjson-only` | `log_file` solo admite la extensión `.ndjson` | ✅ | ✅ | log_file only supports .ndjson |
-| `log_file.snapshot` | Formato exacto del log (snapshot) | ✅ | 🔴 | 🔴 log_file snapshot |
-| `log_file.no-proxy-no-log` | Las peticiones que no pasan por el proxy no escriben log | ✅ | ✅ | fetch without proxy reaches the local server and writes no log<br>a later fetch without proxy still adds nothing to the log |
-| `log_file.payload-base64` | Cuerpos que no son UTF-8 se guardan en base64 | ✅ | ❌ |  |
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass ssh "user@remote.test" {
++       engine wget
+      }
+    }
+  }
+```
+
+## a body becomes a POST sent from a temporary file
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass ssh "user@remote.test" {
++       engine wget
+      }
+    }
+  }
+```
+
+## a failing process frees its place for the next request
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://conc.test/default/ {
++     command_pass curl
+    }
+    route http://conc.test/two/ {
++     command_pass curl {
++       concurrency 2
++     }
+    }
+  }
+```
+
+## a GET becomes a fixed wget command line with quoted values
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass ssh "user@remote.test" {
++       engine wget
+      }
+    }
+  }
+```
+
+## a later fetch without proxy still adds nothing to the log
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+  }
+```
+
+## a route without arguments matches every request
+
+**Status:** ⏳ pending
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route http://specific.test/ {
+      respond 200 "specific"
+    }
++   route {
++     respond 202 "catch-all"
++   }
+    route http://never.test/ {
+      respond 200 "unreachable"
+    }
+  }
+```
+
+## command_pass curl hands the request to curl
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route https?://pass.test/ {
+      proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
+      proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
++     command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
+      respond 201 "created"
+    }
+    route https?://example.com/ {
+      respond 200 "good"
+    }
+  }
+```
+
+## command_pass curl reports a bad gateway when curl fails
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route http://dead.test/ {
++     command_pass curl "--connect-to" "dead.test:80:127.0.0.1:<port>"
+    }
+  }
+```
+
+## command_pass curl runs the curl found in PATH
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route http://fake.test/ {
++     command_pass curl "--max-time" "5"
+    }
+  }
+```
+
+## command_pass kubectl uses curl when no engine is given
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
++     command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
++       engine curl
++     }
+    }
+    route http://127.0.0.1:<port>/node/ {
++     command_pass kubectl "pod/api-0" {
++       engine node
++     }
+    }
+    route http://127.0.0.1:<port>/pass/ {
+      kubectl_pass "-n" "prod" "deploy/api" {
+        command_pass curl "--max-time" "5"
+      }
+    }
+    route http://127.0.0.1:<port>/default/ {
++     command_pass kubectl "pod/api-0"
+    }
+  }
+```
+
+## command_pass kubectl with engine curl reaches an echo Service in the kind-kind-cluster
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./proxy.ndjson"
+    route http://echo.donly-proxy-test.svc.cluster.local/curl/ {
++     kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {
++       command_pass curl
++     }
+    }
+  }
+```
+
+## command_pass kubectl with engine curl runs the request inside the pod
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
+      command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
++       engine curl
+      }
+    }
+    route http://127.0.0.1:<port>/node/ {
+      command_pass kubectl "pod/api-0" {
++       engine node
+      }
+    }
+    route http://127.0.0.1:<port>/pass/ {
+      kubectl_pass "-n" "prod" "deploy/api" {
+        command_pass curl "--max-time" "5"
+      }
+    }
+    route http://127.0.0.1:<port>/default/ {
+      command_pass kubectl "pod/api-0"
+    }
+  }
+```
+
+## command_pass kubectl with engine node reaches an echo Service in the kind-kind-cluster
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./proxy.ndjson"
+    route http://echo.donly-proxy-test.svc.cluster.local/node/ {
+      command_pass kubectl "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {
+        engine node
+      }
+    }
+  }
+```
+
+## command_pass kubectl with engine node runs the request inside the pod
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
+      command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
++       engine curl
+      }
+    }
+    route http://127.0.0.1:<port>/node/ {
+      command_pass kubectl "pod/api-0" {
++       engine node
+      }
+    }
+    route http://127.0.0.1:<port>/pass/ {
+      kubectl_pass "-n" "prod" "deploy/api" {
+        command_pass curl "--max-time" "5"
+      }
+    }
+    route http://127.0.0.1:<port>/default/ {
+      command_pass kubectl "pod/api-0"
+    }
+  }
+```
+
+## command_pass kubectl with engine wget reaches an echo Service in the kind-kind-cluster
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./proxy.ndjson"
+    route http://echo.donly-proxy-test.svc.cluster.local/wget/ {
++     kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {
++       command_pass wget
++     }
+    }
+  }
+```
+
+## command_pass node performs https requests with https.request
+
+**Status:** ⏳ pending
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    ssl {
+      cert "./ssl/cert.pem"
+      key "./ssl/key.pem"
+    }
+    route http://127.0.0.1:<port>/ {
++     command_pass node "--no-warnings"
+    }
+    route https://127.0.0.1:<port>/ {
++     command_pass node "--no-warnings"
+    }
+  }
+```
+
+## command_pass node performs the request with http.request
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    ssl {
+      cert "./ssl/cert.pem"
+      key "./ssl/key.pem"
+    }
+    route http://127.0.0.1:<port>/ {
++     command_pass node "--no-warnings"
+    }
+    route https://127.0.0.1:<port>/ {
++     command_pass node "--no-warnings"
+    }
+  }
+```
+
+## command_pass node reports a bad gateway when the request fails
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route http://127.0.0.1:<port>/ {
++     command_pass node
+    }
+  }
+```
+
+## command_pass only supports known commands
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
++     command_pass wget
+    }
+  }
+```
+
+## command_pass ssh uses curl when no engine is given
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
++     command_pass ssh "-p" "2222" "user@remote.test" {
++       engine curl
++     }
+    }
+    route http://127.0.0.1:<port>/node/ {
++     command_pass ssh "user@remote.test" {
++       engine node
++     }
+    }
+    route http://127.0.0.1:<port>/default/ {
++     command_pass ssh "user@remote.test"
+    }
+  }
+```
+
+## command_pass ssh with engine curl runs the request on the remote host
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
+      command_pass ssh "-p" "2222" "user@remote.test" {
++       engine curl
+      }
+    }
+    route http://127.0.0.1:<port>/node/ {
+      command_pass ssh "user@remote.test" {
++       engine node
+      }
+    }
+    route http://127.0.0.1:<port>/default/ {
+      command_pass ssh "user@remote.test"
+    }
+  }
+```
+
+## command_pass ssh with engine node runs the request on the remote host
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
+      command_pass ssh "-p" "2222" "user@remote.test" {
++       engine curl
+      }
+    }
+    route http://127.0.0.1:<port>/node/ {
+      command_pass ssh "user@remote.test" {
++       engine node
+      }
+    }
+    route http://127.0.0.1:<port>/default/ {
+      command_pass ssh "user@remote.test"
+    }
+  }
+```
+
+## concurrency <n> allows n processes in parallel
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://conc.test/default/ {
+      command_pass curl
+    }
+    route http://conc.test/two/ {
+      command_pass curl {
++       concurrency 2
+      }
+    }
+  }
+```
+
+## concurrency must be a positive integer
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass curl {
++       concurrency 0
+      }
+    }
+  }
+```
+
+## each route has its own limit
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://conc.test/default/ {
++     command_pass curl
+    }
+    route http://conc.test/two/ {
++     command_pass curl {
++       concurrency 2
++     }
+    }
+  }
+```
+
+## earlier routes win and the catch-all takes the rest
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
++   route http://specific.test/ {
++     respond 200 "specific"
++   }
++   route {
++     respond 202 "catch-all"
++   }
++   route http://never.test/ {
++     respond 200 "unreachable"
++   }
+  }
+```
+
+## fetch through the proxy goes through it and is logged
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+  }
+```
+
+## fetch without proxy reaches the local server and writes no log
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+  }
+```
+
+## GET http://example.com through the proxy is answered by the route
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route https?://pass.test/ {
+      proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
+      proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
+      command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
++     respond 201 "created"
+    }
+    route https?://example.com/ {
++     respond 200 "good"
+    }
+  }
+```
+
+## GET https://example.com through the proxy is answered by the route
+
+**Status:** ⏳ pending
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
++   ssl {
++     cert "./certs/cert.pem"
++     key "./certs/key.pem"
++   }
+    route https?://pass.test/ {
+      proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
+      proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
+      command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
++     respond 201 "created"
+    }
+    route https?://example.com/ {
++     respond 200 "good"
+    }
+  }
+```
+
+## its pattern is a real wildcard, not the text 'undefined'
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route http://specific.test/ {
+      respond 200 "specific"
+    }
++   route {
++     respond 202 "catch-all"
++   }
+    route http://never.test/ {
+      respond 200 "unreachable"
+    }
+  }
+```
+
+## kubectl failures are reported as a bad gateway
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
++     command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
++       engine curl
++     }
+    }
+    route http://127.0.0.1:<port>/node/ {
++     command_pass kubectl "pod/api-0" {
++       engine node
++     }
+    }
+    route http://127.0.0.1:<port>/pass/ {
+      kubectl_pass "-n" "prod" "deploy/api" {
+        command_pass curl "--max-time" "5"
+      }
+    }
+    route http://127.0.0.1:<port>/default/ {
++     command_pass kubectl "pod/api-0"
+    }
+  }
+```
+
+## kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
+      command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
+        engine curl
+      }
+    }
+    route http://127.0.0.1:<port>/node/ {
+      command_pass kubectl "pod/api-0" {
+        engine node
+      }
+    }
+    route http://127.0.0.1:<port>/pass/ {
++     kubectl_pass "-n" "prod" "deploy/api" {
++       command_pass curl "--max-time" "5"
++     }
+    }
+    route http://127.0.0.1:<port>/default/ {
+      command_pass kubectl "pod/api-0"
+    }
+  }
+```
+
+## loadConfig reads concurrency, defaulting to 1
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://conc.test/default/ {
+      command_pass curl
+    }
+    route http://conc.test/two/ {
+      command_pass curl {
++       concurrency 2
+      }
+    }
+  }
+```
+
+## log_file and ssl are resolved relative to the manifest, not the cwd
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "../out/rel.ndjson"
++   ssl {
++     cert "../ssl/cert.pem"
++     key "../ssl/key.pem"
++   }
+  }
+```
+
+## log_file only supports .ndjson
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
++   log_file "./proxy.log"
+  }
+```
+
+## log_file records request and response sharing a transaction id
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route https?://pass.test/ {
+      proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
+      proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
+      command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
+      respond 201 "created"
+    }
+    route https?://example.com/ {
+      respond 200 "good"
+    }
+  }
+```
+
+## log_file snapshot
+
+**Status:** ⏳ pending
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./snap.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route POST http://example.com/ {
+      respond 201 "created"
+    }
+    route https?://example.com/ {
+      respond 200 "good"
+    }
+    route http://pass.test/ {
+      proxy_pass "http://127.0.0.1:<port>"
+    }
+  }
+```
+
+## logs the curl command that was executed
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    route http://logcmd.test/curl {
++     command_pass curl "--max-time" "5"
+    }
+    route http://127.0.0.1:<port>/node {
++     command_pass node "--no-warnings"
+    }
+    route http://logcmd.test/ssh {
++     command_pass ssh "-p" "2222" "user@remote.test"
+    }
+    route http://logcmd.test/kubectl {
++     command_pass kubectl "-n" "prod" "deploy/api"
+    }
+    route http://logcmd.test/respond {
+      respond 200 "plain"
+    }
+  }
+```
+
+## logs the kubectl command that was executed
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    route http://logcmd.test/curl {
++     command_pass curl "--max-time" "5"
+    }
+    route http://127.0.0.1:<port>/node {
++     command_pass node "--no-warnings"
+    }
+    route http://logcmd.test/ssh {
++     command_pass ssh "-p" "2222" "user@remote.test"
+    }
+    route http://logcmd.test/kubectl {
++     command_pass kubectl "-n" "prod" "deploy/api"
+    }
+    route http://logcmd.test/respond {
+      respond 200 "plain"
+    }
+  }
+```
+
+## logs the node command that was executed
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    route http://logcmd.test/curl {
++     command_pass curl "--max-time" "5"
+    }
+    route http://127.0.0.1:<port>/node {
++     command_pass node "--no-warnings"
+    }
+    route http://logcmd.test/ssh {
++     command_pass ssh "-p" "2222" "user@remote.test"
+    }
+    route http://logcmd.test/kubectl {
++     command_pass kubectl "-n" "prod" "deploy/api"
+    }
+    route http://logcmd.test/respond {
+      respond 200 "plain"
+    }
+  }
+```
+
+## logs the ssh command that was executed, including the remote command
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    route http://logcmd.test/curl {
++     command_pass curl "--max-time" "5"
+    }
+    route http://127.0.0.1:<port>/node {
++     command_pass node "--no-warnings"
+    }
+    route http://logcmd.test/ssh {
++     command_pass ssh "-p" "2222" "user@remote.test"
+    }
+    route http://logcmd.test/kubectl {
++     command_pass kubectl "-n" "prod" "deploy/api"
+    }
+    route http://logcmd.test/respond {
+      respond 200 "plain"
+    }
+  }
+```
+
+## manifest validation for kubectl
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route / {
++  command_pass kubectl
+   }
+  }
+```
+
+## manifest validation for kubectl_pass
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route / {
++  kubectl_pass {
++  command_pass curl
++  }
+   }
+  }
+```
+
+## manifest validation for ssh and engine
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route / {
++  command_pass ssh
+   }
+  }
+```
+
+## manifest.donly configures the proxy
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
++   host "127.0.0.1"
++   port 0
+    log_file "./logs/proxy.ndjson"
++   ssl {
++     cert "./certs/cert.pem"
++     key "./certs/key.pem"
++   }
+    route https?://pass.test/ {
+      proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
+      proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
+      command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
+      respond 201 "created"
+    }
+    route https?://example.com/ {
+      respond 200 "good"
+    }
+  }
+```
+
+## methods other than GET and POST are refused
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass ssh "user@remote.test" {
++       engine wget
+      }
+    }
+  }
+```
+
+## proxy_pass forwards method, path, query and body to the target
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route https?://pass.test/ {
++     proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
++     proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
+      command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
+      respond 201 "created"
+    }
+    route https?://example.com/ {
+      respond 200 "good"
+    }
+  }
+```
+
+## proxy_pass with a target path replaces the path
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route https?://pass.test/ {
++     proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
++     proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
+      command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
+      respond 201 "created"
+    }
+    route https?://example.com/ {
+      respond 200 "good"
+    }
+  }
+```
+
+## proxy_pass works through an https tunnel
+
+**Status:** ⏳ pending
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+    route https?://pass.test/ {
++     proxy_pass "http://127.0.0.1:<port>"
+    }
+    route http://fixed.test/ {
++     proxy_pass "http://127.0.0.1:<port>/fixed"
+    }
+    route http://curl.test/ {
+      command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
+    }
+    route POST http://example.com/ {
+      respond 201 "created"
+    }
+    route https?://example.com/ {
+      respond 200 "good"
+    }
+  }
+```
+
+## request data cannot break out of the shell quoting
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass ssh "user@remote.test" {
++       engine wget
+      }
+    }
+  }
+```
+
+## request data never reaches the command line or a shell
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
++     command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
++       engine curl
++     }
+    }
+    route http://127.0.0.1:<port>/node/ {
++     command_pass kubectl "pod/api-0" {
++       engine node
++     }
+    }
+    route http://127.0.0.1:<port>/pass/ {
+      kubectl_pass "-n" "prod" "deploy/api" {
+        command_pass curl "--max-time" "5"
+      }
+    }
+    route http://127.0.0.1:<port>/default/ {
++     command_pass kubectl "pod/api-0"
+    }
+  }
+```
+
+## request data never reaches the remote command line or a shell
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
++     command_pass ssh "-p" "2222" "user@remote.test" {
++       engine curl
++     }
+    }
+    route http://127.0.0.1:<port>/node/ {
++     command_pass ssh "user@remote.test" {
++       engine node
++     }
+    }
+    route http://127.0.0.1:<port>/default/ {
++     command_pass ssh "user@remote.test"
+    }
+  }
+```
+
+## requests that match no route respond ok
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
++   route https?://pass.test/ {
++     proxy_pass "http://127.0.0.1:<port>"
++   }
++   route http://fixed.test/ {
++     proxy_pass "http://127.0.0.1:<port>/fixed"
++   }
++   route http://curl.test/ {
++     command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
++   }
++   route POST http://example.com/ {
++     respond 201 "created"
++   }
++   route https?://example.com/ {
++     respond 200 "good"
++   }
+  }
+```
+
+## route can be limited by method
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./logs/proxy.ndjson"
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
++   route https?://pass.test/ {
++     proxy_pass "http://127.0.0.1:<port>"
++   }
++   route http://fixed.test/ {
++     proxy_pass "http://127.0.0.1:<port>/fixed"
++   }
++   route http://curl.test/ {
++     command_pass curl "--connect-to" "curl.test:80:127.0.0.1:<port>"
++   }
++   route POST http://example.com/ {
++     respond 201 "created"
++   }
++   route https?://example.com/ {
++     respond 200 "good"
++   }
+  }
+```
+
+## routes without command_pass log no command
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
++   log_file "./proxy.ndjson"
+    route http://logcmd.test/curl {
+      command_pass curl "--max-time" "5"
+    }
+    route http://127.0.0.1:<port>/node {
+      command_pass node "--no-warnings"
+    }
+    route http://logcmd.test/ssh {
+      command_pass ssh "-p" "2222" "user@remote.test"
+    }
+    route http://logcmd.test/kubectl {
+      command_pass kubectl "-n" "prod" "deploy/api"
+    }
+    route http://logcmd.test/respond {
++     respond 200 "plain"
+    }
+  }
+```
+
+## runs one process at a time by default
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://conc.test/default/ {
++     command_pass curl
+    }
+    route http://conc.test/two/ {
++     command_pass curl {
++       concurrency 2
++     }
+    }
+  }
+```
+
+## should load the proxy block of the manifest
+
+**Status:** ✅ passed
+
+```diff
++ proxy {
++   host "127.0.0.1"
++   port 3000
++ }
+```
+
+## should read the port from the manifest
+
+**Status:** 🔴 failed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+-   port 3000
+  }
+```
+
+## should read the port from the manifest
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
++   port 3000
+  }
+```
+
+## ssh failures are reported as a bad gateway
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://127.0.0.1:<port>/curl/ {
++     command_pass ssh "-p" "2222" "user@remote.test" {
++       engine curl
++     }
+    }
+    route http://127.0.0.1:<port>/node/ {
++     command_pass ssh "user@remote.test" {
++       engine node
++     }
+    }
+    route http://127.0.0.1:<port>/default/ {
++     command_pass ssh "user@remote.test"
+    }
+  }
+```
+
+## the status and headers are read from the last response printed by -S
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass ssh "user@remote.test" {
++       engine wget
+      }
+    }
+  }
+```
+
+## waiting requests are served in arrival order
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    route http://conc.test/default/ {
++     command_pass curl
+    }
+    route http://conc.test/two/ {
++     command_pass curl {
++       concurrency 2
++     }
+    }
+  }
+```
+
+## wget answers GET requests and reports the status of failed ones
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    host "127.0.0.1"
+    port 0
+    log_file "./proxy.ndjson"
+    route http://echo.donly-proxy-test.svc.cluster.local/wget/ {
++     kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {
++       command_pass wget
++     }
+    }
+  }
+```
+
+## without a status line the failure is reported
+
+**Status:** ✅ passed
+
+```diff
+  proxy {
+    route / {
+      command_pass ssh "user@remote.test" {
++       engine wget
+      }
+    }
+  }
+```
