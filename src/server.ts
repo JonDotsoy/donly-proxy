@@ -4,6 +4,7 @@ import type { Duplex } from "node:stream";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { load } from "donly/load";
+import { ensureCerts } from "./certs";
 
 export interface ProxyConfig {
   host: string;
@@ -42,6 +43,7 @@ const respond: http.RequestListener = (_req, res) => {
  *   certificate and then answered directly.
  */
 export const createProxyServer = (ssl: ProxyConfig["ssl"]) => {
+  ensureCerts(ssl);
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
   const server = http.createServer(respond);
 

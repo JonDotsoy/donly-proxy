@@ -1,8 +1,26 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { AddressInfo } from "node:net";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
 
-const config = await loadConfig();
+// Manifest in a temp dir; the SSL certs are auto-generated on first use.
+const dir = mkdtempSync(join(tmpdir(), "donly-proxy-"));
+const manifest = join(dir, "manifest.donly");
+writeFileSync(
+  manifest,
+  `proxy {
+  host "127.0.0.1"
+  port 0
+  ssl {
+    cert "./certs/cert.pem"
+    key "./certs/key.pem"
+  }
+}
+`,
+);
+const config = await loadConfig(manifest);
 const server = createProxyServer(config.ssl);
 let proxy: string;
 
@@ -32,6 +50,6 @@ test("GET https://example.com through the proxy responds ok", async () => {
 
 test("manifest.donly configures the proxy", () => {
   expect(config.host).toBe("127.0.0.1");
-  expect(config.port).toBe(8080);
+  expect(config.port).toBe(0);
   expect(config.ssl.cert.endsWith("certs/cert.pem")).toBe(true);
 });
