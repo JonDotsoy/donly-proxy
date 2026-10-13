@@ -7,8 +7,14 @@ export interface RunResult {
 }
 
 /** Runs a command (no shell), feeds `input` to its stdin and collects its output. */
-export const run = (command: string, argv: string[], input: Buffer | string) =>
+export const run = (
+  command: string,
+  argv: string[],
+  input: Buffer | string,
+  onCommand?: (command: string[]) => void,
+) =>
   new Promise<RunResult>((resolve, reject) => {
+    onCommand?.([command, ...argv]);
     const child = spawn(command, argv, { stdio: ["pipe", "pipe", "pipe"] });
     const out: Buffer[] = [];
     const err: Buffer[] = [];

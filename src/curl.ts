@@ -7,6 +7,8 @@ export interface CurlRequest {
   body: Buffer;
   /** Extra command options from the manifest (curl options, node options or ssh options). */
   args: string[];
+  /** Called with the full command line (program and arguments) right before it runs. */
+  onCommand?: (command: string[]) => void;
 }
 
 export interface CurlResponse {
@@ -46,10 +48,10 @@ export const parseCurlResult = ({ code, stdout, stderr }: RunResult, label = "cu
 };
 
 /** Hands a request over to the local `curl` binary and returns its response. */
-export const curl = async ({ method, url, headers, body, args }: CurlRequest) => {
+export const curl = async ({ method, url, headers, body, args, onCommand }: CurlRequest) => {
   const argv = [...curlFlags(method, body.length > 0)];
   if (method !== "HEAD") argv.push("--request", method);
   for (const [name, value] of Object.entries(headers)) argv.push("--header", `${name}: ${value}`);
   argv.push(...args, "--url", url);
-  return parseCurlResult(await run("curl", argv, body));
+  return parseCurlResult(await run("curl", argv, body, onCommand));
 };

@@ -69,11 +69,12 @@ Cada petición genera **dos líneas**, una `request` y una `response`, que compa
 | `url` | URL completa, p. ej. `https://example.com/ruta?q=1` (sin `:443`). |
 | `type` | `request` o `response`. |
 | `status` | Solo en `response`: código de estado devuelto al cliente. |
+| `command` | Solo en `response` de rutas `command_pass`: la línea de comandos ejecutada, como lista (programa y argumentos). |
 | `headers` | Cabeceras de la petición o de la respuesta. |
 | `payload` | Cuerpo como texto UTF-8. Si no es UTF-8 válido se guarda en base64 y la línea incluye `"payload_encoding":"base64"`. |
 
 Se registran todas las transacciones: rutas `respond`, `proxy_pass`, `command_pass`, las
-respuestas `ok` por defecto y los `502`. En `proxy_pass` y `command_pass` el `payload` de la
+respuestas `ok` por defecto y los `502`. Las rutas `command_pass` añaden además el campo `command` con lo que se ejecutó, incluso si el comando falla (por ejemplo `["curl","--silent",…,"--url","http://example.com/"]`); con `ssh` y `kubectl` incluye el comando remoto, que lleva la petición codificada en base64. Las demás rutas no tienen `command`. En `proxy_pass` y `command_pass` el `payload` de la
 respuesta es el cuerpo ya descomprimido. El `CONNECT` en sí no se registra, solo las
 peticiones descifradas que viajan por el túnel.
 

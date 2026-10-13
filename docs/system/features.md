@@ -17,7 +17,7 @@ Para declarar una feature nueva a partir de un ejemplo de manifest y de lo esper
 `bun run features`. `bun run features:check` (usado en CI) falla si el archivo está desactualizado.
 
 <!-- features:summary -->
-Soportadas: **44** · Soportadas y probadas: **38** · Sin pruebas: **6**
+Soportadas: **46** · Soportadas y probadas: **40** · Sin pruebas: **6**
 <!-- /features:summary -->
 
 | Feature | Descripción | Soportada | Probada | Tests |
@@ -63,6 +63,8 @@ Soportadas: **44** · Soportadas y probadas: **38** · Sin pruebas: **6**
 | `command_pass.concurrency.limit` | `concurrency <n>` permite hasta `n` procesos en paralelo por ruta | ✅ | ✅ | concurrency <n> allows n processes in parallel<br>each route has its own limit<br>loadConfig reads concurrency, defaulting to 1 |
 | `command_pass.concurrency.queue` | Las peticiones en espera se atienden en orden de llegada y un fallo libera el lugar | ✅ | ✅ | waiting requests are served in arrival order<br>a failing process frees its place for the next request |
 | `command_pass.concurrency.validation` | `concurrency` debe ser un entero positivo | ✅ | ✅ | concurrency must be a positive integer |
+| `log_file.command` | La línea `response` de un `command_pass` registra el comando ejecutado (`curl`, `node`, `ssh` o `kubectl`) con todos sus argumentos | ✅ | ✅ | logs the curl command that was executed<br>logs the node command that was executed<br>logs the ssh command that was executed, including the remote command<br>logs the kubectl command that was executed |
+| `log_file.command.only-command-pass` | Las rutas sin `command_pass` no registran `command` | ✅ | ✅ | routes without command_pass log no command |
 | `command_pass.validation` | `command_pass` rechaza comandos desconocidos | ✅ | ✅ | command_pass only supports known commands |
 | `log_file.transactions` | Una línea `request` y otra `response` por transacción, con `transaction_id` compartido | ✅ | ✅ | log_file records request and response sharing a transaction id<br>fetch through the proxy goes through it and is logged |
 | `log_file.ndjson-only` | `log_file` solo admite la extensión `.ndjson` | ✅ | ✅ | log_file only supports .ndjson |

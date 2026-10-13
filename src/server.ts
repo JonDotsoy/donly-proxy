@@ -124,6 +124,8 @@ const hopByHop = new Set([
 ]);
 
 interface Reply {
+  /** Command line executed to produce this reply (`command_pass` only). */
+  command?: string[];
   status: number;
   headers: Record<string, string | string[]>;
   body: Buffer;
@@ -189,8 +191,9 @@ const commandPass = async (
       headers[k] = Array.isArray(v) ? v.join(", ") : v;
     }
   }
+  let executed: string[] | undefined;
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args };
+    const request = { method: req.method ?? "GET", url, headers, body, args, onCommand: (c: string[]) => (executed = c) };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -200,12 +203,13 @@ const commandPass = async (
           : curl(request));
     return {
       ...response,
+      command: executed,
       headers: Object.fromEntries(
         Object.entries(response.headers).filter(([k]) => !hopByHop.has(k) && k !== "content-encoding"),
       ),
     };
   } catch (error) {
-    return text(502, `bad gateway: ${(error as Error).message}`);
+    return { ...text(502, `bad gateway: ${(error as Error).message}`), command: executed };
   }
 };
 
@@ -286,7 +290,14 @@ export const createProxyServer = ({
     );
     const reply = await answer(route, req, body, url);
 
-    log({ ...transaction, type: "response", status: reply.status, headers: reply.headers, ...encodePayload(reply.body) });
+    log({
+      ...transaction,
+      type: "response",
+      status: reply.status,
+      ...(reply.command && { command: reply.command }),
+      headers: reply.headers,
+      ...encodePayload(reply.body),
+    });
     res.writeHead(reply.status, reply.headers);
     res.end(reply.body);
   });

@@ -28,6 +28,17 @@ En ambos casos el comando se lanza **sin shell** (los argumentos van como lista)
 `502 bad gateway: <comando> exited with <código>: <salida>`. Las cabeceras de conexión, `host`,
 `content-length` y `content-encoding` no se devuelven al cliente.
 
+## Registro del comando
+
+Si hay [`log_file`](../manifest.md#log_file), la línea `response` de cada transacción con
+`command_pass` incluye `command`: la lista con el programa y todos sus argumentos tal como se
+ejecutó (`curl …`, `node …`, `ssh …` o `kubectl …`). Se registra también cuando el comando falla
+y la respuesta es un `502`. El cuerpo de la petición (stdin) no forma parte de `command`.
+
+```json
+{"type":"response","status":200,"command":["curl","--silent","--compressed","--proto","=http,https","…","--url","http://example.com/"],"headers":{…},"payload":"…"}
+```
+
 ## Concurrencia
 
 Por defecto, cada `command_pass` ejecuta **un solo proceso a la vez**: si llegan más peticiones a

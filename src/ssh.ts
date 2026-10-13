@@ -9,5 +9,5 @@ import { run } from "./run";
 export const sshRequest = async (request: CurlRequest, engine: Engine): Promise<CurlResponse> => {
   const { command, input } = remoteCommand(request, engine);
   const argv = [...request.args.slice(0, -1), "-T", "-q", "-o", "BatchMode=yes", request.args.at(-1)!, command];
-  return parseRemoteResult(await run("ssh", argv, input), engine, "ssh");
+  return parseRemoteResult(await run("ssh", argv, input, request.onCommand), engine, "ssh");
 };

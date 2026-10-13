@@ -34,4 +34,6 @@ export const parseNodeResult = ({ code, stdout, stderr }: RunResult, label = "no
  * `args` are extra node options, placed before the script.
  */
 export const nodeRequest = async (request: CurlRequest) =>
-  parseNodeResult(await run("node", [...request.args, script], JSON.stringify(nodeInput(request))));
+  parseNodeResult(
+    await run("node", [...request.args, script], JSON.stringify(nodeInput(request)), request.onCommand),
+  );
