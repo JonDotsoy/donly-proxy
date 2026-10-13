@@ -71,6 +71,18 @@ afterAll(() => {
 const readLog = (): any[] =>
   existsSync(logFile) ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [];
 
+// Fixed client headers so the snapshots do not depend on the Bun version.
+const base = { "user-agent": "test", accept: "*/*", "accept-encoding": "identity" };
+
+/** Masks what changes between runs: timestamps, transaction ids and the date header. */
+const mask = (entries: any[]) => {
+  const ids = new Map<string, string>();
+  return entries.map((entry) => {
+    if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${ids.size + 1}>`);
+    return { ...entry, timestamp: "<timestamp>", transaction_id: ids.get(entry.transaction_id), headers: { ...entry.headers, ...(entry.headers.date && { date: "<date>" }) } };
+  });
+};
+
 /** The requests echo-pod logged, one JSON line each (echo-pod prints `JSON.stringify` per request). */
 const echoLog = (): any[] =>
   sh(kubectl("logs", "echo-pod")).stdout.toString().split("\n").filter(Boolean).map((line) => JSON.parse(line));
@@ -80,7 +92,7 @@ cluster(manifestPayload, ["/proxy/route/kubectl_pass"], "echo-pod is not reachab
   await expect(fetch(`http://${HOST}/direct`, { proxy: "" })).rejects.toThrow();
 
   const before = readLog().length;
-  const res = await fetch(`http://${HOST}/via-conn-pod?x=1`, { proxy, method: "POST", body: "payload", headers: { "x-custom": "abc" } });
+  const res = await fetch(`http://${HOST}/via-conn-pod?x=1`, { proxy, method: "POST", body: "payload", headers: { ...base, "x-custom": "abc" } });
   const text = await res.clone().text();
   expect(res.status, text).toBe(200);
   expect(res.headers.get("x-echo")).toBe("yes");
@@ -92,13 +104,15 @@ cluster(manifestPayload, ["/proxy/route/kubectl_pass"], "echo-pod is not reachab
   expect(response).toMatchObject({ type: "response", status: 200, transaction_id: request.transaction_id });
   expect(response.command.slice(0, 3)).toEqual(["kubectl", "exec", "-i"]);
   expect(response.command).toContain("conn-pod");
+  expect(mask(readLog().slice(before))).toMatchSnapshot();
 }, 60_000);
 
 cluster(manifestPayload, ["/proxy/route/kubectl_pass"], "echo-pod logs every request it receives", async () => {
-  await fetch(`http://${HOST}/log-get`, { proxy, headers: { "x-custom": "one" } });
-  await fetch(`http://${HOST}/log-post`, { proxy, method: "POST", body: "two", headers: { "x-custom": "two" } });
+  await fetch(`http://${HOST}/log-get`, { proxy, headers: { ...base, "x-custom": "one" } });
+  await fetch(`http://${HOST}/log-post`, { proxy, method: "POST", body: "two", headers: { ...base, "x-custom": "two" } });
 
   const logged = echoLog();
+  expect(logged.filter((entry) => entry.url.startsWith("/log-"))).toMatchSnapshot();
   expect(logged).toContainEqual(expect.objectContaining({ method: "GET", url: "/log-get", custom: "one", body: "" }));
   expect(logged).toContainEqual(expect.objectContaining({ method: "POST", url: "/log-post", custom: "two", body: "two" }));
 }, 60_000);
