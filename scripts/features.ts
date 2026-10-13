@@ -45,19 +45,37 @@ const stable = (lint: string) => lint.replaceAll(/\b(127\.0\.0\.1|localhost):\d+
 const icon = { passed: "✅", failed: "🔴", pending: "⏳", skipped: "⏭️" } as const;
 const count = (status: Spec["status"]) => specs.filter((s) => s.status === status).length;
 
+const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("|", "&#124;");
+// Only the marked lines (`+ ` / `- `) go in the table, dedented; indentation is kept with &nbsp;.
+const directives = (lint: string) => {
+  const lines = lint
+    .split("\n")
+    .filter((line) => line.startsWith("+ ") || line.startsWith("- "))
+    .map((line) => line.slice(2));
+  const base = Math.min(...lines.map((line) => line.length - line.trimStart().length));
+  return lines
+    .map((line) => {
+      const indent = line.length - line.trimStart().length - base;
+      return `<code>${"&nbsp;".repeat(indent)}${escapeHtml(line.trimStart())}</code>`;
+    })
+    .join("<br>");
+};
+const cell = (value: string) => value.replaceAll("|", "\\|");
+
 const sorted = [...specs].sort((a, b) => a.description.localeCompare(b.description) || stable(a.lint).localeCompare(stable(b.lint)));
-const fence = "```";
 const document = `# Features
 
 Generado por \`bun run features\` a partir de \`spec_tests.json\` (las specs que registra
 \`testFeature\`, ver \`src/utils/test_utils/test-feature\`). No lo edites a mano.
 
-Cada spec es un test: las líneas marcadas con \`+\` son las directivas del manifest que el test
-ejercita (\`-\` si el test falla).
+Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
 Specs: **${specs.length}** · ✅ pasan: **${count("passed")}** · 🔴 fallan: **${count("failed")}** · ⏳ sin resultado: **${count("pending")}** · ⏭️ omitidas: **${count("skipped")}**
 
-${sorted.map((s) => `## ${s.description}\n\n**Status:** ${icon[s.status]} ${s.status}\n\n${fence}diff\n${stable(s.lint)}${fence}\n`).join("\n")}`;
+| Feature | Estado | Directivas |
+| --- | --- | --- |
+${sorted.map((s) => `| ${cell(s.description)} | ${icon[s.status]} | ${directives(stable(s.lint))} |`).join("\n")}
+`;
 
 const problems = specs
   .filter((s) => s.status === "failed" || s.status === "pending")
