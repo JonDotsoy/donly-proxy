@@ -180,3 +180,60 @@ test("log_file is resolved relative to the manifest, not the cwd", async () => {
   // certs were resolved from the manifest dir too
   expect(existsSync(join(base, "ssl/cert.pem"))).toBe(true);
 });
+
+test("log_file snapshot", async () => {
+  const snapDir = mkdtempSync(join(tmpdir(), "donly-proxy-snap-"));
+  const snapManifest = join(snapDir, "manifest.donly");
+  writeFileSync(
+    snapManifest,
+    `proxy {
+  host "127.0.0.1"
+  port 0
+  log_file "./snap.ndjson"
+  ssl {
+    cert "./certs/cert.pem"
+    key "./certs/key.pem"
+  }
+  route POST http://example.com/ {
+    respond 201 "created"
+  }
+  route https?://example.com/ {
+    respond 200 "good"
+  }
+  route http://pass.test/ {
+    proxy_pass "${upstreamUrl}"
+  }
+}
+`,
+  );
+  const snapConfig = await loadConfig(snapManifest);
+  const snapServer = createProxyServer(snapConfig);
+  await new Promise<void>((resolve) => snapServer.listen(0, "127.0.0.1", resolve));
+  const snapProxy = `http://127.0.0.1:${(snapServer.address() as AddressInfo).port}`;
+  const headers = { "user-agent": "test", accept: "*/*", "accept-encoding": "identity" };
+  try {
+    await (await fetch("http://example.com/", { proxy: snapProxy, headers })).text();
+    await (await fetch("http://example.com/", { proxy: snapProxy, headers, method: "POST", body: "ping" })).text();
+    await (await fetch("https://example.com/s?q=1", { proxy: snapProxy, headers, tls: { rejectUnauthorized: false } })).text();
+    await (await fetch("http://other.test/x", { proxy: snapProxy, headers })).text();
+    await (await fetch("http://pass.test/up?a=b", { proxy: snapProxy, headers })).text();
+  } finally {
+    snapServer.close();
+  }
+
+  // Mask what changes between runs: timestamps, UUIDs (kept distinguishable) and ports.
+  const ids = new Map<string, string>();
+  const masked = readFileSync(join(snapDir, "snap.ndjson"), "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const entry = JSON.parse(line);
+      entry.timestamp = "<timestamp>";
+      if (entry.headers.date) entry.headers.date = "<date>";
+      if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${ids.size + 1}>`);
+      entry.transaction_id = ids.get(entry.transaction_id);
+      return JSON.parse(JSON.stringify(entry).replaceAll(upstreamUrl.split(":").pop()!, "<port>"));
+    });
+
+  expect(masked).toMatchSnapshot();
+});
