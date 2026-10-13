@@ -1,7 +1,9 @@
 import http from "node:http";
 import tls from "node:tls";
 import type { Duplex } from "node:stream";
-import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DON } from "donly";
@@ -22,6 +24,8 @@ export interface ProxyConfig {
   port: number;
   ssl: { cert: string; key: string };
   routes: Route[];
+  /** Absolute path of the `.ndjson` transaction log, if configured. */
+  logFile?: string;
 }
 
 const defaultManifest = new URL("../manifest.donly", import.meta.url);
@@ -36,6 +40,10 @@ export const loadConfig = async (
   const child = (name: string, parent = proxy) => parent?.children.find((c) => c.name === name);
   const resolve = (p: string) => fileURLToPath(new URL(p, url));
   const ssl = child("ssl");
+  const logFile = child("log_file")?.args[0];
+  if (logFile !== undefined && !String(logFile).endsWith(".ndjson")) {
+    throw new Error(`log_file ${logFile}: solo se soporta la extensión .ndjson`);
+  }
 
   return {
     host: String(child("host")?.args[0] ?? "127.0.0.1"),
@@ -44,6 +52,7 @@ export const loadConfig = async (
       cert: resolve(String(child("cert", ssl)?.args[0] ?? "./certs/cert.pem")),
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),
     },
+    logFile: logFile === undefined ? undefined : resolve(String(logFile)),
     routes: (proxy?.children ?? [])
       .filter((c) => c.name === "route")
       .map((route): Route => {
@@ -77,16 +86,22 @@ const hopByHop = new Set([
   "host", "content-length",
 ]);
 
+interface Reply {
+  status: number;
+  headers: Record<string, string>;
+  body: Buffer;
+}
+
 /**
  * Forwards the request to `target`. The original path and query are kept,
  * unless `target` declares its own path, which then replaces the path.
  */
 const forward = async (
   req: http.IncomingMessage,
-  res: http.ServerResponse,
+  body: Buffer,
   url: string,
   target: URL,
-) => {
+): Promise<Reply> => {
   const original = new URL(url);
   const upstream = new URL(target);
   if (upstream.pathname === "/") upstream.pathname = original.pathname;
@@ -101,19 +116,38 @@ const forward = async (
     const response = await fetch(upstream, {
       method: req.method,
       headers,
-      body: hasBody ? Buffer.concat(await Array.fromAsync(req)) : undefined,
+      body: hasBody ? body : undefined,
       redirect: "manual",
     });
     // fetch has already decoded the body, so encoding/length no longer apply.
-    const out = Object.fromEntries(
-      [...response.headers].filter(([k]) => !hopByHop.has(k) && k !== "content-encoding"),
-    );
-    res.writeHead(response.status, out);
-    res.end(Buffer.from(await response.arrayBuffer()));
+    return {
+      status: response.status,
+      headers: Object.fromEntries(
+        [...response.headers].filter(([k]) => !hopByHop.has(k) && k !== "content-encoding"),
+      ),
+      body: Buffer.from(await response.arrayBuffer()),
+    };
   } catch (error) {
-    res.writeHead(502, { "content-type": "text/plain" });
-    res.end(`bad gateway: ${(error as Error).message}`);
+    return {
+      status: 502,
+      headers: { "content-type": "text/plain" },
+      body: Buffer.from(`bad gateway: ${(error as Error).message}`),
+    };
   }
+};
+
+const text = (status: number, body: string): Reply => ({
+  status,
+  headers: { "content-type": "text/plain" },
+  body: Buffer.from(body),
+});
+
+/** Payload as utf8 when lossless, base64 otherwise. */
+const encodePayload = (body: Buffer) => {
+  const utf8 = body.toString("utf8");
+  return Buffer.from(utf8).equals(body)
+    ? { payload: utf8 }
+    : { payload: body.toString("base64"), payload_encoding: "base64" };
 };
 
 type TunnelSocket = tls.TLSSocket & { tunnelHost?: string };
@@ -124,19 +158,43 @@ type TunnelSocket = tls.TLSSocket & { tunnelHost?: string };
  * - HTTPS: CONNECT tunnels are terminated locally with the configured
  *   certificate and then answered directly.
  */
-export const createProxyServer = ({ ssl, routes }: Pick<ProxyConfig, "ssl" | "routes">) => {
+export const createProxyServer = ({
+  ssl,
+  routes,
+  logFile,
+}: Pick<ProxyConfig, "ssl" | "routes"> & { logFile?: string }) => {
   ensureCerts(ssl);
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
+  if (logFile) mkdirSync(dirname(logFile), { recursive: true });
 
-  const server = http.createServer((req, res) => {
+  const log = (entry: Record<string, unknown>) => {
+    if (logFile) appendFileSync(logFile, JSON.stringify({ timestamp: new Date().toISOString(), ...entry }) + "\n");
+  };
+
+  const server = http.createServer(async (req, res) => {
     const url = requestUrl(req);
+    const body = Buffer.concat(await Array.fromAsync(req));
+    const transaction = {
+      transaction_id: randomUUID(),
+      http_version: `HTTP/${req.httpVersion}`,
+      method: req.method,
+      url,
+    };
+    log({ ...transaction, type: "request", headers: req.headers, ...encodePayload(body) });
+
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
-    if (route?.action.kind === "proxy_pass") return void forward(req, res, url, route.action.target);
-    const { status, body } = route?.action.kind === "respond" ? route.action : { status: 200, body: "ok" };
-    res.writeHead(status, { "content-type": "text/plain" });
-    res.end(body);
+    const reply =
+      route?.action.kind === "proxy_pass"
+        ? await forward(req, body, url, route.action.target)
+        : route?.action.kind === "respond"
+          ? text(route.action.status, route.action.body)
+          : text(200, "ok");
+
+    log({ ...transaction, type: "response", status: reply.status, headers: reply.headers, ...encodePayload(reply.body) });
+    res.writeHead(reply.status, reply.headers);
+    res.end(reply.body);
   });
 
   server.on("connect", (req, socket: Duplex) => {

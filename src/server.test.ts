@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
@@ -23,6 +23,7 @@ writeFileSync(
   `proxy {
   host "127.0.0.1"
   port 0
+  log_file "./logs/proxy.ndjson"
   ssl {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
@@ -110,4 +111,34 @@ test("proxy_pass works through an https tunnel", async () => {
 test("proxy_pass with a target path replaces the path", async () => {
   const res = await fetch("http://fixed.test/ignored?y=2", { proxy });
   expect((await res.json()).url).toBe("/fixed?y=2");
+});
+
+test("log_file records request and response sharing a transaction id", async () => {
+  const logFile = join(dir, "logs/proxy.ndjson");
+  const before = readFileSync(logFile, "utf8").split("\n").filter(Boolean).length;
+  await (await fetch("http://example.com/log?z=1", { proxy, method: "POST", body: "ping" })).text();
+
+  const entries = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((l) => JSON.parse(l));
+  expect(entries).toHaveLength(2);
+  const [request, response] = entries;
+  expect(request.type).toBe("request");
+  expect(response.type).toBe("response");
+  expect(request.transaction_id).toMatch(/^[0-9a-f-]{36}$/);
+  expect(response.transaction_id).toBe(request.transaction_id);
+  for (const e of entries) {
+    expect(new Date(e.timestamp).toString()).not.toBe("Invalid Date");
+    expect(e.http_version).toBe("HTTP/1.1");
+    expect(e.method).toBe("POST");
+    expect(e.url).toBe("http://example.com/log?z=1");
+    expect(typeof e.headers).toBe("object");
+  }
+  expect(request.payload).toBe("ping");
+  expect(response.status).toBe(201);
+  expect(response.payload).toBe("created");
+});
+
+test("log_file only supports .ndjson", async () => {
+  const bad = join(dir, "bad.donly");
+  writeFileSync(bad, `proxy {\n  log_file "./proxy.log"\n}\n`);
+  expect(loadConfig(bad)).rejects.toThrow(".ndjson");
 });
