@@ -67,3 +67,44 @@ for (const host of ["::1", "::"]) {
     },
   );
 }
+
+// Other notations of the same IPv6 loopback address: the proxy listens on `::1` whatever the spelling.
+for (const host of ["0:0:0:0:0:0:0:1", "0000:0000:0000:0000:0000:0000:0000:0001", "::0001", "0::1", "[::1]"]) {
+  testFeature(
+    `proxy {\n  host "${host}"\n  port 0\n  route {\n    respond 200 "ok"\n  }\n}\n`,
+    ["/proxy/host"],
+    `should accept the IPv6 notation ${host}`,
+    async (payload) => {
+      const config = await load(payload);
+      const server = createProxyServer(config);
+      await new Promise<void>((resolve) => server.listen(config.port, config.host, resolve));
+      try {
+        const { address, family, port } = server.address() as AddressInfo;
+        expect(address).toBe("::1");
+        expect(family).toBe("IPv6");
+        const res = await fetch("http://example.com/", { proxy: `http://[::1]:${port}` });
+        expect(await res.text()).toBe("ok");
+      } finally {
+        server.close();
+      }
+    },
+  );
+}
+
+// An IPv4-mapped IPv6 address is reachable through its IPv4 form.
+testFeature(
+  `proxy {\n  host "::ffff:127.0.0.1"\n  port 0\n  route {\n    respond 200 "ok"\n  }\n}\n`,
+  ["/proxy/host"],
+  "should accept the IPv4-mapped IPv6 notation ::ffff:127.0.0.1",
+  async (payload) => {
+    const config = await load(payload);
+    const server = createProxyServer(config);
+    await new Promise<void>((resolve) => server.listen(config.port, config.host, resolve));
+    try {
+      const res = await fetch("http://example.com/", { proxy: `http://127.0.0.1:${(server.address() as AddressInfo).port}` });
+      expect(await res.text()).toBe("ok");
+    } finally {
+      server.close();
+    }
+  },
+);
