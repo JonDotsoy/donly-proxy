@@ -14,6 +14,9 @@ $ curl -v -k --proxy http://127.0.0.1:8080 https://google.com
 curl: (35) LibreSSL/3.3.6: error:1404B42E:SSL routines:ST_CONNECT:tlsv1 alert protocol version
 ```
 
+Variante: con `--tlsv1.2 --tls-max 1.3` el `curl` puede **quedarse colgado** tras el `Client hello`
+hasta `^C`, sin alerta ni error. En ambos casos el túnel `CONNECT` funciona y falla el TLS con el proxy.
+
 `-k` no lo evita: desactiva la verificación del certificado, no la negociación TLS.
 
 ## Qué hace el proxy aquí
@@ -35,9 +38,13 @@ Con el comando exacto `curl -v -k --proxy http://127.0.0.1:8080 https://google.c
 | `openssl s_client` de LibreSSL 3.3.6 compilado desde fuente (`-tls1_2` y `-tls1_3`) | TLS 1.2 / 1.3, responde `ok` |
 | Igual, con certificado y clave generados por el `openssl` de LibreSSL 3.3.6 (cert X.509 v1) | `ok` |
 | Bundle `dist/donly-proxy.js` en lugar de `bun start` | `ok` |
+| `curl` 8.7.1 compilado contra LibreSSL 3.3.6 (como el de macOS) con `-v -k --tlsv1.2 --tls-max 1.3`, manifest con `log_file` y `ssl`, sin `route` | `ok`, sin colgarse |
 | Certificado RSA 1024 o EC P-256 | `ok` |
 
-Es decir: ni LibreSSL 3.3.6, ni el tipo de certificado, ni el bundle explican el error. Lo que
+Es decir: ni LibreSSL 3.3.6, ni el `curl` 8.7.1, ni el tipo de certificado, ni el bundle, ni
+`log_file` explican el error. La diferencia que queda es la plataforma: todo se probó en Linux, y
+el error se vio en macOS (el cuelgue apunta a que Bun no completa el handshake al envolver el
+socket del `CONNECT` en `tls.TLSSocket`; sin confirmar). Lo que
 **sí** produce un fallo TLS cuyo mensaje cambia según el cliente:
 
 - **Cliente limitado a TLS ≤ 1.1** (`--tls-max 1.1`, `MaxProtocol` en `openssl.cnf`, `~/.curlrc`).
@@ -66,7 +73,32 @@ Es decir: ni LibreSSL 3.3.6, ni el tipo de certificado, ni el bundle explican el
    `openssl x509 -in certs/cert.pem -noout -modulus | md5` frente a `openssl rsa -in certs/key.pem -noout -modulus | md5` (deben ser iguales) o borra `certs/` para regenerarlos.
 3. **¿Qué versiones ofrece el cliente?** Revisa `~/.curlrc`, `--tls-max` y `openssl.cnf`, y prueba
    `curl -v -k --tlsv1.2 --tls-max 1.3 --proxy http://127.0.0.1:8080 https://google.com`.
-4. **¿Qué Bun es?** `bun --version`; prueba también con la última versión.
+4. **¿Tu Bun termina TLS sobre un socket envuelto?** Guarda esto como `tls-check.mjs` junto a `certs/`
+   y ejecútalo con `bun tls-check.mjs`. Hace lo mismo que el proxy en un `CONNECT` y no usa
+   donly-proxy. Imprime `OK TLSv1.3` si todo va bien (en Linux con Bun 1.4.2 lo hace); si imprime
+   `HANG` o un error, el problema está en tu Bun/plataforma y no en el manifest:
+
+   ```js
+   import net from "node:net";
+   import tls from "node:tls";
+   import { readFileSync } from "node:fs";
+
+   const opts = { key: readFileSync("certs/key.pem"), cert: readFileSync("certs/cert.pem") };
+   const server = net.createServer((socket) => {
+     const secure = new tls.TLSSocket(socket, { ...opts, isServer: true });
+     secure.on("error", (e) => console.log("server error:", e.code ?? e.message));
+     secure.on("data", () => secure.end("ok"));
+   });
+   server.listen(0, "127.0.0.1", () => {
+     const client = tls.connect({ port: server.address().port, host: "127.0.0.1", rejectUnauthorized: false });
+     const timer = setTimeout(() => { console.log("HANG: no handshake after 5s"); process.exit(1); }, 5000);
+     client.on("secureConnect", () => { clearTimeout(timer); console.log("OK", client.getProtocol()); client.write("hi"); });
+     client.on("data", () => process.exit(0));
+     client.on("error", (e) => { clearTimeout(timer); console.log("client error:", e.message); process.exit(1); });
+   });
+   ```
+
+   Prueba también `bun upgrade` y repite.
 5. **Compara el cliente:** `openssl s_client -connect google.com:443 -proxy 127.0.0.1:8080 -tls1_2 </dev/null`
    (OpenSSL 3) o un `curl` de Homebrew en lugar del de macOS.
 
