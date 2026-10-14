@@ -52,6 +52,8 @@ rutas, creando las carpetas necesarias. Si ya existen, no los toca.
 Solo se admite la extensión `.ndjson`; con otra, el arranque falla. Se crean las carpetas que
 falten y cada evento se agrega como una línea JSON al final del archivo.
 
+Con `donly-proxy --ui` el archivo se puede seguir en el navegador (ver [`--ui`](overview.md#--ui-logs-en-vivo)).
+
 Al empezar a escuchar, el proxy escribe una línea `listening` con el `host` y el `port` reales
 (el que asignó el sistema si `port` es `0`):
 
@@ -142,6 +144,7 @@ route https?://example.com/ {
 
 | Causa | Mensaje |
 | --- | --- |
+| `--ui` (CLI) con un manifest sin `log_file` | `--ui requiere log_file en el manifiesto para poder mostrar los logs` |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
