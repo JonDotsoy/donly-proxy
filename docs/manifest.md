@@ -2,7 +2,8 @@
 
 El proxy se configura con un archivo en formato [DON](https://don.jon.soy/). Por defecto se lee
 `manifest.donly` en la raíz del proyecto; se puede indicar otro como primer argumento:
-`bun src/cli/main.ts ruta/al/manifest.donly`.
+`bun src/cli/main.ts ruta/al/manifest.donly`. Al arrancar imprime
+`proxy listening on <host>:<puerto>` con el puerto real.
 
 Todo va dentro de un único bloque `proxy`:
 
@@ -56,33 +57,42 @@ Al empezar a escuchar, el proxy escribe una línea `listening` con el `host` y e
 (el que asignó el sistema si `port` es `0`):
 
 ```json
-{"timestamp":"2026-10-13T01:59:00.120Z","type":"listening","host":"127.0.0.1","port":8080}
+{"timestamp":"2026-10-13T01:59:00.120Z","performance_timestamp":1792029540120.52,"type":"listening","host":"127.0.0.1","port":8080}
 ```
 
 Cada petición genera **dos líneas**, una `request` y una `response`, que comparten el
 `transaction_id` (un UUID):
 
 ```json
-{"timestamp":"2026-10-13T01:59:02.381Z","transaction_id":"61e52431-d104-4f8c-b703-e65680da0eac","http_version":"HTTP/1.1","method":"POST","url":"http://example.com/","type":"request","headers":{"host":"example.com","content-length":"2"},"payload":"hi"}
-{"timestamp":"2026-10-13T01:59:02.381Z","transaction_id":"61e52431-d104-4f8c-b703-e65680da0eac","http_version":"HTTP/1.1","method":"POST","url":"http://example.com/","type":"response","status":200,"headers":{"content-type":"text/plain"},"payload":"good"}
+{"timestamp":"2026-10-13T01:59:02.381Z","performance_timestamp":1792029542381.07,"transaction_id":"61e52431-d104-4f8c-b703-e65680da0eac","http_version":"HTTP/1.1","method":"POST","url":"http://example.com/","type":"request","headers":{"host":"example.com","content-length":"2"},"payload":"hi"}
+{"timestamp":"2026-10-13T01:59:02.382Z","performance_timestamp":1792029542382.31,"transaction_id":"61e52431-d104-4f8c-b703-e65680da0eac","http_version":"HTTP/1.1","method":"POST","url":"http://example.com/","type":"response","status":200,"headers":{"content-type":"text/plain"},"payload":"good"}
 ```
 
 | Campo | Descripción |
 | --- | --- |
 | `timestamp` | Fecha y hora ISO 8601 (UTC) del evento. |
+| `performance_timestamp` | Momento exacto del evento en milisegundos con decimales (`performance.timeOrigin + performance.now()`), útil para ordenar eventos que comparten el mismo `timestamp`. |
 | `transaction_id` | UUID compartido por la `request` y su `response`. |
 | `http_version` | Versión HTTP de la petición, p. ej. `HTTP/1.1`. |
 | `method` | Método de la petición. |
 | `url` | URL completa, p. ej. `https://example.com/ruta?q=1` (sin `:443`). |
 | `type` | `request`, `response`, `listening` (arranque), `command`, `command_exit` o `script`. |
 | `status` | Solo en `response`: código de estado devuelto al cliente. |
-| `command` | Solo en `response` de rutas `command_pass`: la línea de comandos ejecutada, como lista (programa y argumentos). |
-| `script` | Solo en líneas `type: "script"`: el script completo que el motor `node` envía por stdin al `node` remoto (`kubectl_pass` / `ssh_pass`), justo después de las líneas `command`. |
+| `command` | En `response` de rutas `command_pass`, `kubectl_pass` y `ssh_pass`: la línea de comandos ejecutada, como lista (programa y argumentos). También en las líneas `type: "command"`. |
+| `program` | Solo en líneas `command`, `command_exit` y `script`: el programa al que se refiere la línea (`curl`, `node`, `ssh`, `kubectl`, …). |
+| `exit_code` | Solo en líneas `command_exit`: código de salida del proceso (`null` si terminó por una señal). |
+| `script` | Solo en líneas `type: "script"`: el script completo que el motor `node` envía por stdin (`node` local, o remoto con `ssh` / `kubectl`), justo después de las líneas `command`. |
 | `headers` | Cabeceras de la petición o de la respuesta. |
 | `payload` | Cuerpo como texto UTF-8. Si no es UTF-8 válido se guarda en base64 y la línea incluye `"payload_encoding":"base64"`. |
 
+Las rutas con un comando externo (`command_pass`, `kubectl_pass`, `ssh_pass`) escriben además, entre
+la `request` y la `response` y con el mismo `transaction_id`, una línea `command` al lanzar el
+proceso (`program` y `command`) y una `command_exit` al terminar (`program` y `exit_code`). Con
+`kubectl` hay una línea `command` y una `command_exit` por el propio `kubectl` y otra por el
+comando que corre tras `--` dentro del pod. Con el motor `node` aparece también la línea `script`.
+
 Se registran todas las transacciones: rutas `respond`, `proxy_pass`, `command_pass`, las
-respuestas `ok` por defecto y los `502`. Las rutas `command_pass` añaden además el campo `command` con lo que se ejecutó, incluso si el comando falla (por ejemplo `["curl","--silent",…,"--url","http://example.com/"]`); con `ssh` y `kubectl` incluye el comando remoto, que lleva la petición codificada en base64. Las demás rutas no tienen `command`. En `proxy_pass` y `command_pass` el `payload` de la
+respuestas `ok` por defecto y los `502`. Las rutas con comando externo añaden además el campo `command` con lo que se ejecutó, incluso si el comando falla (por ejemplo `["curl","--silent",…,"--url","http://example.com/"]`); con `ssh` y `kubectl` incluye el comando remoto, que lleva la petición codificada en base64. Las demás rutas no tienen `command`. En `proxy_pass` y `command_pass` el `payload` de la
 respuesta es el cuerpo ya descomprimido. El `CONNECT` en sí no se registra, solo las
 peticiones descifradas que viajan por el túnel.
 
@@ -98,7 +108,9 @@ route {                      # sin argumentos: todas las peticiones
 }
 ```
 
-- **Método** (opcional): `GET`, `POST`, etc. Sin método, la ruta aplica a cualquier método.
+- **Método** (opcional): `GET`, `POST`, etc., sin distinguir mayúsculas de minúsculas. Sin método,
+  la ruta aplica a cualquier método. Solo cuenta como método el primer argumento cuando hay
+  **dos** (`route GET <patrón>`); con un solo argumento, ese es el patrón.
 - **Patrón**: expresión regular (JavaScript) probada contra la **URL completa**, incluidos el
   esquema, el host, la ruta y el query: `https://example.com/a/b?x=1`. No está anclada: busca
   coincidencia en cualquier parte de la URL. Ancla con `^` y `$` si lo necesitas, y recuerda
@@ -143,8 +155,9 @@ route https?://example.com/ {
 | Causa | Mensaje |
 | --- | --- |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
-| `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
+| `route` sin acción o con varias | ``route …: se requiere exactamente uno de `respond`, `proxy_pass`, `command_pass`, `kubectl_pass` o `ssh_pass` `` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
+| `kubectl_pass` / `ssh_pass` sin destino, o sin `command_pass` hijo con `curl`, `wget` o `node` | `route …: kubectl_pass requiere el destino (pod o tipo/nombre)` / `ssh_pass requiere el destino (usuario@host)` / `… requiere un command_pass hijo con "curl", "wget" o "node"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |
 | `concurrency` que no es un entero positivo | `route …: concurrency debe ser un entero positivo, no "…"` |
 | `no_warnings` con un valor que no es `true` / `false`, o fuera de `command_pass node` | `route …: no_warnings debe ser true o false, no "…"` / `no_warnings solo aplica a command_pass node` |
@@ -154,6 +167,9 @@ route https?://example.com/ {
 | `ssh_pass` con `port` fuera de 1–65535, `user` o `pass` inválidos | `route …: port debe ser un puerto entre 1 y 65535, no "…"` / `user debe ser un nombre, no "…"` / `pass debe ser un texto no vacío` |
 | `context` / `namespace` fuera de `kubectl_pass` y `command_pass kubectl` | `route …: namespace solo aplica a kubectl_pass y command_pass kubectl` |
 | `retry` que no es un entero no negativo, o fuera de `command_pass curl` | `route …: retry debe ser un entero no negativo, no "…"` / `retry solo aplica a command_pass curl` |
-| `engine` distinto de `curl` / `node` / `wget`, o usado fuera de `ssh` y `kubectl` | `route …: engine solo soporta …` / `engine solo aplica a command_pass ssh y kubectl` |
+| `engine` distinto de `curl` / `node` / `wget`, o usado fuera de `command_pass ssh` y `kubectl` | `route …: engine solo soporta "curl", "node" y "wget", no "…"` / `engine solo aplica a command_pass ssh y kubectl` |
 | Patrón de `route` que no es una regex válida | Error de `RegExp` |
 | `proxy_pass` con una URL inválida | Error de `URL` |
+
+Los mensajes de la tabla llevan delante `route <argumentos de la ruta>:` (el método y el patrón
+tal como están escritos en el manifiesto).

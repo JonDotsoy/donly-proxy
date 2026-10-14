@@ -1,7 +1,9 @@
 # `command_pass`
 
 Pasa la petición a un comando externo, que la ejecuta contra su URL original. Comandos
-soportados: [`curl`](#curl), [`node`](#node), [`ssh`](#ssh) y [`kubectl`](#kubectl).
+soportados: [`curl`](#curl), [`node`](#node), [`ssh`](#ssh) y [`kubectl`](#kubectl). Las formas
+anidadas [`ssh_pass`](#ssh_pass) y [`kubectl_pass`](#kubectl_pass) (al final de esta página)
+también aceptan `wget` como comando remoto.
 
 ```
 route http://example.com/ {
@@ -23,10 +25,11 @@ El primer argumento es el comando (cualquier otro hace fallar el arranque). Los 
 siguientes, opcionales, son **opciones adicionales del comando**, una por cadena. Directivas
 hijas opcionales: [`concurrency`](#concurrencia), [`extra_args`](#argumentos-extra), [`insecure`](#certificados-inseguros-con-curl), [`no_warnings`](#sin-avisos-con-node) (solo `node`), [`max_time`](#tiempo-máximo-con-curl) y [`retry`](#reintentos-con-curl) (solo `curl`) y, con `ssh` / `kubectl`, [`engine`](#engine).
 
-En ambos casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
+En todos los casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
 `PATH`, y si falla, no está instalado o no devuelve una respuesta válida el proxy contesta
 `502 bad gateway: <comando> exited with <código>: <salida>`. Las cabeceras de conexión, `host`,
-`content-length` y `content-encoding` no se devuelven al cliente.
+`content-length` y `content-encoding` no se devuelven al cliente. Con `curl` y `node` el cuerpo de la
+petición va por stdin.
 
 ## Registro del comando
 
@@ -59,8 +62,8 @@ solo argumento**: el comando se lanza sin shell.
 - `ssh` y `kubectl`: las opciones se insertan **antes del destino** (el último argumento de la
   línea), que sigue siendo el último.
 - Orden: primero los argumentos de la línea `command_pass`, luego `extra_args` (en el orden en
-  que se declaren), [`insecure`](#certificados-inseguros-con-curl) y al final
-  [`max_time`](#tiempo-máximo-con-curl) y [`retry`](#reintentos-con-curl).
+  que se declaren), [`no_warnings`](#sin-avisos-con-node), [`insecure`](#certificados-inseguros-con-curl),
+  [`max_time`](#tiempo-máximo-con-curl) y al final [`retry`](#reintentos-con-curl).
 - Vale para todos los comandos (`curl`, `node`, `ssh`, `kubectl`) y para el `command_pass` hijo
   de `kubectl_pass`.
 
@@ -189,6 +192,7 @@ curl --silent --compressed --proto =http,https \
 - Las opciones del manifiesto se colocan **antes** de `--url`, por lo que pueden complementar
   la llamada (`--insecure`, `--max-time`, `--connect-to`, `--proxy`, etc.).
 - Las redirecciones no se siguen (a menos que agregues `-L`).
+- Con `HEAD` no hay cuerpo: se usa `--head --output /dev/null` y no se pasa `--request`.
 
 ### Qué se devuelve al cliente
 
@@ -271,7 +275,7 @@ correctos, y que un destino caído produce un `502`.
 
 ## ssh
 
-Ejecuta la petición **en otra máquina** a través de `ssh`, usando `curl` o `node` allí como
+Ejecuta la petición **en otra máquina** a través de `ssh`, usando `curl`, `node` o `wget` allí como
 motor. Sirve para que el tráfico salga desde un host remoto (un bastión, un servidor con otra
 IP, etc.).
 
@@ -289,7 +293,8 @@ Los argumentos después de `ssh` son **opciones de ssh seguidas del destino**, q
 **último** (`[opciones…] usuario@host`). Sin destino el arranque falla.
 
 El proxy agrega `-T -q -o BatchMode=yes`: sin terminal, sin mensajes de ssh y sin pedir
-contraseñas (hay que autenticar con llave o agente). Las opciones que pongas en el manifiesto
+contraseñas (hay que autenticar con llave o agente). Con [`ssh_pass`](#ssh_pass) y `pass` cambia
+`BatchMode=yes` por `NumberOfPasswordPrompts=1`. Las opciones que pongas en el manifiesto
 van antes y, para `-o`, ssh respeta la primera que recibe, por lo que pueden sobrescribir esos
 valores.
 
@@ -329,7 +334,7 @@ Cabeceras con caracteres de control se rechazan (`502`).
 
 La respuesta se interpreta igual que con el motor local (ver [curl](#curl) y [node](#node)). Si
 ssh falla (conexión rechazada, autenticación, motor no instalado en el remoto…) el cliente
-recibe `502 bad gateway: ssh curl exited with <código>: <salida>` (o `ssh node …`).
+recibe `502 bad gateway: ssh curl exited with <código>: <salida>` (o `ssh node …` / `ssh wget …`).
 
 ### Pruebas
 
@@ -341,8 +346,8 @@ validación del manifiesto.
 
 ## kubectl
 
-Ejecuta la petición **dentro de un pod de Kubernetes** con `kubectl exec`, usando `curl` o `node`
-como motor. Sirve para que la petición salga desde dentro del clúster (por ejemplo, para llegar
+Ejecuta la petición **dentro de un pod de Kubernetes** con `kubectl exec`, usando `curl`, `node` o
+`wget` como motor. Sirve para que la petición salga desde dentro del clúster (por ejemplo, para llegar
 a un servicio interno).
 
 ```
@@ -367,7 +372,7 @@ kubectl exec -i -q <opciones> <destino> -- <comando>
 ```
 
 sin shell local ni terminal (`-i` para pasar stdin, `-q` para suprimir los avisos de
-kubectl). El `<comando>` es `sh -c '<línea fija>'` con `engine curl`, y
+kubectl). El `<comando>` es `sh -c '<línea fija>'` con `engine curl` y `engine wget`, y
 `node --input-type=module -` con `engine node`.
 
 ### `engine`
@@ -390,7 +395,7 @@ se escribe en la línea de comandos; la configuración viaja en base64 y el cuer
 
 Se interpreta igual que con `ssh`. Si `kubectl` falla (pod inexistente, sin permisos, sin
 conexión al clúster, motor no instalado en la imagen…) el cliente recibe
-`502 bad gateway: kubectl curl exited with <código>: <salida>` (o `kubectl node …`).
+`502 bad gateway: kubectl curl exited with <código>: <salida>` (o `kubectl node …` / `kubectl wget …`).
 
 ### Pruebas
 
