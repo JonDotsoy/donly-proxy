@@ -68,7 +68,7 @@ local no existe: la petición llega como JSON por stdin.
 | Dónde se define | Solo en el proceso `node` remoto, al inicio del programa de stdin (`src/proxy/tunnel/node/remote.ts`). |
 | Qué contiene | La petición completa: `method`, `url`, `headers` (incluidos `authorization`, cookies y tokens) y `body` en base64. Es la misma información que el cliente envió al proxy. |
 | Quién puede leerla | Todo el código que corra en ese proceso `node`: `node-request.mjs` y cualquier módulo que cargue, incluidos los que se precarguen con opciones de node (`--import`, `--require`) declaradas en el manifest. Es una variable global, sin aislamiento. |
-| Cuánto vive | Lo que dura el proceso, que es una sola petición. `node-request.mjs` no la borra al leerla. Un volcado de memoria, un reporte de diagnóstico o un `core dump` del proceso la incluirían. |
+| Cuánto vive | Lo que dura el proceso, que es una sola petición. Solo está en memoria: no se escribe en disco. `node-request.mjs` no la borra al leerla. Un volcado de memoria, un reporte de diagnóstico o un `core dump` del proceso la incluirían. |
 | Qué no es | No es una forma de cifrar la petición: el base64 solo evita que los datos se interpreten como código. |
 
 Implicaciones:
@@ -89,6 +89,54 @@ Implicaciones:
   antes del programa; un módulo precargado puede leer o reemplazar `__donlyRequest`. Un cliente no
   puede influir en eso, pero un manifest no confiable sí (ya está en la superficie de
   `manifest.donly` de arriba).
+
+### ¿Escribe algo en disco o deja datos en memoria?
+
+Resumen verificado en el código (`src/proxy/server.ts`, `certs.ts`, `tunnel/`):
+
+**En disco, en la máquina que corre el proxy**
+
+| Qué | Cuándo | Contenido | Vida |
+| --- | --- | --- | --- |
+| `log_file` | Solo si el manifest lo define | Cada `request` y `response` con cabeceras y cuerpo, las líneas `command` y, con `node` remoto, la línea `script` (la petición completa en base64) | Permanente: el proxy nunca lo borra ni lo rota |
+| `cert.pem` y `key.pem` | Al arrancar, solo si no existen | Certificado autofirmado y su llave privada, sin cifrar | Permanente |
+| Programa `askpass` en un directorio temporal (`donly-proxy-askpass-*`) | La primera vez que se usa `ssh_pass` con `pass` | Un script de dos líneas que imprime `$DONLY_SSH_PASSWORD`. **No contiene la contraseña.** Permisos `0700` | Se reutiliza hasta que termina el proxy y **no se borra** |
+
+**En disco, en el host o contenedor remoto** (`ssh` / `kubectl` con motor `curl` o `wget`)
+
+| Motor | Archivo temporal | Contenido | Vida |
+| --- | --- | --- | --- |
+| `curl` | `mktemp -d` → `c` | Configuración de curl: URL, método y **cabeceras** (con credenciales) | Hasta que termina el comando (`trap … EXIT` borra el directorio) |
+| `wget` | `mktemp -d` → `b` | El **cuerpo** de la petición (para `--post-file`) | Igual |
+
+`trap EXIT` no se ejecuta si el proceso remoto muere por `SIGKILL` o se corta la conexión de forma
+abrupta: en ese caso el directorio puede quedar en el `/tmp` remoto con los datos.
+
+**Qué NO se escribe en disco**
+
+- El motor `node` (local o remoto) no crea archivos: la petición viaja por stdin y vive solo en la memoria
+  del proceso (`globalThis.__donlyRequest`). Tampoco se escribe ningún archivo para el script.
+- `curl` local recibe el cuerpo por stdin: no usa archivos.
+- Las respuestas de los comandos (stdout / stderr) se leen en memoria y no se guardan, salvo en el
+  `log_file`.
+- La contraseña de `ssh_pass` no se escribe en disco ni en la línea de comandos: viaja en la variable de
+  entorno `DONLY_SSH_PASSWORD` del proceso `ssh`. Sí está en claro en el `manifest.donly`.
+- No hay caché de peticiones ni de respuestas.
+
+**En memoria**
+
+- **Proceso del proxy.** El cuerpo de cada petición y de cada respuesta se mantiene completo en
+  memoria (`Buffer`) mientras dura la petición; con `node` remoto también el texto del programa (con la
+  petición en base64). No hay una copia guardada: al responder quedan sin referencias y las libera el
+  recolector de basura, pero **no se sobrescriben** (puede tardar y pueden aparecer en un volcado de
+  memoria). Contraseñas y rutas del manifest viven todo el tiempo de ejecución, porque el manifest se
+  lee una vez al arrancar.
+- **Proceso hijo.** Cada petición lanza un proceso nuevo (`curl`, `node`, `ssh`, `kubectl`) que muere al
+  terminar: lo que tenía en memoria, incluida `__donlyRequest`, desaparece con él. No hay procesos ni
+  sesiones persistentes que conserven datos entre peticiones.
+- **Fuera de este proyecto.** `ssh`, `kubectl`, `curl` o `node` pueden escribir sus propios archivos
+  (`known_hosts`, cachés de `kubectl`, historial, registros del host remoto…); eso depende de su
+  configuración y `donly-proxy` no lo controla.
 
 ## Buenas prácticas para usuarios
 
