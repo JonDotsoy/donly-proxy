@@ -128,7 +128,7 @@ route {                      # sin argumentos: todas las peticiones
 | [`respond`](#respond) | Responde con un estado y cuerpo fijos. |
 | [`proxy_pass`](tunnel/proxy-pass.md) | Reenvía la petición a otro servidor. |
 | [`command_pass`](tunnel/command-pass.md) | Pasa la petición a `curl`, a un proceso `node`, a otra máquina por `ssh` o a un pod con `kubectl`. |
-| [`kubectl_pass`](tunnel/command-pass.md#kubectl_pass) | Ejecuta la petición en un pod con el `command_pass` anidado (`curl`, `wget` o `node`). |
+| [`kubectl_pass`](tunnel/command-pass-kubectl.md#kubectl_pass) | Ejecuta la petición en un pod con el `command_pass` anidado (`curl`, `wget` o `node`). |
 | [`ssh_pass`](tunnel/command-pass.md#ssh_pass) | Ejecuta la petición en un host remoto por `ssh` con el `command_pass` anidado (`curl`, `wget` o `node`). |
 
 #### `respond`

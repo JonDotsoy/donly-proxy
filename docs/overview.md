@@ -52,6 +52,7 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 - [`tunnel/proxy-pass.md`](tunnel/proxy-pass.md): reenviar una ruta a otro servidor.
 - [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta a `curl`, `node`, `ssh` o `kubectl`.
 - [`tunnel/command-pass-node.md`](tunnel/command-pass-node.md): detalle del motor `node` de `command_pass`.
+- [`tunnel/command-pass-kubectl.md`](tunnel/command-pass-kubectl.md): detalle de `command_pass kubectl` y `kubectl_pass`.
 
 ## Estructura del código
 

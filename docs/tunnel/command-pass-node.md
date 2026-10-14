@@ -61,7 +61,7 @@ route https?://example.com/ {
 
 ## Node remoto con `ssh` y `kubectl`
 
-Con `engine node` ([`ssh`](command-pass.md#ssh), [`kubectl`](command-pass.md#kubectl),
+Con `engine node` ([`ssh`](command-pass.md#ssh), [`kubectl`](command-pass-kubectl.md),
 `ssh_pass`, `kubectl_pass`) se usa el mismo script, pero el proceso corre en el host o el contenedor
 remoto y el script **viaja por stdin**:
 

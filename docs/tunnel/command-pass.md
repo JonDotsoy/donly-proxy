@@ -1,8 +1,8 @@
 # `command_pass`
 
 Pasa la petición a un comando externo, que la ejecuta contra su URL original. Comandos
-soportados: [`curl`](#curl), [`node`](command-pass-node.md), [`ssh`](#ssh) y [`kubectl`](#kubectl). Las formas
-anidadas [`ssh_pass`](#ssh_pass) y [`kubectl_pass`](#kubectl_pass) (al final de esta página)
+soportados: [`curl`](#curl), [`node`](command-pass-node.md), [`ssh`](#ssh) y [`kubectl`](command-pass-kubectl.md). Las formas
+anidadas [`ssh_pass`](#ssh_pass) y [`kubectl_pass`](command-pass-kubectl.md#kubectl_pass)
 también aceptan `wget` como comando remoto.
 
 ```
@@ -106,6 +106,12 @@ y la respuesta es un `502`. El cuerpo de la petición (stdin) no forma parte de 
 
 El detalle de `command_pass node` (script, protocolo JSON por stdin/stdout, `no_warnings`, uso remoto y
 pruebas) está en su propio documento: [`command-pass-node.md`](command-pass-node.md).
+
+## Motor `kubectl`
+
+`command_pass kubectl` y `kubectl_pass` ejecutan la petición dentro de un pod con `kubectl exec`.
+Su detalle (argumentos, `context` / `namespace`, motores, stdin/stdout, errores y pruebas con un
+clúster `kind`) está en [`command-pass-kubectl.md`](command-pass-kubectl.md).
 
 ## Argumentos extra
 
@@ -305,7 +311,7 @@ valores.
 
 ### `engine`
 
-Directiva hija de `command_pass` (válida con `ssh` y [`kubectl`](#kubectl)) que elige qué
+Directiva hija de `command_pass` (válida con `ssh` y [`kubectl`](command-pass-kubectl.md)) que elige qué
 ejecuta el host remoto:
 
 | `engine` | En el host remoto se ejecuta | Requiere en el remoto |
@@ -349,135 +355,9 @@ ambos motores, el motor por defecto, la forma de la línea de comandos de ssh, q
 la petición (incluidas comillas y `$(…)` maliciosos) llega al shell, los errores `502` y la
 validación del manifiesto.
 
-## kubectl
-
-Ejecuta la petición **dentro de un pod de Kubernetes** con `kubectl exec`, usando `curl`, `node` o
-`wget` como motor. Sirve para que la petición salga desde dentro del clúster (por ejemplo, para llegar
-a un servicio interno).
-
-```
-route https?://api.internal/ {
-  command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
-    engine curl
-  }
-}
-```
-
-### Argumentos
-
-Los argumentos después de `kubectl` son **opciones de `kubectl exec` seguidas del destino**, que
-debe ser el **último**: un pod (`api-0`) o `tipo/nombre` (`deploy/api`, `pod/api-0`). Sin
-destino el arranque falla. Opciones útiles: `-n <namespace>`, `--context <ctx>`,
-`-c <contenedor>`, `--kubeconfig <ruta>`.
-
-El proxy ejecuta:
-
-```
-kubectl exec -i -q <opciones> <destino> -- <comando>
-```
-
-sin shell local ni terminal (`-i` para pasar stdin, `-q` para suprimir los avisos de
-kubectl). El `<comando>` es `sh -c '<línea fija>'` con `engine curl` y `engine wget`, y
-`node --input-type=module -` con `engine node`.
-
-### `engine`
-
-Igual que en [`ssh`](#engine): `curl` (por defecto), `node` o `wget`. Lo que debe existir **dentro del
-contenedor**:
-
-| `engine` | Requiere en el contenedor |
-| --- | --- |
-| `curl` | `sh`, `curl`, `base64` y `mktemp` |
-| `node` | `node` |
-| `wget` | `sh`, `wget`, `mktemp` y `cat` |
-
-### Seguridad
-
-Aplican las mismas garantías que con `ssh`: ningún dato de la petición (URL, cabeceras, cuerpo)
-se escribe en la línea de comandos; la configuración viaja en base64 y el cuerpo por stdin.
-
-### Respuesta y errores
-
-Se interpreta igual que con `ssh`. Si `kubectl` falla (pod inexistente, sin permisos, sin
-conexión al clúster, motor no instalado en la imagen…) el cliente recibe
-`502 bad gateway: kubectl curl exited with <código>: <salida>` (o `kubectl node …` / `kubectl wget …`).
-
-### Pruebas
-
-`src/proxy/tunnel/kubectl/kubectl.test.ts` pone un `kubectl` falso al inicio del `PATH` que registra sus argumentos y
-ejecuta localmente lo que va después de `--`. Comprueba ambos motores, el motor por defecto, la
-forma exacta de `kubectl exec`, que ningún dato de la petición llega al shell, los errores `502`
-y la validación del manifiesto.
-
-Ver también: [`proxy_pass`](proxy-pass.md), [referencia del manifiesto](../manifest.md).
-
-## kubectl_pass
-
-Forma anidada de [`command_pass kubectl`](#kubectl): la directiva nombra el pod y el
-`command_pass` hijo nombra **qué comando se ejecuta dentro** (`curl`, `wget` o `node`), con sus
-opciones.
-
-```
-route https?://api.internal/ {
-  kubectl_pass "-n" "prod" "--context" "dev" "deploy/api" {
-    command_pass curl "--max-time" "5"
-  }
-}
-```
-
-- Los argumentos de `kubectl_pass` son los de `command_pass kubectl`: opciones de
-  `kubectl exec` seguidas del destino (último). Sin destino, el arranque falla.
-- `context <nombre>` y `namespace <nombre>` son subdirectivas que seleccionan el cluster y el
-  namespace; equivalen a `"--context" "<nombre>" "--namespace" "<nombre>"` y se añaden después de
-  las opciones de la línea y antes del destino:
-
-  ```
-  route https?://api.internal/ {
-    kubectl_pass "deploy/api" {
-      context dev
-      namespace prod
-      command_pass curl
-    }
-  }
-  ```
-
-  El valor debe ser un nombre (texto no vacío); con otro (`namespace 5`, `context ""`) el
-  arranque falla con `namespace debe ser un nombre` / `context debe ser un nombre`.
-  Lo mismo vale para [`command_pass kubectl`](#kubectl); con otro comando falla con
-  `namespace solo aplica a kubectl_pass y command_pass kubectl`.
-- Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
-  comando, o sin hijo, el arranque falla. Sus argumentos son **opciones adicionales del comando
-  remoto** (`curl`: tras los flags fijos; `wget`: antes de la URL; `node`: antes del script, sin
-  espacios). Siguen las mismas reglas de `engine` (`wget` solo GET y POST).
-- [`concurrency`](#concurrencia) va dentro del `command_pass` hijo.
-- Un `route` no puede combinar `kubectl_pass` con otra acción.
-- El `log_file` registra el `kubectl exec …` completo, igual que con `command_pass kubectl`.
-
-### Ejemplo: dos pods (`conn-pod` y `echo-pod`)
-
-`src/proxy/tunnel/kubectl/two-pods/pods.yaml` despliega dos pods: `conn-pod` (el pod al que
-entra `kubectl_pass`) y `echo-pod` (recibe la petición y escribe una línea JSON por cada una;
-se ve con `kubectl logs echo-pod`). `echo-pod` solo tiene un Service `ClusterIP`: no está
-expuesto, solo es accesible desde dentro del cluster, es decir, desde `conn-pod`. Los nombres de
-Kubernetes no admiten `_`, por eso son `conn-pod` y `echo-pod`.
-
-```
-route {
-  kubectl_pass "conn-pod" {
-    context kind-kind-cluster
-    namespace donly-proxy-two-pods
-    command_pass node
-  }
-}
-```
-
-Un `fetch` directo a `http://echo-pod.donly-proxy-two-pods.svc.cluster.local/` falla; el mismo
-`fetch` a través del proxy llega a `echo-pod` por `conn-pod`. El test está en
-`src/proxy/tunnel/kubectl/two-pods/` y necesita el cluster `kind-kind-cluster` (si no, se omite).
-
 ## ssh_pass
 
-Forma anidada de [`command_pass ssh`](#ssh), igual que [`kubectl_pass`](#kubectl_pass): la
+Forma anidada de [`command_pass ssh`](#ssh), igual que [`kubectl_pass`](command-pass-kubectl.md#kubectl_pass): la
 directiva nombra el host y el `command_pass` hijo nombra **qué comando se ejecuta en el host
 remoto** (`curl`, `wget` o `node`), con sus opciones.
 
