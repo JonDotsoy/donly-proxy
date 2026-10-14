@@ -67,7 +67,7 @@ kubectl). El `<comando>` es `sh -c '<línea fija>'` con `engine curl` y `engine 
 
 ### `engine`
 
-Igual que en [`ssh`](command-pass.md#engine): `curl` (por defecto), `node` o `wget`. Lo que debe existir **dentro del
+Igual que en [`ssh`](command-pass-ssh.md#engine): `curl` (por defecto), `node` o `wget`. Lo que debe existir **dentro del
 contenedor**:
 
 | `engine` | Requiere en el contenedor |

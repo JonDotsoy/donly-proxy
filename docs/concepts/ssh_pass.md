@@ -45,4 +45,4 @@ claro en el manifest: restringe sus permisos y prefiere llaves o el agente.
 - Ningún dato de la petición pasa por el shell remoto (ver [`command_pass`](command_pass.md)).
 - Si `ssh` falla, el cliente recibe `502 bad gateway: ssh <motor> exited with …`.
 
-Referencia completa: [`tunnel/command-pass.md`](../tunnel/command-pass.md#ssh_pass).
+Referencia completa: [`tunnel/command-pass-ssh.md`](../tunnel/command-pass-ssh.md#ssh_pass).
