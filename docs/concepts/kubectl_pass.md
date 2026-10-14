@@ -40,4 +40,4 @@ El `command_pass` hijo admite `concurrency`, `extra_args` y, según el comando, 
 - El `log_file` registra el `kubectl exec …` completo en `command`.
 
 Ejemplo con dos pods (`conn-pod` entra al clúster y `echo-pod` solo es accesible desde dentro) y
-la referencia completa: [`tunnel/command-pass.md`](../tunnel/command-pass.md#kubectl_pass).
+la referencia completa: [`tunnel/command-pass-kubectl.md`](../tunnel/command-pass-kubectl.md).

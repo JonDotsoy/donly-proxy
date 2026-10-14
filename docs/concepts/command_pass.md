@@ -14,10 +14,10 @@ route https://example.com/ {
 
 | Comando | Dónde sale la petición | Detalle |
 | --- | --- | --- |
-| `curl` | Local, con el `curl` del `PATH`. | [curl](../tunnel/command-pass.md#curl) |
-| `node` | Local, con un proceso `node` (`http.request` / `https.request`). | [node](../tunnel/command-pass.md#node) |
-| `ssh` | Un host remoto, con `curl`, `node` o `wget` allí. | [ssh](../tunnel/command-pass.md#ssh) · forma anidada: [`ssh_pass`](ssh_pass.md) |
-| `kubectl` | Un pod, vía `kubectl exec`. | [kubectl](../tunnel/command-pass.md#kubectl) · forma anidada: [`kubectl_pass`](kubectl_pass.md) |
+| `curl` | Local, con el `curl` del `PATH`. | [curl](../tunnel/command-pass-curl.md) |
+| `node` | Local, con un proceso `node` (`http.request` / `https.request`). | [node](../tunnel/command-pass-node.md) |
+| `ssh` | Un host remoto, con `curl`, `node` o `wget` allí. | [ssh](../tunnel/command-pass-ssh.md) · forma anidada: [`ssh_pass`](ssh_pass.md) |
+| `kubectl` | Un pod, vía `kubectl exec`. | [kubectl](../tunnel/command-pass-kubectl.md) · forma anidada: [`kubectl_pass`](kubectl_pass.md) |
 
 El primer argumento es el comando; los siguientes son **opciones adicionales** de ese comando
 (una por cadena). Cualquier otro comando hace fallar el arranque.

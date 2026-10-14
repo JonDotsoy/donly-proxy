@@ -3,7 +3,7 @@
 Proxy HTTP/HTTPS configurable con un manifiesto [DON](https://don.jon.soy/) (`manifest.donly`).
 Por defecto responde `ok` a cualquier petición; con rutas (`route`) puede responder con un
 cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `curl`, a un proceso `node`, a otra máquina por `ssh` o a un pod con `kubectl`
-(`command_pass`). Cada transacción puede registrarse en un archivo `.ndjson`.
+(`command_pass`, o sus formas anidadas `ssh_pass` y `kubectl_pass`). Cada transacción puede registrarse en un archivo `.ndjson`.
 
 ## Uso rápido
 
@@ -36,8 +36,9 @@ proxy:
 1. Lee el cuerpo completo en memoria.
 2. Registra la línea `request` si hay `log_file`.
 3. Busca la primera `route` cuyo método y patrón coincidan. Según la ruta responde con
-   [`respond`](manifest.md#respond), [`proxy_pass`](tunnel/proxy-pass.md) o
-   [`command_pass`](tunnel/command-pass.md). Si ninguna coincide responde `200 ok`.
+   [`respond`](manifest.md#respond), [`proxy_pass`](tunnel/proxy-pass.md),
+   [`command_pass`](tunnel/command-pass.md), [`kubectl_pass`](concepts/kubectl_pass.md) o
+   [`ssh_pass`](concepts/ssh_pass.md). Si ninguna coincide responde `200 ok`.
 4. Registra la línea `response` y responde al cliente.
 
 Como el TLS se termina en el proxy, los clientes HTTPS deben **confiar en su certificado** o
@@ -48,10 +49,13 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 ## Documentación
 
 - [`system/features.md`](system/features.md): specs de los tests (`testFeature`): qué directivas del manifest ejercita cada test y si pasa (se genera con `bun run features`).
-- [`manifest.md`](manifest.md): referencia del manifiesto (`host`, `port`, `ssl`, `log_file`, `route`).
+- [`manifest.md`](manifest.md): referencia del manifiesto (`host`, `port`, `ssl`, `log_file`, `route`) y formato del log.
 - [`concepts/`](concepts/route.md): conceptos en breve: [`route`](concepts/route.md), [`proxy_pass`](concepts/proxy_pass.md), [`command_pass`](concepts/command_pass.md), [`kubectl_pass`](concepts/kubectl_pass.md) y [`ssh_pass`](concepts/ssh_pass.md).
 - [`tunnel/proxy-pass.md`](tunnel/proxy-pass.md): reenviar una ruta a otro servidor.
 - [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta a `curl`, `node`, `ssh` o `kubectl`.
+- [`tunnel/command-pass-curl.md`](tunnel/command-pass-curl.md), [`command-pass-ssh.md`](tunnel/command-pass-ssh.md) y [`command-pass-wget.md`](tunnel/command-pass-wget.md): detalle de los motores `curl`, `ssh` / `ssh_pass` y `wget`.
+- [`tunnel/command-pass-node.md`](tunnel/command-pass-node.md): detalle del motor `node` de `command_pass`.
+- [`tunnel/command-pass-kubectl.md`](tunnel/command-pass-kubectl.md): detalle de `command_pass kubectl` y `kubectl_pass`; con node dentro del pod: [`command-pass-kubectl-node.md`](tunnel/command-pass-kubectl-node.md).
 
 ## Estructura del código
 
@@ -72,6 +76,6 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 ## Requisitos y límites
 
 - [Bun](https://bun.sh) para ejecutar el servidor y las pruebas.
-- `openssl` instalado (solo si los certificados no existen) y `curl`, `node`, `ssh` o `kubectl` (solo para `command_pass`, según el comando que uses).
+- `openssl` instalado (solo si los certificados no existen) y `curl`, `node`, `ssh` o `kubectl` (solo para `command_pass`, `kubectl_pass` y `ssh_pass`, según el comando que uses). El motor elegido (`curl`, `node` o `wget`) debe existir también en el host o contenedor remoto.
 - Solo HTTP/1.1. Los cuerpos se mantienen completos en memoria. No hay autenticación: no lo
   expongas fuera de `127.0.0.1` sin protegerlo.
