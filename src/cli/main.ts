@@ -1,9 +1,11 @@
 import type { AddressInfo } from "node:net";
 import { argument, flag, flags } from "@jondotsoy/flags";
+import pkg from "../../package.json";
 import { createProxyServer, loadConfig } from "../proxy/server";
 
 const parser = flags({
   help: flag("--help", "-h").boolean().describe("Muestra esta ayuda"),
+  version: flag("--version", "-V").boolean().describe("Muestra la versión"),
   manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto manifest.donly)"),
 })
   .program("donly-proxy")
@@ -20,6 +22,11 @@ try {
 
 if (options.help) {
   console.log(parser.helpMessage());
+  process.exit(0);
+}
+
+if (options.version) {
+  console.log(pkg.version);
   process.exit(0);
 }
 

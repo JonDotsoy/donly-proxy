@@ -11,6 +11,8 @@ cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `c
 bun install
 bun start                        # usa ./manifest.donly
 bun src/cli/main.ts otro.donly     # usa otro manifiesto
+bun src/cli/main.ts --version      # imprime la versión (-V)
+bun src/cli/main.ts --help         # muestra la ayuda (-h)
 bun test
 ```
 
