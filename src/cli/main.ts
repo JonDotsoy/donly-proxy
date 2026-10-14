@@ -2,10 +2,13 @@ import type { AddressInfo } from "node:net";
 import { argument, flag, flags } from "@jondotsoy/flags";
 import pkg from "../../package.json";
 import { createProxyServer, loadConfig } from "../proxy/server";
+import { createUiServer } from "../ui/server";
 
 const parser = flags({
   help: flag("--help", "-h").boolean().describe("Muestra esta ayuda"),
   version: flag("--version", "-V").boolean().describe("Muestra la versión"),
+  ui: flag("--ui").boolean().describe("Levanta una página con los logs en vivo (requiere log_file)"),
+  uiPort: flag("--ui-port").number().default(8081).describe("Puerto de la página de logs (por defecto 8081)"),
   manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto manifest.donly)"),
 })
   .program("donly-proxy")
@@ -31,8 +34,24 @@ if (options.version) {
 }
 
 const config = await loadConfig(options.manifest);
+if (options.ui && !config.logFile) {
+  console.error("Error: --ui requiere log_file en el manifiesto para poder mostrar los logs");
+  process.exit(1);
+}
 const server = createProxyServer(config);
 server.listen(config.port, config.host, () => {
   // `port 0` (the default) is assigned by the system: report the real one.
   console.log(`proxy listening on ${config.host}:${(server.address() as AddressInfo).port}`);
 });
+
+if (options.ui && config.logFile) {
+  const ui = createUiServer(config.logFile);
+  ui.on("error", (error: NodeJS.ErrnoException) => {
+    console.error(`Error: no se pudo levantar la ui en 127.0.0.1:${options.uiPort}: ${error.code ?? error.message}`);
+    process.exit(1);
+  });
+  // Loopback only: the log has request headers and bodies.
+  ui.listen(options.uiPort, "127.0.0.1", () => {
+    console.log(`ui listening on http://127.0.0.1:${(ui.address() as AddressInfo).port}`);
+  });
+}
