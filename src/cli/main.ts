@@ -9,6 +9,7 @@ const parser = flags({
   version: flag("--version", "-V").boolean().describe("Muestra la versión"),
   ui: flag("--ui").boolean().describe("Levanta una página con los logs en vivo (requiere log_file)"),
   uiPort: flag("--ui-port").number().default(8081).describe("Puerto de la página de logs (por defecto 8081)"),
+  verbose: flag("--verbose").boolean().describe("Logs detallados en stderr (equivale a `log verbose` en el manifiesto)"),
   manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto manifest.donly)"),
 })
   .program("donly-proxy")
@@ -38,7 +39,7 @@ if (options.ui && !config.logFile) {
   console.error("Error: --ui requiere log_file en el manifiesto para poder mostrar los logs");
   process.exit(1);
 }
-const server = createProxyServer(config);
+const server = createProxyServer({ ...config, verbose: config.verbose || options.verbose });
 server.listen(config.port, config.host, () => {
   // `port 0` (the default) is assigned by the system: report the real one.
   console.log(`proxy listening on ${config.host}:${(server.address() as AddressInfo).port}`);

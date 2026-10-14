@@ -112,7 +112,8 @@ comando ejecutado por `command_pass` y el estado de la respuesta:
 [verbose] response 200
 ```
 
-Cualquier otro valor tras `log` falla al arrancar.
+Equivale a arrancar el CLI con el flag `--verbose`; si cualquiera de los dos está activo, hay
+logs detallados. Cualquier otro valor tras `log` falla al arrancar.
 
 ### `route`
 

@@ -67,3 +67,20 @@ testFeature(`proxy {\n  log loud\n}\n`, ["/proxy/log"], "should reject a log val
   writeFileSync(bad, payload);
   expect(loadConfig(bad)).rejects.toThrow('log loud: solo se soporta "log verbose"');
 });
+
+testFeature(`proxy {\n  host "127.0.0.1"\n  port 0\n  route http://verbose.test/ {\n    respond 200 "hi"\n  }\n}\n`, ["/proxy/route/respond"], "should print verbose logs when the CLI runs with --verbose", async (payload) => {
+  const cliManifest = join(dir, "cli.donly");
+  writeFileSync(cliManifest, payload);
+  const root = new URL("../..", import.meta.url).pathname;
+  const child = Bun.spawn(["bun", "src/cli/main.ts", "--verbose", cliManifest], { cwd: root, stdout: "pipe", stderr: "pipe", env: { ...process.env, NO_PROXY: "", no_proxy: "" } });
+  try {
+    const reader = child.stdout.getReader();
+    const { value } = await reader.read();
+    const port = /:(\d+)\s*$/.exec(new TextDecoder().decode(value).trim())![1];
+    await fetch("http://verbose.test/", { proxy: `http://127.0.0.1:${port}` });
+    child.kill();
+    expect(await new Response(child.stderr).text()).toContain("[verbose] GET http://verbose.test/");
+  } finally {
+    child.kill();
+  }
+});
