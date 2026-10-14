@@ -5,4 +5,4 @@ cómo salir de ellos. Los hosts de los ejemplos son ficticios (`servicio.example
 
 | Error | Resumen |
 | --- | --- |
-| [`tlsv1 alert protocol version`](tls-alert-protocol-version.md) | `curl` falla con `curl: (35)` justo después de un `CONNECT` con `200`: el cliente y quien termina el TLS no comparten versión de TLS. |
+| [`tlsv1 alert protocol version`](tls-alert-protocol-version.md) | `curl: (35)` justo después de un `CONNECT` con `200`: el handshake TLS con el proxy falla. Causa sin confirmar; incluye lo no reproducido y cómo diagnosticar. |
