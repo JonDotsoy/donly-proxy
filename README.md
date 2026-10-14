@@ -36,13 +36,16 @@ Para probar la instalación vía Homebrew sin publicar un tap, crea un tap local
 brew tap-new $USER/local
 ```
 
-2. Calcula el hash del bundle de la versión que quieres probar:
+2. Copia el `sha256` desde las notas del release (sección **SHA256**, publicada por el workflow `publish`): <https://github.com/JonDotsoy/donly-proxy/releases>
+
+3. Crea la fórmula dentro del tap con `brew create` (genera `Formula/donly-proxy.rb` y la abre en tu editor):
 
 ```sh
-curl -fL https://github.com/JonDotsoy/donly-proxy/releases/download/v0.0.3/donly-proxy.js | shasum -a 256
+brew create --tap $USER/local --set-name donly-proxy \
+  https://github.com/JonDotsoy/donly-proxy/releases/download/v0.0.3/donly-proxy.js
 ```
 
-3. Crea `$(brew --repository)/Library/Taps/$USER/homebrew-local/Formula/donly-proxy.rb` con este template; **solo debes cambiar el `sha256`** (y `version`/`url` si pruebas otra versión):
+   Reemplaza el contenido por este template; **solo debes cambiar el `sha256`** (y `version`/`url` si pruebas otra versión). Para volver a editarla usa `brew edit $USER/local/donly-proxy`:
 
 ```ruby
 class DonlyProxy < Formula
@@ -85,4 +88,4 @@ brew uninstall donly-proxy
 brew untap $USER/local
 ```
 
-> Si el release no es público aún, genera el bundle con `bun run build` y usa `url "file:///ruta/absoluta/dist/donly-proxy.js"` junto con el hash de `shasum -a 256 dist/donly-proxy.js`.
+> Si el release no es público aún, genera el bundle con `bun run build` y usa `url "file:///ruta/absoluta/dist/donly-proxy.js"` junto con el hash de `shasum -a 256 dist/donly-proxy.js` (en un release público el hash ya está en sus notas).
