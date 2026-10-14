@@ -75,6 +75,7 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 - [`concepts/`](concepts/route.md): conceptos en breve: [`route`](concepts/route.md), [`proxy_pass`](concepts/proxy_pass.md), [`command_pass`](concepts/command_pass.md), [`kubectl_pass`](concepts/kubectl_pass.md) y [`ssh_pass`](concepts/ssh_pass.md).
 - [`tunnel/proxy-pass.md`](tunnel/proxy-pass.md): reenviar una ruta a otro servidor.
 - [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta a `curl`, `node`, `ssh` o `kubectl`.
+- [`errores-conocidos/`](errores-conocidos/README.md): errores ya vistos, con causa, diagnóstico y soluciones.
 
 ## Estructura del código
 
