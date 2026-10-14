@@ -111,7 +111,7 @@ Cada motor tiene su propio documento:
 | `curl` | [`command-pass-curl.md`](command-pass-curl.md): flags fijos, `insecure`, `max_time`, `retry`. |
 | `node` | [`command-pass-node.md`](command-pass-node.md): script, protocolo JSON, `no_warnings`. |
 | `ssh` / `ssh_pass` | [`command-pass-ssh.md`](command-pass-ssh.md): opciones de `ssh`, `engine`, autenticación y `pass`. |
-| `kubectl` / `kubectl_pass` | [`command-pass-kubectl.md`](command-pass-kubectl.md): `kubectl exec`, `context` / `namespace`. |
+| `kubectl` / `kubectl_pass` | [`command-pass-kubectl.md`](command-pass-kubectl.md): `kubectl exec`, `context` / `namespace`. Con `node`: [`command-pass-kubectl-node.md`](command-pass-kubectl-node.md). |
 | `wget` (solo remoto) | [`command-pass-wget.md`](command-pass-wget.md): GET y POST con `wget` en el destino. |
 
 ## Argumentos extra

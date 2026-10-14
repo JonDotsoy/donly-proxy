@@ -76,6 +76,8 @@ contenedor**:
 | `node` | `node` |
 | `wget` | `sh`, `wget`, `mktemp` y `cat` |
 
+`engine node` tiene su propio documento: [`command-pass-kubectl-node.md`](command-pass-kubectl-node.md).
+
 ### Seguridad
 
 Aplican las mismas garantías que con `ssh`: ningún dato de la petición (URL, cabeceras, cuerpo)

@@ -75,5 +75,6 @@ remoto y el script **viaja por stdin**:
 - El script completo queda en el [`log_file`](../manifest.md#log_file) como una línea
   `type: "script"` justo después de las líneas `command`.
 - Solo requiere `node` en el destino; no usa `sh`, `base64` ni `mktemp`.
+- Detalle de la combinación con `kubectl`: [`command-pass-kubectl-node.md`](command-pass-kubectl-node.md).
 
 Ver también: [ciclo de vida de `command_pass`](command-pass.md#ciclo-de-vida-setup-ejecución-y-stdin).

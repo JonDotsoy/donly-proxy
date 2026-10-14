@@ -53,7 +53,7 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 - [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta a `curl`, `node`, `ssh` o `kubectl`.
 - [`tunnel/command-pass-curl.md`](tunnel/command-pass-curl.md), [`command-pass-ssh.md`](tunnel/command-pass-ssh.md) y [`command-pass-wget.md`](tunnel/command-pass-wget.md): detalle de los motores `curl`, `ssh` / `ssh_pass` y `wget`.
 - [`tunnel/command-pass-node.md`](tunnel/command-pass-node.md): detalle del motor `node` de `command_pass`.
-- [`tunnel/command-pass-kubectl.md`](tunnel/command-pass-kubectl.md): detalle de `command_pass kubectl` y `kubectl_pass`.
+- [`tunnel/command-pass-kubectl.md`](tunnel/command-pass-kubectl.md): detalle de `command_pass kubectl` y `kubectl_pass`; con node dentro del pod: [`command-pass-kubectl-node.md`](tunnel/command-pass-kubectl-node.md).
 
 ## Estructura del código
 
