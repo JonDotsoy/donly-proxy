@@ -36,7 +36,7 @@ Para probar la instalación vía Homebrew sin publicar un tap, crea un tap local
 brew tap-new $USER/local
 ```
 
-2. Copia el `sha256` desde las notas del release (sección **SHA256**, publicada por el workflow `publish`): <https://github.com/JonDotsoy/donly-proxy/releases>
+2. Copia el `sha256` desde las notas del release (secciones **SHA256** y **Fórmula de Homebrew (template)**, publicadas por el workflow `publish`; la fórmula del release ya viene con versión, url y hash completados): <https://github.com/JonDotsoy/donly-proxy/releases>
 
 3. Crea la fórmula dentro del tap con `brew create` (genera `Formula/donly-proxy.rb` y la abre en tu editor):
 

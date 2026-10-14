@@ -40,12 +40,50 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${{ steps.version.outputs.tag }}" --generate-notes --title "${{ steps.version.outputs.tag }}" dist/donly-proxy.js
-      - name: Add sha256 to release notes
+      - name: Add sha256 and Homebrew formula to release notes
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          tag="${{ steps.version.outputs.tag }}"
+          version="${TAG#v}"
           sha=$(sha256sum dist/donly-proxy.js | cut -d' ' -f1)
-          gh release view "$tag" --json body --jq .body > notes.md
-          printf '\n\n## SHA256\n\n```\n%s  donly-proxy.js\n```\n' "$sha" >> notes.md
-          gh release edit "$tag" --notes-file notes.md
+          gh release view "$TAG" --json body --jq .body > notes.md
+          cat >> notes.md <<'TEMPLATE'
+
+
+          ## SHA256
+
+          ```
+          @SHA@  donly-proxy.js
+          ```
+
+          ## Fórmula de Homebrew (template)
+
+          ```ruby
+          class DonlyProxy < Formula
+            desc "Proxy for donly: continuation of the demo proxy"
+            homepage "https://github.com/@REPO@"
+            version "@VERSION@"
+            url "https://github.com/@REPO@/releases/download/@TAG@/donly-proxy.js"
+            sha256 "@SHA@"
+            license "MIT"
+
+            depends_on "oven-sh/bun/bun"
+
+            def install
+              libexec.install "donly-proxy.js"
+              (bin/"donly-proxy").write <<~EOS
+                #!/bin/sh
+                exec bun "#{libexec}/donly-proxy.js" "$@"
+              EOS
+            end
+
+            test do
+              assert_predicate libexec/"donly-proxy.js", :exist?
+            end
+          end
+          ```
+          TEMPLATE
+          sed -i -e "s|@SHA@|$sha|g" -e "s|@REPO@|$REPO|g" -e "s|@VERSION@|$version|g" -e "s|@TAG@|$TAG|g" notes.md
+          gh release edit "$TAG" --notes-file notes.md
