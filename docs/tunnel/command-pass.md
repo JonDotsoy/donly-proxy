@@ -31,6 +31,66 @@ En todos los casos el comando se lanza **sin shell** (los argumentos van como li
 `content-length` y `content-encoding` no se devuelven al cliente. Con `curl` y `node` el cuerpo de la
 petición va por stdin.
 
+## Ciclo de vida: setup, ejecución y stdin
+
+`command_pass` **no mantiene ningún proceso vivo ni abre una sesión**: no hay una fase de setup
+previa ni se "envían comandos" a un proceso en marcha. Cada petición lanza un proceso nuevo,
+le entrega todos los datos de una vez y espera a que termine.
+
+### Setup (al arrancar)
+
+Al leer el manifiesto (`loadConfig`) el proxy valida cada ruta y **precalcula la lista de
+argumentos** del comando. No lanza nada ni comprueba que el programa exista. Esa lista se arma en
+este orden:
+
+1. Los argumentos de la línea `command_pass` (o de `kubectl_pass` / `ssh_pass`).
+2. `extra_args`, `no_warnings`, `insecure`, `max_time` y `retry`.
+3. Solo en `kubectl` / `ssh`: `context` / `namespace` (o `port` / `user` de `ssh_pass`) y, al final,
+   el **destino**, que siempre queda último.
+
+También se crea la cola de [`concurrency`](#concurrencia) de la ruta (un semáforo con ese límite).
+
+### Por cada petición
+
+1. El proxy lee el cuerpo completo en memoria y busca la ruta.
+2. Espera un lugar en la cola de la ruta (en orden de llegada).
+3. Construye el comando final con los datos de la petición (ver la tabla de abajo) y lo lanza
+   **sin shell** (`spawn` con `argv` como lista y stdin, stdout y stderr por pipes). Antes de
+   lanzarlo escribe la línea `command` en el [`log_file`](../manifest.md#log_file).
+4. Escribe **todo el stdin de una vez y lo cierra**: el proceso lo lee hasta el final y ya no
+   recibe nada más. Mientras tanto acumula stdout y stderr completos.
+5. Cuando el proceso termina (evento `close`) registra `command_exit` con su código de salida,
+   interpreta stdout y stderr según el motor y libera el lugar de la cola, haya salido bien o no.
+6. Si el proceso no se pudo lanzar (no está instalado), terminó con un código distinto de `0` o su
+   salida no es una respuesta válida, el cliente recibe `502 bad gateway: <comando> exited with
+   <código>: <salida>`.
+
+No hay tiempo máximo propio: si el comando no termina, la petición queda esperando (usa
+[`max_time`](#tiempo-máximo-con-curl) con `curl`, o las opciones del comando).
+
+### Qué va por stdin, stdout y stderr
+
+| Motor | Línea de comandos | stdin | stdout | stderr |
+| --- | --- | --- | --- | --- |
+| `curl` (local) | `curl <flags fijos> --request <M> --header … <argumentos> --url <URL>` | el cuerpo, solo si no está vacío (`--data-binary @-`) | el cuerpo de la respuesta | `<estado>\n<cabeceras en JSON>` |
+| `node` (local) | `node <argumentos> …/node-request.mjs` | JSON `{ method, url, headers, body }` (cuerpo en base64) | JSON `{ status, headers, body }` (cuerpo en base64) | el motivo del fallo (con código `1`) |
+| `ssh` + `curl` | `ssh <opciones> -T -q -o BatchMode=yes <host> '<comando remoto>'` | el cuerpo | el cuerpo | `<estado>\n<cabeceras en JSON>` |
+| `ssh` + `node` | `ssh … <host> 'node [opciones] --input-type=module -'` | el script de node con la petición incrustada | JSON `{ status, headers, body }` | el motivo del fallo |
+| `ssh` + `wget` | `ssh … <host> '<comando remoto>'` | el cuerpo | el cuerpo | estado y cabeceras (`wget -S`) |
+| `kubectl` | `kubectl exec -i -q <opciones> <destino> -- <comando>` | igual que `ssh`, según el motor | igual que `ssh` | igual que `ssh` |
+
+### Cómo llega la petición al comando remoto
+
+Con `ssh` y `kubectl` el comando remoto es **texto fijo**; la URL, las cabeceras y el cuerpo
+nunca se escriben en él:
+
+- **`curl`**: la línea es `d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s '<base64>' | base64 -d > "$d/c" && curl -K "$d/c" <flags fijos>`. El base64 es un archivo de configuración de curl con `url`, `request` y una línea `header` por cabecera. Se escribe en un directorio temporal que se borra al terminar, y el **cuerpo viaja por stdin** (`--data-binary @-`).
+- **`wget`**: `d=$(mktemp -d) && trap … && cat > "$d/b" && wget -q -S -O - <cabeceras y opciones citadas> [--post-file "$d/b"] '<URL>'`. El cuerpo de stdin se guarda en un archivo temporal porque `--post-file` necesita un archivo; las cabeceras, opciones y la URL se citan como una sola palabra de shell.
+- **`node`**: el comando es `node [opciones] --input-type=module -` y node lee su programa de **stdin**: una primera línea que asigna a `globalThis.__donlyRequest` la petición (JSON en base64) seguida del código de `node-request.mjs`. Por eso las opciones de node no pueden tener espacios. El script completo queda en el log como línea `script`.
+
+Con `ssh_pass` y `pass`, la contraseña no va por stdin ni por `argv`: se pasa en la variable de
+entorno `DONLY_SSH_PASSWORD` y `ssh` la obtiene de un programa `SSH_ASKPASS` temporal.
+
 ## Registro del comando
 
 Si hay [`log_file`](../manifest.md#log_file), la línea `response` de cada transacción con
