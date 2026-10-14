@@ -43,6 +43,8 @@ El proxy escribe un único bloque de texto y cierra stdin:
 2. El código completo de `node-request.mjs`, que usa `__donlyRequest` en lugar de leer stdin (cuando
    la variable no existe, lee la petición como JSON de stdin; así funciona el `node` local).
 
+Implicaciones de seguridad de `globalThis.__donlyRequest`: [`SECURITY.md`](../../SECURITY.md#globalthis__donlyrequest).
+
 Como el programa y los datos viajan juntos por el mismo canal, la petición **no aparece en la línea
 de comandos** de `kubectl` ni en la del contenedor.
 
