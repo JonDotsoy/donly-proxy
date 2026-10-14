@@ -1,7 +1,7 @@
 # `command_pass`
 
 Pasa la petición a un comando externo, que la ejecuta contra su URL original. Comandos
-soportados: [`curl`](#curl), [`node`](#node), [`ssh`](#ssh) y [`kubectl`](#kubectl). Las formas
+soportados: [`curl`](#curl), [`node`](command-pass-node.md), [`ssh`](#ssh) y [`kubectl`](#kubectl). Las formas
 anidadas [`ssh_pass`](#ssh_pass) y [`kubectl_pass`](#kubectl_pass) (al final de esta página)
 también aceptan `wget` como comando remoto.
 
@@ -23,7 +23,7 @@ route https://example.com/ {
 
 El primer argumento es el comando (cualquier otro hace fallar el arranque). Los argumentos
 siguientes, opcionales, son **opciones adicionales del comando**, una por cadena. Directivas
-hijas opcionales: [`concurrency`](#concurrencia), [`extra_args`](#argumentos-extra), [`insecure`](#certificados-inseguros-con-curl), [`no_warnings`](#sin-avisos-con-node) (solo `node`), [`max_time`](#tiempo-máximo-con-curl) y [`retry`](#reintentos-con-curl) (solo `curl`) y, con `ssh` / `kubectl`, [`engine`](#engine).
+hijas opcionales: [`concurrency`](#concurrencia), [`extra_args`](#argumentos-extra), [`insecure`](#certificados-inseguros-con-curl), [`no_warnings`](command-pass-node.md#sin-avisos-no_warnings) (solo `node`), [`max_time`](#tiempo-máximo-con-curl) y [`retry`](#reintentos-con-curl) (solo `curl`) y, con `ssh` / `kubectl`, [`engine`](#engine).
 
 En todos los casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
 `PATH`, y si falla, no está instalado o no devuelve una respuesta válida el proxy contesta
@@ -86,7 +86,7 @@ nunca se escriben en él:
 
 - **`curl`**: la línea es `d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s '<base64>' | base64 -d > "$d/c" && curl -K "$d/c" <flags fijos>`. El base64 es un archivo de configuración de curl con `url`, `request` y una línea `header` por cabecera. Se escribe en un directorio temporal que se borra al terminar, y el **cuerpo viaja por stdin** (`--data-binary @-`).
 - **`wget`**: `d=$(mktemp -d) && trap … && cat > "$d/b" && wget -q -S -O - <cabeceras y opciones citadas> [--post-file "$d/b"] '<URL>'`. El cuerpo de stdin se guarda en un archivo temporal porque `--post-file` necesita un archivo; las cabeceras, opciones y la URL se citan como una sola palabra de shell.
-- **`node`**: el comando es `node [opciones] --input-type=module -` y node lee su programa de **stdin**: una primera línea que asigna a `globalThis.__donlyRequest` la petición (JSON en base64) seguida del código de `node-request.mjs`. Por eso las opciones de node no pueden tener espacios. El script completo queda en el log como línea `script`.
+- **`node`**: el comando es `node [opciones] --input-type=module -` y node lee su programa de **stdin**: una primera línea que asigna a `globalThis.__donlyRequest` la petición (JSON en base64) seguida del código de `node-request.mjs`. Detalle en [`command-pass-node.md`](command-pass-node.md#node-remoto-con-ssh-y-kubectl).
 
 Con `ssh_pass` y `pass`, la contraseña no va por stdin ni por `argv`: se pasa en la variable de
 entorno `DONLY_SSH_PASSWORD` y `ssh` la obtiene de un programa `SSH_ASKPASS` temporal.
@@ -101,6 +101,11 @@ y la respuesta es un `502`. El cuerpo de la petición (stdin) no forma parte de 
 ```json
 {"type":"response","status":200,"command":["curl","--silent","--compressed","--proto","=http,https","…","--url","http://example.com/"],"headers":{…},"payload":"…"}
 ```
+
+## Motor `node`
+
+El detalle de `command_pass node` (script, protocolo JSON por stdin/stdout, `no_warnings`, uso remoto y
+pruebas) está en su propio documento: [`command-pass-node.md`](command-pass-node.md).
 
 ## Argumentos extra
 
@@ -122,29 +127,10 @@ solo argumento**: el comando se lanza sin shell.
 - `ssh` y `kubectl`: las opciones se insertan **antes del destino** (el último argumento de la
   línea), que sigue siendo el último.
 - Orden: primero los argumentos de la línea `command_pass`, luego `extra_args` (en el orden en
-  que se declaren), [`no_warnings`](#sin-avisos-con-node), [`insecure`](#certificados-inseguros-con-curl),
+  que se declaren), [`no_warnings`](command-pass-node.md#sin-avisos-no_warnings), [`insecure`](#certificados-inseguros-con-curl),
   [`max_time`](#tiempo-máximo-con-curl) y al final [`retry`](#reintentos-con-curl).
 - Vale para todos los comandos (`curl`, `node`, `ssh`, `kubectl`) y para el `command_pass` hijo
   de `kubectl_pass`.
-
-## Sin avisos con node
-
-`no_warnings` es una directiva hija de `command_pass node` equivalente a pasar
-`"--no-warnings"` (node no imprime avisos de proceso, como los de módulos experimentales):
-
-```
-route https?://example.com/ {
-  command_pass node {
-    no_warnings
-  }
-}
-```
-
-- Sin valor (o `no_warnings true`) añade `--no-warnings`; `no_warnings false` no añade nada.
-- Con otro valor el arranque falla con `no_warnings debe ser true o false`.
-- Solo aplica a `node`; con otro comando falla con `no_warnings solo aplica a command_pass node`.
-- Va tras los argumentos de la línea y `extra_args`, antes de `insecure` y `max_time`. También se
-  puede usar en el `command_pass node` hijo de `kubectl_pass` y `ssh_pass`.
 
 ## Certificados inseguros con curl
 
@@ -292,47 +278,6 @@ la petición pasa por él: que recibe la URL, el método, las cabeceras, los arg
 manifiesto y el cuerpo, y que su respuesta llega al cliente. Si cambias el contrato con `curl`
 (los flags de arriba), ajusta también ese script.
 
-## node
-
-Levanta un proceso `node` que ejecuta la petición con el módulo `http.request` (URL `http://`)
-o `https.request` (URL `https://`).
-
-```
-route https?://example.com/ {
-  command_pass node "--no-warnings"
-}
-```
-
-### Qué hace el proxy
-
-Ejecuta `node <argumentos del manifiesto> src/proxy/tunnel/node/node-request.mjs`. Los argumentos del manifiesto
-son **opciones de node** y van antes del script (`--no-warnings`, `--use-openssl-ca`, etc.).
-
-El proxy se comunica con el script mediante JSON:
-
-| Canal | Contenido |
-| --- | --- |
-| stdin | `{ "method", "url", "headers", "body" }`, con el cuerpo en base64. |
-| stdout | `{ "status", "headers", "body" }`, con el cuerpo en base64. |
-| stderr / código de salida | Si el script falla (conexión rechazada, protocolo no soportado…) escribe el motivo y sale con código `1`. |
-
-- El método, la URL completa, las cabeceras y el cuerpo de la petición se pasan tal cual. Se
-  omiten las cabeceras de conexión, `host`, `content-length` y `accept-encoding`; node calcula
-  `host` y `content-length` para el destino.
-- Si el destino responde comprimido (`gzip`, `deflate` o `br`), el script lo descomprime y
-  quita `content-encoding`.
-- Las redirecciones no se siguen.
-- La verificación TLS la hace node con sus certificados habituales. Para un certificado propio
-  puedes usar las variables de entorno de node (`NODE_EXTRA_CA_CERTS`) en el entorno del proxy,
-  o la opción `--use-openssl-ca`.
-
-### Pruebas
-
-`src/proxy/tunnel/node/node.test.ts` pone un `node` que registra sus argumentos y ejecuta el node real al inicio
-del `PATH`, y comprueba que el proxy lanza `node --no-warnings …/node-request.mjs`, que la
-petición llega a un servidor HTTP y a uno HTTPS con método, cabeceras, ruta, query y cuerpo
-correctos, y que un destino caído produce un `502`.
-
 ## ssh
 
 Ejecuta la petición **en otra máquina** a través de `ssh`, usando `curl`, `node` o `wget` allí como
@@ -366,7 +311,7 @@ ejecuta el host remoto:
 | `engine` | En el host remoto se ejecuta | Requiere en el remoto |
 | --- | --- | --- |
 | `curl` (por defecto) | `curl` con la petición | `curl`, `base64`, `mktemp`, `sh` |
-| `node` | `node` con el mismo script que [`command_pass node`](#node) (`http.request` / `https.request`) | `node` |
+| `node` | `node` con el mismo script que [`command_pass node`](command-pass-node.md) (`http.request` / `https.request`) | `node` |
 | `wget` | `wget -q -S -O -` (el estado y las cabeceras salen por stderr) | `wget` (BusyBox o GNU), `mktemp`, `cat`, `sh` |
 
 `engine` solo se admite con `ssh` y `kubectl`; con un valor distinto de `curl` / `node` / `wget`, o con
@@ -392,7 +337,7 @@ Cabeceras con caracteres de control se rechazan (`502`).
 
 ### Respuesta y errores
 
-La respuesta se interpreta igual que con el motor local (ver [curl](#curl) y [node](#node)). Si
+La respuesta se interpreta igual que con el motor local (ver [curl](#curl) y [node](command-pass-node.md)). Si
 ssh falla (conexión rechazada, autenticación, motor no instalado en el remoto…) el cliente
 recibe `502 bad gateway: ssh curl exited with <código>: <salida>` (o `ssh node …` / `ssh wget …`).
 
