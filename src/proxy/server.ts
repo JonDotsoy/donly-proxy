@@ -1,7 +1,7 @@
 import http from "node:http";
-import tls from "node:tls";
+import https from "node:https";
+import net, { type AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
-import type { AddressInfo } from "node:net";
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -261,9 +261,9 @@ export const loadConfig = async (
 };
 
 /** Full URL of a request, including requests tunnelled through CONNECT. */
-const requestUrl = (req: http.IncomingMessage) => {
+const requestUrl = (req: http.IncomingMessage, tunnels: Map<number, string | undefined>) => {
   if (/^https?:\/\//.test(req.url ?? "")) return req.url!;
-  const tunnel = (req.socket as TunnelSocket).tunnelHost;
+  const tunnel = tunnels.get(req.socket.remotePort!);
   if (tunnel) return `https://${tunnel}${req.url}`;
   return `http://${req.headers.host}${req.url}`;
 };
@@ -398,8 +398,6 @@ const encodePayload = (body: Buffer) => {
     : { payload: body.toString("base64"), payload_encoding: "base64" };
 };
 
-type TunnelSocket = tls.TLSSocket & { tunnelHost?: string };
-
 /**
  * Proxy that answers every request with `ok`.
  * - HTTP: absolute-URI requests are answered directly.
@@ -446,8 +444,11 @@ export const createProxyServer = ({
     }
   };
 
-  const server = http.createServer(async (req, res) => {
-    const url = requestUrl(req);
+  // Client port of each loopback connection -> host of the CONNECT that opened it.
+  const tunnels = new Map<number, string | undefined>();
+
+  const handle = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const url = requestUrl(req, tunnels);
     const body = Buffer.concat(await Array.fromAsync(req));
     const transaction = {
       transaction_id: randomUUID(),
@@ -472,15 +473,32 @@ export const createProxyServer = ({
     });
     res.writeHead(reply.status, reply.headers);
     res.end(reply.body);
-  });
+  };
+  const server = http.createServer(handle);
+
+  // CONNECT tunnels are piped into this loopback HTTPS server instead of wrapping the socket in a
+  // `tls.TLSSocket`: Bun 1.3.x never completes the handshake on a wrapped socket.
+  const tlsServer = https.createServer(tlsOptions, handle);
+  tlsServer.on("tlsClientError", () => {});
+  tlsServer.listen(0, "127.0.0.1");
+  tlsServer.unref();
+  server.on("close", () => tlsServer.close());
 
   server.on("connect", (req, socket: Duplex) => {
     socket.on("error", () => {});
     socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
-    const secure: TunnelSocket = new tls.TLSSocket(socket as any, { ...tlsOptions, isServer: true });
-    secure.tunnelHost = req.url?.replace(/:443$/, "");
-    secure.on("error", () => {});
-    server.emit("connection", secure);
+    let port: number | undefined;
+    const inner = net.connect((tlsServer.address() as AddressInfo).port, "127.0.0.1", () => {
+      port = inner.localPort!;
+      tunnels.set(port, req.url?.replace(/:443$/, ""));
+    });
+    inner.on("error", () => socket.destroy());
+    inner.on("close", () => {
+      if (port) tunnels.delete(port);
+      socket.destroy();
+    });
+    socket.on("close", () => inner.destroy());
+    socket.pipe(inner).pipe(socket);
   });
 
   server.on("listening", () => {

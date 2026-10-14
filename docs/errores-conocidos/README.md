@@ -5,4 +5,4 @@ cómo salir de ellos. Los hosts de los ejemplos son ficticios (`servicio.example
 
 | Error | Resumen |
 | --- | --- |
-| [`tlsv1 alert protocol version`](tls-alert-protocol-version.md) | `curl: (35)` justo después de un `CONNECT` con `200`: el handshake TLS con el proxy falla. Causa sin confirmar; incluye lo no reproducido y cómo diagnosticar. |
+| [`tlsv1 alert protocol version` / cuelgue tras `Client hello`](tls-alert-protocol-version.md) | `curl: (35)` o `curl` colgado justo después de un `CONNECT` con `200`. Causa confirmada: Bun 1.3.x no completa el handshake TLS sobre el socket del túnel; corregido. |

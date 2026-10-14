@@ -19,18 +19,28 @@ hasta `^C`, sin alerta ni error. En ambos casos el túnel `CONNECT` funciona y f
 
 `-k` no lo evita: desactiva la verificación del certificado, no la negociación TLS.
 
-## Qué hace el proxy aquí
+## Causa confirmada: Bun 1.3.x no completa el handshake sobre un socket envuelto
 
-El `200 Connection Established` solo indica que el túnel se abrió. A continuación **el propio
-proxy termina el TLS** con el certificado de `ssl { cert … key … }` (ver
-[Cómo funciona](../overview.md)); **no contacta** al host del `CONNECT` (`google.com`, o el host
-interno que sea). Por eso la versión de TLS del destino no interviene: el fallo está entre el
-cliente y el proxy.
+Reproducido con **Bun 1.3.11** (la versión donde se vio el error) y el manifest exacto: el túnel
+`CONNECT` responde `200` y el `curl` (también el 8.7.1 compilado contra LibreSSL 3.3.6) se queda
+colgado tras el `Client hello` hasta `^C`, sin alerta. Con Bun 1.4.2 el mismo caso funciona.
 
-## Estado de la investigación: no reproducido
+El proxy termina el TLS él mismo (ver [Cómo funciona](../overview.md)) y no contacta al host del
+`CONNECT`. Hasta la versión 0.0.9 lo hacía envolviendo el socket del `CONNECT` en
+`new tls.TLSSocket(socket, { isServer: true })`; en Bun 1.3.11 ese camino nunca completa el
+handshake. Desde la corrección, el proxy envía el túnel a un servidor HTTPS interno (en
+`127.0.0.1`, puerto efímero) y funciona en 1.3.11 y 1.4.2.
 
-Con el comando exacto `curl -v -k --proxy http://127.0.0.1:8080 https://google.com` y el
-`manifest.donly` por defecto **no se reproduce** el error. Probado en Linux con Bun 1.4.2:
+**Solución:** actualiza donly-proxy a una versión que incluya la corrección. Mientras tanto,
+`bun upgrade` (Bun 1.4.2 o superior) también lo evita.
+
+Para comprobar si tu Bun tiene el problema sin usar donly-proxy, ejecuta el script de
+[Diagnóstico](#diagnóstico-en-tu-equipo) (punto 4): imprime `HANG` en Bun 1.3.11.
+
+## Otras causas descartadas
+
+Con Bun 1.4.2 en Linux no se reproduce el error. Probado con el comando exacto y el
+`manifest.donly` por defecto:
 
 | Cliente | Resultado |
 | --- | --- |
@@ -43,8 +53,7 @@ Con el comando exacto `curl -v -k --proxy http://127.0.0.1:8080 https://google.c
 
 Es decir: ni LibreSSL 3.3.6, ni el `curl` 8.7.1, ni el tipo de certificado, ni el bundle, ni
 `log_file` explican el error. La diferencia que queda es la plataforma: todo se probó en Linux, y
-el error se vio en macOS (el cuelgue apunta a que Bun no completa el handshake al envolver el
-socket del `CONNECT` en `tls.TLSSocket`; sin confirmar). Lo que
+lo que cambia es la versión de Bun (1.3.11 frente a 1.4.2), como se explica arriba. Lo que
 **sí** produce un fallo TLS cuyo mensaje cambia según el cliente:
 
 - **Cliente limitado a TLS ≤ 1.1** (`--tls-max 1.1`, `MaxProtocol` en `openssl.cnf`, `~/.curlrc`).
@@ -74,8 +83,8 @@ socket del `CONNECT` en `tls.TLSSocket`; sin confirmar). Lo que
 3. **¿Qué versiones ofrece el cliente?** Revisa `~/.curlrc`, `--tls-max` y `openssl.cnf`, y prueba
    `curl -v -k --tlsv1.2 --tls-max 1.3 --proxy http://127.0.0.1:8080 https://google.com`.
 4. **¿Tu Bun termina TLS sobre un socket envuelto?** Guarda esto como `tls-check.mjs` junto a `certs/`
-   y ejecútalo con `bun tls-check.mjs`. Hace lo mismo que el proxy en un `CONNECT` y no usa
-   donly-proxy. Imprime `OK TLSv1.3` si todo va bien (en Linux con Bun 1.4.2 lo hace); si imprime
+   y ejecútalo con `bun tls-check.mjs`. Hace lo mismo que el proxy (antes de la corrección) en un
+   `CONNECT` y no usa donly-proxy. Imprime `OK TLSv1.3` si todo va bien (Bun 1.4.2); si imprime
    `HANG` o un error, el problema está en tu Bun/plataforma y no en el manifest:
 
    ```js
@@ -104,6 +113,7 @@ socket del `CONNECT` en `tls.TLSSocket`; sin confirmar). Lo que
 
 ## Mitigaciones
 
+- Actualiza Bun (`bun upgrade`) o donly-proxy a la versión con la corrección.
 - Regenera los certificados (`rm -r certs`) o corrige el par `cert`/`key`.
 - Quita el tope de versión del cliente.
 - Salta el proxy para ese host: `curl --noproxy <host>` o `NO_PROXY=<host>`.
