@@ -113,7 +113,7 @@ testFeature(payload, ["/proxy/log_file", "/proxy/route/command_pass"], "logs the
   expect(await Promise.resolve(response.status)).toBe(200);
   expect(response.command[0]).toBe("node");
   expect(response.command[1]).toBe("--no-warnings");
-  expect(response.command[2]).toEndWith("node-request.mjs");
+  expect(response.command.slice(2)).toEqual(["--input-type=module", "-"]);
 });
 
 testFeature(payload, ["/proxy/log_file", "/proxy/route/command_pass"], "logs the ssh command that was executed, including the remote command", async () => {

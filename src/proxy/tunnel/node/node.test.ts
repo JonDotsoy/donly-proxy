@@ -104,10 +104,10 @@ testFeature(payload, ["/proxy/route/command_pass"], "command_pass node performs 
     body: "hello",
   });
 
-  // A node process was started with the manifest options followed by the request script.
+  // A node process was started with the manifest options followed by the module flags, reading the script from stdin.
   const args = readFileSync(argsFile, "utf8").split("\n").filter(Boolean);
   expect(args[0]).toBe("--no-warnings");
-  expect(args[1]).toEndWith("node-request.mjs");
+  expect(args.slice(1)).toEqual(["--input-type=module", "-"]);
 });
 
 testFeature(payload, ["/proxy/route/command_pass"], "command_pass node performs https requests with https.request", async () => {
