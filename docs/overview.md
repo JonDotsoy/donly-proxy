@@ -38,6 +38,14 @@ completo.
   `--ui requiere log_file en el manifiesto para poder mostrar los logs`.
 - No añade dependencias: la página va embebida como texto, también en el bundle de `dist/`.
 
+Capturas (tema claro, tema oscuro y una fila expandida con su JSON):
+
+![Vista de logs en vivo, tema claro](ui/logs-light.png)
+
+![Vista de logs en vivo, tema oscuro](ui/logs-dark.png)
+
+![Fila expandida con el JSON completo](ui/logs-detail.png)
+
 ## Cómo funciona
 
 | Tráfico | Qué hace el proxy |
