@@ -1,11 +1,9 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import source from "./node-request.mjs" with { type: "text" };
 import type { CurlRequest, CurlResponse } from "../types";
 import { run, type RunResult } from "../run";
 
-const script = fileURLToPath(new URL("./node-request.mjs", import.meta.url));
-
-export const scriptSource = () => readFileSync(script, "utf8");
+// Embedded as text so the bundle does not depend on the file existing next to it at runtime.
+export const scriptSource = () => source;
 
 /** The request in the JSON shape `node-request.mjs` expects. */
 export const nodeInput = ({ method, url, headers, body }: CurlRequest) => ({
@@ -14,6 +12,12 @@ export const nodeInput = ({ method, url, headers, body }: CurlRequest) => ({
   headers,
   body: body.toString("base64"),
 });
+
+/** The script a `node` process reads from stdin: the request prelude followed by the code that performs it. */
+export const nodeStdin = (request: CurlRequest) =>
+  `globalThis.__donlyRequest = JSON.parse(Buffer.from(${JSON.stringify(
+    Buffer.from(JSON.stringify(nodeInput(request))).toString("base64"),
+  )}, "base64").toString());\n${scriptSource()}`;
 
 /** Turns what `node-request.mjs` wrote into a response, or throws. */
 export const parseNodeResult = ({ code, stdout, stderr }: RunResult, label = "node"): CurlResponse => {
@@ -35,5 +39,5 @@ export const parseNodeResult = ({ code, stdout, stderr }: RunResult, label = "no
  */
 export const nodeRequest = async (request: CurlRequest) =>
   parseNodeResult(
-    await run("node", [...request.args, script], JSON.stringify(nodeInput(request)), request.onCommand),
+    await run("node", [...request.args, "--input-type=module", "-"], nodeStdin(request), request.onCommand),
   );
