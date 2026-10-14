@@ -13,7 +13,7 @@ bun start                        # usa ./manifest.donly
 bun src/cli/main.ts otro.donly     # usa otro manifiesto
 bun src/cli/main.ts --ui           # además, página de logs en vivo en http://127.0.0.1:8081
 bun src/cli/main.ts --ui --ui-port 9000   # la misma página en otro puerto
-bun src/cli/main.ts --verbose      # logs detallados en stderr (equivale a `log verbose`)
+bun src/cli/main.ts --verbose      # logs de las transacciones en stderr (equivale a `log verbose`)
 bun src/cli/main.ts --version      # imprime la versión (-V)
 bun src/cli/main.ts --help         # muestra la ayuda (-h)
 bun test

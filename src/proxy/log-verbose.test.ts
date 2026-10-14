@@ -34,14 +34,17 @@ afterAll(() => {
   process.env.no_proxy = saved.no_proxy;
 });
 
-testFeature(manifestPayload, ["/proxy/log(verbose)", "/proxy/route/respond"], "should print the request and the matched route to stderr when log verbose is set", async () => {
+testFeature(manifestPayload, ["/proxy/log(verbose)", "/proxy/route/respond"], "should print the transaction log lines and the matched route to stderr when log verbose is set", async () => {
   const spy = spyOn(console, "error").mockImplementation(() => {});
   try {
     expect(await (await fetch("http://verbose.test/", { proxy })).text()).toBe("hi");
     const lines = spy.mock.calls.map((c) => String(c[0]));
-    expect(lines).toContain("[verbose] GET http://verbose.test/");
+    const entries = lines.filter((l) => l.startsWith("[verbose] {")).map((l) => JSON.parse(l.slice("[verbose] ".length)));
+    expect(entries.map((e) => e.type)).toEqual(["request", "response"]);
+    expect(entries[0]).toMatchObject({ method: "GET", url: "http://verbose.test/" });
+    expect(entries[1]).toMatchObject({ status: 200, payload: "hi" });
+    expect(entries[0].transaction_id).toBe(entries[1].transaction_id);
     expect(lines.some((l) => l.startsWith("[verbose] route ") && l.endsWith("-> respond"))).toBe(true);
-    expect(lines).toContain("[verbose] response 200");
   } finally {
     spy.mockRestore();
   }
@@ -79,7 +82,7 @@ testFeature(`proxy {\n  host "127.0.0.1"\n  port 0\n  route http://verbose.test/
     const port = /:(\d+)\s*$/.exec(new TextDecoder().decode(value).trim())![1];
     await fetch("http://verbose.test/", { proxy: `http://127.0.0.1:${port}` });
     child.kill();
-    expect(await new Response(child.stderr).text()).toContain("[verbose] GET http://verbose.test/");
+    expect(await new Response(child.stderr).text()).toContain('"url":"http://verbose.test/"');
   } finally {
     child.kill();
   }

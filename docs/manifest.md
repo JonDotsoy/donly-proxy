@@ -32,7 +32,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 | `port` | número | `0` | Puerto. Si se omite o es `0`, el sistema asigna uno libre. |
 | `ssl` | bloque | ver abajo | Certificado usado para terminar el TLS de los túneles `CONNECT`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |
-| `log` | `verbose` | sin log detallado | `log verbose` imprime en stderr cada petición, la ruta que coincidió y los comandos ejecutados. |
+| `log` | `verbose` | sin log detallado | `log verbose` imprime en stderr las líneas de log de cada transacción y la ruta que coincidió. |
 | `route` | bloque | sin rutas | Regla por petición. Se pueden declarar varias. |
 
 ### `ssl`
@@ -101,15 +101,16 @@ peticiones descifradas que viajan por el túnel.
 log verbose
 ```
 
-Activa logs detallados en **stderr** (independientes de `log_file`). Por cada petición imprime
-líneas con prefijo `[verbose]`: la petición, la ruta que coincidió (o que ninguna lo hizo), cada
-comando ejecutado por `command_pass` y el estado de la respuesta:
+Activa logs detallados en **stderr** (independientes de `log_file`). Imprime con prefijo
+`[verbose]` las mismas líneas JSON de las transacciones que se escriben en el `.ndjson` (`request`,
+`command`, `script`, `command_exit` y `response`, ver [`log_file`](#log_file)) y, entre la
+`request` y la `response`, una línea con la ruta que coincidió (o que ninguna lo hizo):
 
 ```
-[verbose] GET http://example.com/
+[verbose] {"timestamp":"…","transaction_id":"…","method":"GET","url":"http://example.com/","type":"request",…}
 [verbose] route /example\.com/ -> command_pass
-[verbose] command ["curl","--silent",…,"--url","http://example.com/"]
-[verbose] response 200
+[verbose] {"timestamp":"…","transaction_id":"…","type":"command","program":"curl","command":["curl",…]}
+[verbose] {"timestamp":"…","transaction_id":"…","type":"response","status":200,…}
 ```
 
 Equivale a arrancar el CLI con el flag `--verbose`; si cualquiera de los dos está activo, hay

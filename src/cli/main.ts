@@ -9,7 +9,7 @@ const parser = flags({
   version: flag("--version", "-V").boolean().describe("Muestra la versión"),
   ui: flag("--ui").boolean().describe("Levanta una página con los logs en vivo (requiere log_file)"),
   uiPort: flag("--ui-port").number().default(8081).describe("Puerto de la página de logs (por defecto 8081)"),
-  verbose: flag("--verbose").boolean().describe("Logs detallados en stderr (equivale a `log verbose` en el manifiesto)"),
+  verbose: flag("--verbose").boolean().describe("Logs de las transacciones en stderr (equivale a `log verbose` en el manifiesto)"),
   manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto manifest.donly)"),
 })
   .program("donly-proxy")
