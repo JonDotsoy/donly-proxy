@@ -31,12 +31,29 @@ Incluye, si puedes:
 
 ## Alcance
 
-Dentro del alcance: el proxy, su CLI y el procesamiento de `manifest.donly` (por ejemplo, enrutamiento inesperado, exposición de cabeceras o credenciales, SSRF, ejecución de comandos no deseada).
+Dentro del alcance: el proxy, su CLI y el procesamiento de `manifest.donly` (por ejemplo, enrutamiento inesperado, exposición de cabeceras o credenciales, inyección de argumentos en `command_pass`, `ssh_pass` o `kubectl_pass`, ejecución de comandos no prevista por el manifest).
 
 Fuera del alcance: vulnerabilidades en dependencias de terceros (repórtalas a su proyecto; avísanos si nos afectan), y configuraciones inseguras elegidas por el usuario en su propio manifest.
+
+## Superficie sensible
+
+`donly-proxy` está pensado para uso **local o de desarrollo**, no para exponerlo a internet. Estas son las partes que tocan otros sistemas o procesos:
+
+| Componente | Qué hace | Riesgo a considerar |
+| --- | --- | --- |
+| `command_pass` | Pasa la petición a `curl`, `node`, `ssh` o `kubectl` | Ejecuta procesos en la máquina que corre el proxy |
+| `proxy_pass` | Reenvía la petición a otro servidor | SSRF: el proxy puede alcanzar hosts internos |
+| `ssh_pass` | Conecta a otra máquina por SSH | Uso de las credenciales y llaves SSH del usuario |
+| `kubectl_pass` | Entra a un pod de Kubernetes | Uso del contexto y permisos de `kubectl` del usuario |
+| Terminación TLS | En HTTPS el proxy descifra el tráfico con un certificado autofirmado generado con `openssl` | Los clientes deben confiar en ese certificado o desactivar la verificación |
+| `log_file` | Registra cada petición y respuesta en `.ndjson` | Puede guardar cabeceras, cookies y tokens |
+| `manifest.donly` | Define rutas y comandos | Quien lo controla decide qué se ejecuta |
 
 ## Buenas prácticas para usuarios
 
 - Descarga el bundle solo desde las releases oficiales del repositorio.
-- No expongas el proxy a redes no confiables sin autenticación ni restricciones de acceso.
+- Mantén `host` en `127.0.0.1`. No expongas el proxy a redes no confiables sin autenticación ni restricciones de acceso.
+- Usa solo manifests en los que confíes: pueden ejecutar comandos.
 - No guardes secretos en `manifest.donly` versionado.
+- Protege o rota los archivos de `log_file`, y no los subas al repositorio.
+- No instales el certificado autofirmado como CA del sistema ni desactives la verificación TLS fuera de pruebas locales.
