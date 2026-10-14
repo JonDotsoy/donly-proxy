@@ -1,13 +1,12 @@
-# `tlsv1 alert protocol version` tras un `CONNECT` con 200
+# `curl: (35) ... tlsv1 alert protocol version` tras un `CONNECT` con 200
 
 ## Síntoma
 
-`curl` a través del proxy abre el túnel con éxito, pero el handshake TLS falla de inmediato:
+`curl` a través del proxy abre el túnel, pero el handshake TLS falla de inmediato:
 
 ```
-$ curl -v --proxy http://127.0.0.1:8080 https://servicio.example.com:8097/
-* Establish HTTP proxy tunnel to servicio.example.com:8097
-> CONNECT servicio.example.com:8097 HTTP/1.1
+$ curl -v -k --proxy http://127.0.0.1:8080 https://google.com
+* Establish HTTP proxy tunnel to google.com:443
 < HTTP/1.1 200 Connection Established
 * CONNECT tunnel established, response 200
 * ALPN: curl offers h2,http/1.1
@@ -15,113 +14,68 @@ $ curl -v --proxy http://127.0.0.1:8080 https://servicio.example.com:8097/
 curl: (35) LibreSSL/3.3.6: error:1404B42E:SSL routines:ST_CONNECT:tlsv1 alert protocol version
 ```
 
-Con OpenSSL el mismo error se ve como `error:0A00042E:SSL routines::tlsv1 alert protocol version`
-(o `unexpected eof while reading` si el otro extremo cierra sin avisar). `-k` no lo arregla:
-desactiva la verificación del certificado, no la negociación de versión.
+`-k` no lo evita: desactiva la verificación del certificado, no la negociación TLS.
 
-## Causa
+## Qué hace el proxy aquí
 
-Quien responde al `Client hello` rechaza todas las versiones de TLS que el cliente ofrece
-(`protocol_version`). El `200 Connection Established` solo significa que el túnel `CONNECT` se
-abrió; el TLS se negocia después y **lo termina el propio proxy**, no el destino
-(ver [Cómo funciona](../overview.md)). Por eso:
+El `200 Connection Established` solo indica que el túnel se abrió. A continuación **el propio
+proxy termina el TLS** con el certificado de `ssl { cert … key … }` (ver
+[Cómo funciona](../overview.md)); **no contacta** al host del `CONNECT` (`google.com`, o el host
+interno que sea). Por eso la versión de TLS del destino no interviene: el fallo está entre el
+cliente y el proxy.
 
-- El proxy **no contacta** al host del `CONNECT` (aquí `servicio.example.com:8097`), así que la
-  versión de TLS del destino es irrelevante para este error.
-- El proxy usa los valores por defecto de `node:tls` de Bun: **TLS 1.2 como mínimo** (1.2 y 1.3).
-  Un cliente que solo ofrece TLS 1.0/1.1 (por `--tls-max 1.1`, una opción en `~/.curlrc`, una
-  librería o un entorno antiguo/endurecido) se queda sin versión común. Bun cierra la conexión sin
-  enviar alerta (`unexpected eof`); con la pila de Node se ve literalmente `tlsv1 alert protocol version`.
+## Estado de la investigación: no reproducido
 
-La misma alerta aparece **sin proxy** cuando el destino real solo habla TLS 1.0/1.1 y el cliente
-exige 1.2 o más: ahí sí es culpa del destino. Distinguir entre ambos casos es el diagnóstico.
+Con el comando exacto `curl -v -k --proxy http://127.0.0.1:8080 https://google.com` y el
+`manifest.donly` por defecto **no se reproduce** el error. Probado en Linux con Bun 1.4.2:
 
-## Cómo reproducirlo
+| Cliente | Resultado |
+| --- | --- |
+| `curl` 8.5 (OpenSSL 3.0.13) | TLS 1.3, responde `ok` |
+| `openssl s_client` de LibreSSL 3.3.6 compilado desde fuente (`-tls1_2` y `-tls1_3`) | TLS 1.2 / 1.3, responde `ok` |
+| Igual, con certificado y clave generados por el `openssl` de LibreSSL 3.3.6 (cert X.509 v1) | `ok` |
+| Bundle `dist/donly-proxy.js` en lugar de `bun start` | `ok` |
+| Certificado RSA 1024 o EC P-256 | `ok` |
 
-Requisitos: `bun`, `openssl`, `curl` y `python3`. Todo en local.
+Es decir: ni LibreSSL 3.3.6, ni el tipo de certificado, ni el bundle explican el error. Lo que
+**sí** produce un fallo TLS cuyo mensaje cambia según el cliente:
 
-1. Levanta el proxy con un manifest mínimo (genera `certs/` solo):
+- **Cliente limitado a TLS ≤ 1.1** (`--tls-max 1.1`, `MaxProtocol` en `openssl.cnf`, `~/.curlrc`).
+  El proxy exige TLS 1.2+. Bun cierra sin alerta (`unexpected eof`); con la pila de Node llega la
+  alerta literal `tlsv1 alert protocol version`.
+- **Certificado y clave que no coinciden** (`ERR_OSSL_X509_KEY_VALUES_MISMATCH`, por ejemplo se
+  reemplazó `certs/cert.pem` pero no `certs/key.pem`). El proxy arranca bien, responde `200` al
+  `CONNECT` y **se cae** al crear el contexto TLS; el cliente ve un error de handshake
+  (`wrong version number` con OpenSSL) y luego `Connection refused`. No hay validación al
+  arrancar. Se reproduce con:
 
-   ```sh
-   cat > m.donly <<'EOF'
-   proxy {
-     host "127.0.0.1"
-     port 18080
-   }
-   EOF
-   bun src/cli/main.ts m.donly
-   ```
+  ```sh
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout k1.pem -out c1.pem -subj /CN=a
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout k2.pem -out c2.pem -subj /CN=b
+  # manifest con: ssl { cert "./c1.pem" key "./k2.pem" }
+  curl -vk --proxy http://127.0.0.1:8080 https://google.com   # error TLS y el proxy muere
+  ```
 
-2. Con un cliente que ofrece TLS 1.2+ el túnel funciona (`ok`):
+## Diagnóstico en tu equipo
 
-   ```sh
-   curl -k --proxy http://127.0.0.1:18080 https://servicio.example.com:8097/
-   ```
+1. **¿Quién escucha en el 8080?** `lsof -nP -iTCP:8080 -sTCP:LISTEN`. El texto
+   `200 Connection Established` lo usan muchos proxies; si hay otro (agente corporativo, VPN,
+   otro proceso) puede no ser donly-proxy. Comprueba con `curl -s -x http://127.0.0.1:8080 http://example.com/` (debe responder `good` o `ok`).
+2. **¿Murió el proxy?** Mira la consola donde corre: un `error: ... KEY_VALUES_MISMATCH` u otro
+   error de TLS tras la petición indica un problema de certificado. Prueba
+   `openssl x509 -in certs/cert.pem -noout -modulus | md5` frente a `openssl rsa -in certs/key.pem -noout -modulus | md5` (deben ser iguales) o borra `certs/` para regenerarlos.
+3. **¿Qué versiones ofrece el cliente?** Revisa `~/.curlrc`, `--tls-max` y `openssl.cnf`, y prueba
+   `curl -v -k --tlsv1.2 --tls-max 1.3 --proxy http://127.0.0.1:8080 https://google.com`.
+4. **¿Qué Bun es?** `bun --version`; prueba también con la última versión.
+5. **Compara el cliente:** `openssl s_client -connect google.com:443 -proxy 127.0.0.1:8080 -tls1_2 </dev/null`
+   (OpenSSL 3) o un `curl` de Homebrew en lugar del de macOS.
 
-3. Con un cliente limitado a TLS ≤ 1.1 falla tras el `200`. `openssl s_client` permite forzarlo
-   (`SECLEVEL=0` es necesario en OpenSSL 3):
+## Mitigaciones
 
-   ```sh
-   openssl s_client -connect servicio.example.com:8097 -proxy 127.0.0.1:18080 \
-     -tls1_1 -cipher 'ALL:@SECLEVEL=0' </dev/null
-   # ... unexpected eof while reading ... New, (NONE), Cipher is (NONE)
-   ```
-
-   Contra la pila TLS de Node (por ejemplo `tls.TLSSocket` con `isServer: true`, que es lo que usa
-   el proxy) el mismo cliente recibe `SSL: TLSV1_ALERT_PROTOCOL_VERSION`.
-
-4. Para ver el caso "sin proxy", levanta un destino que solo hable TLS 1.1 y llámalo directo:
-
-   ```sh
-   openssl s_server -accept 18444 -cert certs/cert.pem -key certs/key.pem \
-     -tls1_1 -cipher 'ALL:@SECLEVEL=0' -www &
-   curl -sS -k https://127.0.0.1:18444/
-   # curl: (35) OpenSSL/3.0.13: error:0A00042E:SSL routines::tlsv1 alert protocol version
-   ```
-
-   Por el proxy ese mismo destino responde `ok` (curl moderno, TLS 1.2+ contra el proxy), porque el
-   proxy nunca lo llama.
-
-> Observado en pruebas locales: con `curl` 8.5 (OpenSSL 3.0.13) y el proxy sobre Bun 1.4.2, un
-> cliente con TLS 1.2/1.3 funciona y uno limitado a ≤ 1.1 recibe EOF. No se pudo probar LibreSSL
-> 3.3.6 (el `curl` de macOS), que en teoría soporta 1.2/1.3: si el error aparece con él, revisa
-> primero el punto 1 del diagnóstico.
-
-## Diagnóstico
-
-1. **¿Qué ofrece tu cliente?** Busca límites de versión: `--tls-max`, `--tlsv1.x`, `~/.curlrc`,
-   `CURL_SSL_*`, `openssl.cnf` con `MinProtocol`/`MaxProtocol`, o un `curl` muy antiguo. Prueba:
-
-   ```sh
-   curl -v --tlsv1.2 -k --proxy http://127.0.0.1:8080 https://servicio.example.com:8097/
-   ```
-
-2. **¿El problema es del proxy o del destino?** Compara con y sin proxy:
-
-   ```sh
-   # directo al destino
-   openssl s_client -connect servicio.example.com:8097 -tls1_2 </dev/null 2>&1 | grep -E 'Protocol|alert'
-   # a través del proxy
-   openssl s_client -connect servicio.example.com:8097 -proxy 127.0.0.1:8080 -tls1_2 </dev/null 2>&1 | grep -E 'Protocol|alert'
-   ```
-
-   - Falla solo directo → el destino no acepta TLS 1.2+: es un servidor antiguo (ver soluciones).
-   - Falla solo con proxy → el cliente no llega a TLS 1.2 con el proxy (punto 1).
-   - Falla en ambos → ambas cosas, o un cliente limitado a TLS ≤ 1.1.
-3. **¿Qué versiones acepta el destino?** `nmap --script ssl-enum-ciphers -p 8097 servicio.example.com`
-   o `openssl s_client -connect servicio.example.com:8097 -tls1_1 -cipher 'ALL:@SECLEVEL=0'`.
-
-## Soluciones y mitigaciones
-
-- **Cliente limitado:** quita el tope de versión (`--tls-max`, `~/.curlrc`, `MaxProtocol`) o
-  actualiza el cliente/librería para que ofrezca TLS 1.2+. Es lo que corrige el error cuando
-  viene del lado del proxy.
-- **Destino antiguo (solo TLS 1.0/1.1):** lo correcto es actualizar el servidor a TLS 1.2+. Si debes
-  llegar a él desde el proxy, usa una ruta con [`command_pass curl`](../tunnel/command-pass.md) y
-  pasa la versión con [`extra_args`](../tunnel/command-pass.md#argumentos-extra) (`--tlsv1.0`); solo
-  funciona si el `curl` del equipo aún permite TLS < 1.2 (muchas distribuciones recientes ya no).
-- **Saltarse el proxy para ese host:** `NO_PROXY=servicio.example.com` o `curl --noproxy servicio.example.com`.
-  Sirve si el cliente sí puede hablar con el destino directamente.
-- **Cliente con OpenSSL en lugar de LibreSSL:** si el cliente de macOS (LibreSSL) falla, prueba con
-  un `curl` de Homebrew (`brew install curl`) para descartar un problema propio de la librería.
-- `-k` / `--insecure` **no** ayuda: solo omite la verificación del certificado del proxy.
+- Regenera los certificados (`rm -r certs`) o corrige el par `cert`/`key`.
+- Quita el tope de versión del cliente.
+- Salta el proxy para ese host: `curl --noproxy <host>` o `NO_PROXY=<host>`.
+- Si el destino real solo habla TLS 1.0/1.1 y quieres llegar a él desde el proxy, usa
+  [`command_pass curl`](../tunnel/command-pass.md) con
+  [`extra_args`](../tunnel/command-pass.md#argumentos-extra) `--tlsv1.0` (solo si el `curl` del
+  equipo aún permite TLS < 1.2).
