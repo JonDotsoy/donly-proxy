@@ -13,6 +13,7 @@
     "@types/bun": "latest"
   },
   "dependencies": {
+    "@jondotsoy/flags": "^3.2.1",
     "donly": "^0.0.32"
   }
 }

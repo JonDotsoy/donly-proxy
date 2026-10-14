@@ -5,6 +5,7 @@
     "": {
       "name": "donly-proxy",
       "dependencies": {
+        "@jondotsoy/flags": "^3.2.1",
         "donly": "^0.0.32",
       },
       "devDependencies": {
@@ -13,6 +14,8 @@
     },
   },
   "packages": {
+    "@jondotsoy/flags": ["@jondotsoy/flags@3.2.1", "", {}, "sha512-WQ2cEV3Z3vlIYUXAkBLfrUww3zQ+6GlbQjBSVV1p/z2Gpi2eoPiqvN83KB4o25gmUq8c4Nn3590zSULl/dEISA=="],
+
     "@types/bun": ["@types/bun@1.4.3", "", { "dependencies": { "bun-types": "1.4.3" } }, "sha512-N67Pqy8JXbAY/j0tNraS3V5mubGvc6rrrNDmDCtZLlFzccbUJPDb0tvgUBC5q4m8ybkP93Jcn1QB+RYQ6PvBhw=="],
 
     "@types/node": ["@types/node@26.6.5", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg=="],
