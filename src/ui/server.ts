@@ -5,6 +5,9 @@ import page from "./index.html" with { type: "text" };
 /** How many existing log lines a new browser receives before the live ones. */
 const HISTORY_LINES = 200;
 const POLL_MS = 100;
+/** Only this many trailing bytes of the log are read to replay the history. */
+const HISTORY_BYTES = 256 * 1024;
+const KEEPALIVE_MS = 15_000;
 
 const readRange = (file: string, start: number, end: number): string => {
   const fd = openSync(file, "r");
@@ -18,6 +21,14 @@ const readRange = (file: string, start: number, end: number): string => {
 };
 
 const completeLines = (text: string) => text.split("\n").filter(Boolean);
+
+/** The last `HISTORY_LINES` complete lines before `end`, without reading the whole file. */
+const lastLines = (file: string, end: number): string[] => {
+  const start = Math.max(0, end - HISTORY_BYTES);
+  const lines = completeLines(readRange(file, start, end));
+  // A read that starts mid-file begins inside a line: drop that partial one.
+  return (start > 0 ? lines.slice(1) : lines).slice(-HISTORY_LINES);
+};
 
 /**
  * HTTP server with a single-page view of the `.ndjson` log: `GET /` serves the page and
@@ -55,7 +66,7 @@ export const createUiServer = (logFile: string): Server => {
       // Same tick as joining `clients`, so no line is lost or duplicated between history and live.
       poll();
       if (existsSync(logFile) && offset > 0) {
-        for (const line of completeLines(readRange(logFile, 0, offset)).slice(-HISTORY_LINES)) send(res, line);
+        for (const line of lastLines(logFile, offset)) send(res, line);
       }
       clients.add(res);
       res.write(": connected\n\n");
@@ -66,9 +77,18 @@ export const createUiServer = (logFile: string): Server => {
     res.end("not found");
   });
 
-  server.on("listening", () => watchFile(logFile, { interval: POLL_MS }, poll));
+  let keepalive: ReturnType<typeof setInterval>;
+  server.on("listening", () => {
+    watchFile(logFile, { interval: POLL_MS }, poll);
+    // Comment lines keep idle connections from being dropped by proxies and browsers.
+    keepalive = setInterval(() => {
+      for (const client of clients) client.write(": keepalive\n\n");
+    }, KEEPALIVE_MS);
+    keepalive.unref();
+  });
   server.on("close", () => {
     unwatchFile(logFile, poll);
+    clearInterval(keepalive);
     for (const client of clients) client.end();
   });
   return server;

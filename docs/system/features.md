@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **155** · ✅ pasan: **155** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **157** · ✅ pasan: **157** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -83,6 +83,7 @@ Specs: **155** · ✅ pasan: **155** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should default the host to 127.0.0.1 when the manifest has none | ✅ |  |
 | should default the port to 0 when the manifest has none | ✅ |  |
 | should fail --ui with a clear error when the manifest has no log_file | ✅ | <code>port 0</code> |
+| should fail --ui with a clear error when the ui port is already in use | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should hand the pass of ssh_pass to ssh through an askpass program, never on the command line | ✅ | <code>pass "s3cr3t pa$$"</code> |
 | should keep BatchMode and no askpass in ssh_pass without pass | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should keep the host declared in the manifest | ✅ | <code>host "0.0.0.0"</code> |
@@ -152,6 +153,7 @@ Specs: **155** · ✅ pasan: **155** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject retry outside command_pass curl | ✅ | <code>retry 5</code> |
 | should reject ssh_pass without a destination | ✅ | <code>ssh_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should reject ssh_pass without a nested command_pass | ✅ | <code>ssh_pass "user@remote.test"</code> |
+| should replay only the last lines of a long log and survive a truncation | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should run the request over ssh with the curl of the nested command_pass | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
 | should serve the log viewer page on the ui port | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should stream the existing log lines and then the new ones as server-sent events | ✅ | <code>log_file "./proxy.ndjson"</code> |

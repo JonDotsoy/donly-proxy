@@ -69,6 +69,41 @@ testFeature(manifestPayload, ["/proxy/log_file"], "should only deliver a log lin
   expect(events.at(-1)).toBe('{"type":"response","status":201}');
 });
 
+testFeature(manifestPayload, ["/proxy/log_file"], "should replay only the last lines of a long log and survive a truncation", async () => {
+  const longLog = join(dir, "long.ndjson");
+  const lines = Array.from({ length: 5000 }, (_, i) => JSON.stringify({ type: "request", n: i, pad: "x".repeat(100) }));
+  writeFileSync(longLog, lines.join("\n") + "\n");
+  const longUi = createUiServer(longLog);
+  await new Promise<void>((resolve) => longUi.listen(0, "127.0.0.1", resolve));
+  try {
+    const url = `http://127.0.0.1:${(longUi.address() as AddressInfo).port}/events`;
+    const controller = new AbortController();
+    const res = await fetch(url, { signal: controller.signal });
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const read = async (count: number) => {
+      const events: any[] = [];
+      while (events.length < count) {
+        const { value } = await reader.read();
+        buffer += decoder.decode(value);
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop()!;
+        for (const part of parts) if (part.startsWith("data: ")) events.push(JSON.parse(part.slice(6)));
+      }
+      return events;
+    };
+    const history = await read(200);
+    expect(history[0].n).toBe(4800);
+    expect(history.at(-1).n).toBe(4999);
+    writeFileSync(longLog, '{"type":"response","n":"after-truncate"}\n');
+    expect((await read(1))[0].n).toBe("after-truncate");
+    controller.abort();
+  } finally {
+    longUi.close();
+  }
+});
+
 testFeature(manifestPayload, ["/proxy/log_file"], "should answer 404 for unknown ui paths", async () => {
   expect((await fetch(`${base}/nope`)).status).toBe(404);
 });
@@ -85,4 +120,14 @@ testFeature(noLogPayload, ["/proxy/port"], "should fail --ui with a clear error 
   const [code, stderr] = [await proc.exited, await new Response(proc.stderr).text()];
   expect(code).toBe(1);
   expect(stderr).toContain("--ui requiere log_file");
+}, 5000);
+
+testFeature(manifestPayload, ["/proxy/log_file"], "should fail --ui with a clear error when the ui port is already in use", async (payload) => {
+  const manifest = join(dir, "busy.donly");
+  writeFileSync(manifest, payload);
+  const port = (ui.address() as AddressInfo).port;
+  const proc = Bun.spawn(["bun", join(import.meta.dir, "../cli/main.ts"), manifest, "--ui", "--ui-port", String(port)], { stdout: "pipe", stderr: "pipe" });
+  const [code, stderr] = [await proc.exited, await new Response(proc.stderr).text()];
+  expect(code).toBe(1);
+  expect(stderr).toContain(`no se pudo levantar la ui en 127.0.0.1:${port}`);
 }, 5000);

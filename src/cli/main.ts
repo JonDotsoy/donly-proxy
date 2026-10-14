@@ -46,6 +46,10 @@ server.listen(config.port, config.host, () => {
 
 if (options.ui && config.logFile) {
   const ui = createUiServer(config.logFile);
+  ui.on("error", (error: NodeJS.ErrnoException) => {
+    console.error(`Error: no se pudo levantar la ui en 127.0.0.1:${options.uiPort}: ${error.code ?? error.message}`);
+    process.exit(1);
+  });
   // Loopback only: the log has request headers and bodies.
   ui.listen(options.uiPort, "127.0.0.1", () => {
     console.log(`ui listening on http://127.0.0.1:${(ui.address() as AddressInfo).port}`);
