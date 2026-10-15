@@ -15,6 +15,8 @@
 
 `e2e/route-url-formats.e2e.ts` levanta el binario con rutas `URLPattern` y comprueba con `curl --proxy` cómo coincide `route` con solo host, host con puerto, host con ruta, comodines y esquema `http`/`https`.
 
+`e2e/no-route.e2e.ts` levanta el binario con un bloque `proxy { listen http … }` sin ningún `route` y comprueba con `curl --proxy` que arranca y reenvía la petición sin modificarla a su destino (un upstream local), sin responder `200 ok`.
+
 Todos los puertos son dinámicos (`0`) y no hay dependencias externas: el upstream, el `kubectl` y el `node` son locales.
 
 ## Cómo ejecutarla

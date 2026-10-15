@@ -418,6 +418,16 @@ const forward = async (
   return reply;
 };
 
+/** Forwards the request as-is to its own URL (no `proxy_pass` log lines: there is no route involved). */
+const passthrough = (req: http.IncomingMessage, body: Buffer, url: string): Promise<Reply> => {
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (!hopByHop.has(k) && v !== undefined) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
+  }
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  return fetchUpstream(new URL(url), req.method, headers, hasBody ? body : undefined);
+};
+
 const fetchUpstream = async (upstream: URL, method: string | undefined, headers: Headers, body: Buffer | undefined): Promise<Reply> => {
   try {
     const response = await fetch(upstream, { method, headers, body, redirect: "manual" });
@@ -558,6 +568,8 @@ export const createProxyServers = ({
   };
 
   const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string, logger: RequestTransaction) => {
+    // No routes at all: forward the request untouched to its own URL.
+    if (routes.length === 0) return passthrough(req, body, url);
     const action = route?.action;
     if (!route || !action) return text(200, "ok");
     switch (action.kind) {
