@@ -1,2 +1,2 @@
-export { Logger_experimental } from "./logger";
-export type { CommandInfo, CommandTransaction, ConsoleLogEntry, RequestInfo, RequestTransaction, ResponseInfo, ScriptInfo } from "./logger";
+export { createLogger } from "./logger";
+export type { CommandInfo, CommandTransaction, ConsoleLogEntry, Logger, RequestInfo, RequestTransaction, ResponseInfo, ScriptInfo } from "./logger";

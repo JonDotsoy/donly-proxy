@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
 
 /** One piece of console traffic of a command, with the moment it happened. */
 export interface ConsoleLogEntry {
@@ -36,6 +34,13 @@ export interface ScriptInfo {
 
 type Entry = Record<string, unknown>;
 
+export interface Logger {
+  listening(host: string, port: number): void;
+  readonly request: { openTransaction(request: RequestInfo): RequestTransaction };
+  /** Resolves once every line written so far has been accepted by the stream. */
+  flush(): Promise<void>;
+}
+
 /** Opens the line of a nested transaction and returns it. */
 interface Spans {
   readonly command: { openTransaction(info: CommandInfo): CommandTransaction };
@@ -68,79 +73,40 @@ const encodePayload = (body: Buffer) => {
 
 /**
  * Experimental logger with nested transactions (see docs/plans/logger-transacciones.md).
- * Not wired to the proxy yet. Without a `logFile` every call is a no-op.
+ * Not wired to the proxy yet. The system creates it over the stream that receives the `.ndjson`
+ * lines (one JSON object per line, utf8): `const Logger = createLogger(writable)`.
  *
  * `transaction_id` is the id of the request and is shared by the whole tree; `span_id` is the id of
  * each open transaction and `parent_span_id` the one that opened it.
  */
-export class Logger_experimental {
-  constructor(private readonly logFile?: string) {
-    if (logFile) mkdirSync(dirname(logFile), { recursive: true });
-  }
+export const createLogger = (writable: WritableStream<Uint8Array>): Logger => {
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+  let pending: Promise<unknown> = Promise.resolve();
 
-  private write(entry: Entry) {
+  const write = (entry: Entry) => {
     // `timestamp` is the wall clock (ms); `performance_timestamp` is the exact moment from the Performance API.
-    if (this.logFile) {
-      appendFileSync(
-        this.logFile,
-        JSON.stringify({ timestamp: new Date().toISOString(), performance_timestamp: performance.timeOrigin + performance.now(), ...entry }) + "\n",
-      );
-    }
-  }
-
-  listening(host: string, port: number) {
-    this.write({ type: "listening", host, port });
-  }
-
-  readonly request = {
-    openTransaction: (request: RequestInfo): RequestTransaction => {
-      const transaction = {
-        transaction_id: randomUUID(),
-        http_version: `HTTP/${request.httpVersion}`,
-        method: request.method,
-        url: request.url,
-      };
-      const spanId = randomUUID();
-      this.write({ ...transaction, type: "request", span_id: spanId, headers: request.headers, ...encodePayload(request.body) });
-      const open = new Set<CommandTransaction>();
-      const root: RequestTransaction = {
-        transactionId: transaction.transaction_id,
-        spanId,
-        annotation: (annotation) => this.write({ ...transaction, type: "request_annotation", span_id: spanId, annotation }),
-        command: { openTransaction: (info) => this.openCommand(transaction, spanId, info, open) },
-        response: (reply) => {
-          for (const command of [...open].reverse()) command.end(null, []);
-          this.write({
-            ...transaction,
-            type: "response",
-            span_id: spanId,
-            status: reply.status,
-            ...(reply.command && { command: reply.command }),
-            headers: reply.headers,
-            ...encodePayload(reply.body),
-          });
-        },
-      };
-      return root;
-    },
+    const line = JSON.stringify({ timestamp: new Date().toISOString(), performance_timestamp: performance.timeOrigin + performance.now(), ...entry }) + "\n";
+    // The stream queues the chunks in call order; a failing sink must not crash the proxy.
+    pending = writer.write(encoder.encode(line)).catch(() => {});
   };
 
-  private openCommand(transaction: Entry, parentSpanId: string, info: CommandInfo, open: Set<CommandTransaction>): CommandTransaction {
+  const openCommand = (transaction: Entry, parentSpanId: string, info: CommandInfo, open: Set<CommandTransaction>): CommandTransaction => {
     const spanId = randomUUID();
     const common = { ...transaction, span_id: spanId, parent_span_id: parentSpanId };
-    this.write({ ...common, type: "command_start", program: info.program, args: info.args, command: [info.program, ...info.args] });
+    write({ ...common, type: "command_start", program: info.program, args: info.args, command: [info.program, ...info.args] });
     const children = new Set<CommandTransaction>();
     let ranScript = false;
     let ended = false;
     const command: CommandTransaction = {
       transactionId: transaction.transaction_id as string,
       spanId,
-      annotation: (annotation) => this.write({ ...common, type: "annotation", annotation }),
-      command: { openTransaction: (child) => this.openCommand(transaction, spanId, child, children) },
+      annotation: (annotation) => write({ ...common, type: "annotation", annotation }),
+      command: { openTransaction: (child) => openCommand(transaction, spanId, child, children) },
       script: {
         openTransaction: ({ script }) => {
           ranScript = true;
-          this.write({ ...transaction, type: "script", span_id: randomUUID(), parent_span_id: spanId, program: info.program, script });
+          write({ ...transaction, type: "script", span_id: randomUUID(), parent_span_id: spanId, program: info.program, script });
         },
       },
       end: (exitCode, logs) => {
@@ -149,11 +115,49 @@ export class Logger_experimental {
         // A child never outlives its parent.
         for (const child of [...children].reverse()) child.end(null, []);
         open.delete(command);
-        this.write({ ...common, type: "command_end", program: info.program, exit_code: exitCode, console_log: logs });
-        if (ranScript) this.write({ ...common, type: "script_exit", program: info.program, exit_code: exitCode, console_log: logs });
+        write({ ...common, type: "command_end", program: info.program, exit_code: exitCode, console_log: logs });
+        if (ranScript) write({ ...common, type: "script_exit", program: info.program, exit_code: exitCode, console_log: logs });
       },
     };
     open.add(command);
     return command;
-  }
-}
+  };
+
+  return {
+    listening: (host, port) => write({ type: "listening", host, port }),
+    flush: async () => {
+      await pending;
+    },
+    request: {
+      openTransaction: (request) => {
+        const transaction = {
+          transaction_id: randomUUID(),
+          http_version: `HTTP/${request.httpVersion}`,
+          method: request.method,
+          url: request.url,
+        };
+        const spanId = randomUUID();
+        write({ ...transaction, type: "request", span_id: spanId, headers: request.headers, ...encodePayload(request.body) });
+        const open = new Set<CommandTransaction>();
+        return {
+          transactionId: transaction.transaction_id,
+          spanId,
+          annotation: (annotation) => write({ ...transaction, type: "request_annotation", span_id: spanId, annotation }),
+          command: { openTransaction: (info) => openCommand(transaction, spanId, info, open) },
+          response: (reply) => {
+            for (const command of [...open].reverse()) command.end(null, []);
+            write({
+              ...transaction,
+              type: "response",
+              span_id: spanId,
+              status: reply.status,
+              ...(reply.command && { command: reply.command }),
+              headers: reply.headers,
+              ...encodePayload(reply.body),
+            });
+          },
+        };
+      },
+    },
+  };
+};
