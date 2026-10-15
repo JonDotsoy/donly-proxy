@@ -102,7 +102,7 @@ Campos comunes de siempre: `timestamp`, `performance_timestamp`, `type`. Campos 
 | `Logger.request.openTransaction(req)` | `{ …comunes, type: "request", span_id, headers, payload, payload_encoding? }` (igual que hoy + `span_id`) |
 | `.annotation(data)` | `{ …comunes, type: "request_annotation", span_id, annotation: data }` |
 | `.command.openTransaction({program,args})` | `{ …comunes, type: "command_start", span_id, parent_span_id, program, args, command: [program, ...args] }` |
-| `.script.openTransaction({script})` | `{ …comunes, type: "script", span_id, parent_span_id, program: "node", script }` (`parent_span_id` = span del comando `node`) |
+| `.script.openTransaction({script})` | `{ …comunes, type: "script_start", span_id, parent_span_id, program: "node", script }` (`parent_span_id` = span del comando `node`) |
 | `.end(code, logs)` en un comando | `{ …comunes, type: "command_end", span_id, parent_span_id, program, exit_code, console_log }` |
 | `.proxyPass.openTransaction({method,target,headers,body})` | `{ …comunes, type: "request_proxy_pass", span_id, parent_span_id, target, headers, payload, payload_encoding? }` (lo que se envía al destino) |
 | `.end(reply)` en un `proxy_pass` | `{ …comunes, type: "response_proxy_pass", span_id, parent_span_id, target, status, headers, payload, payload_encoding? }` (mismo `span_id` que su `request_proxy_pass`) |
@@ -119,7 +119,7 @@ Campos comunes de siempre: `timestamp`, `performance_timestamp`, `type`. Campos 
 {"type":"request_annotation","transaction_id":"T","span_id":"A","annotation":{"route":"^https://api"}}
 {"type":"command_start","transaction_id":"T","span_id":"B","parent_span_id":"A","program":"kubectl","args":["exec","-i","deploy/api","--","node","--input-type=module","-"], …}
 {"type":"command_start","transaction_id":"T","span_id":"C","parent_span_id":"B","program":"node","args":["--input-type=module","-"], …}
-{"type":"script","transaction_id":"T","span_id":"D","parent_span_id":"C","program":"node","script":"…"}
+{"type":"script_start","transaction_id":"T","span_id":"D","parent_span_id":"C","program":"node","script":"…"}
 {"type":"command_end","transaction_id":"T","span_id":"C","parent_span_id":"B","program":"node","exit_code":0,"console_log":[…]}
 {"type":"script_exit","transaction_id":"T","span_id":"C","parent_span_id":"B","program":"node","exit_code":0,"console_log":[…]}
 {"type":"command_end","transaction_id":"T","span_id":"B","parent_span_id":"A","program":"kubectl","exit_code":0,"console_log":[…]}
@@ -156,7 +156,7 @@ Los túneles **no** cambian de interfaz: `run.ts` y los motores siguen exponiend
 Casos por motor:
 
 - **curl / wget**: `request` → `command_start(curl)` → `command_end`.
-- **node local**: `command_start(node)` + `script` → `command_end`.
+- **node local**: `command_start(node)` + `script_start` → `command_end`.
 - **ssh**: `command_start(ssh …)` (el comando remoto va dentro de `args`, como hoy). Sin hijo, salvo que se decida modelar el motor remoto (D2).
 - **kubectl**: padre `kubectl exec`, hijo con el motor (`curl`/`node`); el hijo lleva el `script` si es `node`.
 - **proxy_pass**: `request` → `request_proxy_pass` → `response_proxy_pass` → `response`. `forward()` abre la transacción con la petición que arma (método, URL destino con las reglas de ruta y query, cabeceras sin las hop-by-hop) y la cierra con lo que responde el destino; si el destino falla (502), se cierra con ese 502. El `response` al cliente se escribe después.
@@ -178,7 +178,7 @@ Anotaciones iniciales sugeridas (opcionales, no se emiten hoy): ruta que coincid
 1. Tipos nuevos: `request_annotation` con su color y `annotation` en el detalle.
 2. Sangría por profundidad usando `span_id`/`parent_span_id` (profundidad = pasos hasta la raíz; sin ids, 0).
 3. `command_end` muestra `program` y `exit_code` en la columna de estado.
-4. Las líneas `script`/`command` hoy muestran `method url`; pasar a `program args`; `command_start`/`command_end` comparten color.
+4. Las líneas `script_start`/`command_start` hoy muestran `method url`; pasar a `program args`; `command_start`/`command_end` comparten color.
 
 La agrupación por `transaction_id` plegable queda fuera de este plan.
 

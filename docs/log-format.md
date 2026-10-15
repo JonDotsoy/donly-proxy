@@ -36,14 +36,14 @@ Cada petición es una **transacción** y todo lo que hace por debajo (cada proce
 | `response_proxy_pass` | Cuando el destino responde (o falla: `502`). | `span_id`, `parent_span_id`, `target`, `status`, `headers`, `payload`. |
 | `command_start` | Cuando arranca un proceso de una ruta `command_pass`, `kubectl_pass` o `ssh_pass`. | `span_id`, `parent_span_id`, `program`, `args`, `command` (programa y argumentos). Con `kubectl` hay dos: `kubectl exec …` y, hijo suyo, el del motor remoto. |
 | `annotation` | Datos propios que se adjuntan a un proceso. | `span_id`, `parent_span_id`, `annotation`. |
-| `script` | Motor `node` (local o remoto), justo después de `command_start`. | `parent_span_id` (el proceso `node`), `program: "node"`, `script` (lo que se envía por stdin). |
+| `script_start` | Motor `node` (local o remoto), justo después de `command_start`. | `parent_span_id` (el proceso `node`), `program: "node"`, `script` (lo que se envía por stdin). |
 | `command_end` | **Siempre** al terminar cada proceso. | `span_id`, `parent_span_id`, `program`, `exit_code`, `console_log`. |
 | `script_exit` | Al terminar un script (motor `node`), justo después de su `command_end`. | `program: "node"`, `exit_code`, `console_log`. |
 | `response` | Respuesta enviada al cliente. | `span_id`, `status`, `headers`, `payload`, `payload_encoding`, y `command` en rutas con comando. |
 
 Orden de una transacción con `proxy_pass`: `request` → `request_proxy_pass` → `response_proxy_pass` → `response`.
 
-Orden de una transacción con comando: `request` → `command_start` (→ `command_start` hijo → `script`) → `command_end` del hijo (→ `script_exit`) → `command_end` del padre → `response`.
+Orden de una transacción con comando: `request` → `command_start` (→ `command_start` hijo → `script_start`) → `command_end` del hijo (→ `script_exit`) → `command_end` del padre → `response`.
 
 ## `command_end`: `exit_code` y `console_log`
 

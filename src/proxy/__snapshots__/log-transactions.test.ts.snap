@@ -85,7 +85,7 @@ exports[`logs request, kubectl, node, end node, end kubectl and response as nest
     "span_id": "<span-4>",
     "timestamp": "<timestamp>",
     "transaction_id": "<transaction-1>",
-    "type": "script",
+    "type": "script_start",
     "url": "http://127.0.0.1:<port>/ping?x=1",
   },
   {

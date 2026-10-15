@@ -56,7 +56,7 @@ test("nested commands link each child to its parent and end with their own span"
 
   const all = await lines();
   expect(all.map((line) => `${line.type}${line.program ? `:${line.program}` : ""}`)).toEqual([
-    "request", "command_start:kubectl", "command_start:node", "script:node", "command_end:node", "script_exit:node", "command_end:kubectl", "response",
+    "request", "command_start:kubectl", "command_start:node", "script_start:node", "command_end:node", "script_exit:node", "command_end:kubectl", "response",
   ]);
   const [, kubectlStart, nodeStart, script, nodeEnd, , kubectlEnd, response] = all;
   expect(kubectlStart).toMatchObject({ parent_span_id: transaction.spanId, args: ["exec", "-i", "pod/api-0", "--", "node", "-"], command: ["kubectl", "exec", "-i", "pod/api-0", "--", "node", "-"] });

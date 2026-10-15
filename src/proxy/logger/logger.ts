@@ -124,7 +124,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
       script: {
         openTransaction: ({ script, program = info.program }) => {
           scriptProgram = program;
-          write({ ...transaction, type: "script", span_id: randomUUID(), parent_span_id: spanId, program, script });
+          write({ ...transaction, type: "script_start", span_id: randomUUID(), parent_span_id: spanId, program, script });
         },
       },
       end: (exitCode, logs) => {
