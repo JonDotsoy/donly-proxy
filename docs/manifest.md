@@ -4,7 +4,7 @@ El proxy se configura con un archivo en formato [DON](https://don.jon.soy/). Por
 `manifest.donly` en la raíz del proyecto; se puede indicar otro como primer argumento:
 `bun src/cli/main.ts ruta/al/manifest.donly`.
 
-Todo va dentro de un único bloque `proxy`:
+Todo va dentro de un bloque `proxy` (se puede declarar más de uno, ver [Varios bloques `proxy`](#varios-bloques-proxy)):
 
 ```
 proxy {
@@ -89,6 +89,30 @@ proxy {
 Con `https` la conexión del cliente **hacia el proxy** va cifrada. Sin bloque `ssl`, o si faltan
 los archivos, se usan `./certs/cert.pem` y `./certs/key.pem` y se genera un par autofirmado como
 se describe arriba. `CONNECT`, `proxy_pass` y `command_pass` funcionan igual.
+
+#### Varios bloques `proxy`
+
+Un manifest puede tener varios bloques `proxy`. Cada uno es un proxy independiente, con su propio
+`listen`, `route`, `ssl` y `log_file`:
+
+```
+proxy {
+  listen http 8090
+  route {
+    respond 200 "ok http"
+  }
+}
+proxy {
+  listen https 8091
+  route {
+    respond 200 "ok https"
+  }
+}
+```
+
+`curl --proxy http://127.0.0.1:8090 …` responde `ok http` y `curl --proxy https://127.0.0.1:8091 …`
+responde `ok https`. Dos bloques no pueden usar el mismo host y puerto fijo (mismo error que dos
+`listen` repetidos). La opción `--ui` muestra el log del primer bloque que declare `log_file`.
 
 #### Varios `listen`
 

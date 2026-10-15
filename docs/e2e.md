@@ -11,6 +11,8 @@
    - **Línea de tiempo**: una tarjeta por transacción, un carril por span, sin barras abiertas; `?view=timeline` abre la vista directamente y un carril muestra sus líneas.
    - **Ancho**: ni la página ni los detalles expandidos (lista y carriles) se salen de la ventana a 1280, 768 y 390 px.
 
+`e2e/multi-proxy.e2e.ts` levanta el binario con dos bloques `proxy` (`listen http` y `listen https`) y comprueba con `curl --proxy` que cada uno responde su propio `respond` (`ok http` / `ok https`).
+
 Todos los puertos son dinámicos (`0`) y no hay dependencias externas: el upstream, el `kubectl` y el `node` son locales.
 
 ## Cómo ejecutarla

@@ -46,7 +46,6 @@ const routeActions = (directive: Directive): LintIssue[] => {
 export const manifestRules: LintRuleDocument = {
   "/proxy": {
     required: true,
-    max: 1,
     message: "el manifiesto requiere un bloque `proxy`",
     evaluation: (directive) => [...unknownChildren(proxyDirectives, "proxy")(directive), ...unreachableRoutes(directive)],
   },
