@@ -2,7 +2,7 @@ import type { AddressInfo } from "node:net";
 import { argument, flag, flags } from "@jondotsoy/flags";
 import pkg from "../../package.json";
 import { lintManifestFile } from "../proxy/lint";
-import { createProxyServers, loadConfig } from "../proxy/server";
+import { createProxyServers, loadConfigs } from "../proxy/server";
 import { createUiServer } from "../ui/server";
 
 const parser = flags({
@@ -39,28 +39,31 @@ if (!(await lintManifestFile(options.manifest ?? new URL("../../manifest.donly",
   process.exit(1);
 }
 
-const config = await loadConfig(options.manifest);
-if (options.ui && !config.logFile) {
+const configs = await loadConfigs(options.manifest);
+const logFile = configs.find((c) => c.logFile)?.logFile;
+if (options.ui && !logFile) {
   console.error("Error: --ui requiere log_file en el manifiesto para poder mostrar los logs");
   process.exit(1);
 }
-const servers = createProxyServers(config);
 const failed = (listener: { host: string; port: number }) => (error: NodeJS.ErrnoException) => {
   console.error(`Error: no se pudo escuchar en ${listener.host}:${listener.port}: ${error.code ?? error.message}`);
   process.exit(1);
 };
-for (const [i, server] of servers.entries()) {
-  const listener = config.listeners[i]!;
-  server.on("error", failed(listener));
-  server.listen(listener.port, listener.host, () => {
-    // `port 0` is assigned by the system: report the real one.
-    const scheme = listener.socks ? `socks${listener.socks}` : listener.https ? "https" : "http";
-    console.log(`proxy listening on ${listener.host}:${(server.address() as AddressInfo).port} (${scheme})`);
-  });
+for (const config of configs) {
+  const servers = createProxyServers(config);
+  for (const [i, server] of servers.entries()) {
+    const listener = config.listeners[i]!;
+    server.on("error", failed(listener));
+    server.listen(listener.port, listener.host, () => {
+      // `port 0` is assigned by the system: report the real one.
+      const scheme = listener.socks ? `socks${listener.socks}` : listener.https ? "https" : "http";
+      console.log(`proxy listening on ${listener.host}:${(server.address() as AddressInfo).port} (${scheme})`);
+    });
+  }
 }
 
-if (options.ui && config.logFile) {
-  const ui = createUiServer(config.logFile);
+if (options.ui && logFile) {
+  const ui = createUiServer(logFile);
   ui.on("error", (error: NodeJS.ErrnoException) => {
     console.error(`Error: no se pudo levantar la ui en 127.0.0.1:${options.uiPort}: ${error.code ?? error.message}`);
     process.exit(1);

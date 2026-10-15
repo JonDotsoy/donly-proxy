@@ -158,13 +158,31 @@ const sshPassOptions = (name: string, directive: Directive) => {
 
 const defaultManifest = new URL("../../manifest.donly", import.meta.url);
 
-/** Reads the `proxy { ... }` block of a `.donly` manifest. */
-export const loadConfig = async (
+/** Reads every `proxy { ... }` block of a `.donly` manifest; each one is an independent proxy. */
+export const loadConfigs = async (
   manifest: string | URL = defaultManifest,
-): Promise<ProxyConfig> => {
+): Promise<ProxyConfig[]> => {
   const url = typeof manifest === "string" ? pathToFileURL(manifest) : manifest;
   const root = DON.parse(await readFile(url, "utf8"));
-  const proxy = root.name === "proxy" ? root : root.children.find((c) => c.name === "proxy");
+  const blocks = root.name === "proxy" ? [root] : root.children.filter((c) => c.name === "proxy");
+  const configs = (blocks.length > 0 ? blocks : [undefined]).map((block) => buildConfig(block, url));
+  const seen = new Set<string>();
+  for (const { listeners } of configs) {
+    for (const { host, port } of listeners) {
+      if (port === 0) continue;
+      const key = `${host}:${port}`;
+      if (seen.has(key)) throw new Error(`listen: ${key} está declarado más de una vez`);
+      seen.add(key);
+    }
+  }
+  return configs;
+};
+
+/** Reads the first `proxy { ... }` block of a `.donly` manifest. */
+export const loadConfig = async (manifest: string | URL = defaultManifest): Promise<ProxyConfig> =>
+  (await loadConfigs(manifest))[0]!;
+
+const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
   const child = (name: string, parent = proxy) => parent?.children.find((c) => c.name === name);
   const resolve = (p: string) => fileURLToPath(new URL(p, url));
   const ssl = child("ssl");

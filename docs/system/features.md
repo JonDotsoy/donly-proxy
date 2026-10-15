@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **245** · ✅ pasan: **245** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -94,6 +94,7 @@ Specs: **245** · ✅ pasan: **245** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should allow the same port on different hosts | ✅ | <code>listen http 127.0.0.1 9090</code><br><code>listen http ::1 9090</code> |
 | should answer 200 ok through a tunnel when no route matches | ✅ | <code>listen socks4 127.0.0.1 0</code> |
 | should answer 404 for unknown ui paths | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| should answer each proxy block with its own route | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should call http://httpbin.io/get through kubectl_pass from the pod | ✅ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass curl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;retry 3</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;extra_args --retry-all-errors --retry-delay 2</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should call https://httpbin.io/get through kubectl_pass from the pod | ✅ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass curl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;retry 3</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;extra_args --retry-all-errors --retry-delay 2</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should call kubectl exec with --context and --namespace when both are defined | ✅ | <code>context dev</code><br><code>namespace prod</code><br><code>namespace staging</code><br><code>context dev</code><br><code>namespace the-namespace</code><br><code>context the-context</code><br><code>namespace the-namespace</code> |
@@ -113,6 +114,7 @@ Specs: **245** · ✅ pasan: **245** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should keep the target of command_pass kubectl last with extra_args and selectors | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>extra_args --request-timeout 5s</code><br><code>namespace prod</code> |
 | should lint a valid manifest without issues | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;log_file "./logs/proxy.ndjson"</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route https?://example.com/ {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "good"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 404</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should lint several listen without warnings | ✅ | <code>listen http 9080</code><br><code>listen https 9081</code> |
+| should lint several proxy blocks without warnings | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 8090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 8091</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should listen on 127.0.0.1 when the manifest has no host | ✅ |  |
 | should listen on a random free port when the manifest has none | ✅ |  |
 | should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
@@ -132,6 +134,7 @@ Specs: **245** · ✅ pasan: **245** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should not warn about listen | ✅ | <code>listen http 127.0.0.1 8080</code> |
 | should only deliver a log line once it is complete | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should only warn about unknown directives | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;tls {</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route a {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;timeout 5</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should parse each proxy block with its own listen | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 8090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 8091</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should parse several listen into one listener each | ✅ | <code>listen http 9080</code><br><code>listen https 9081</code> |
 | should parse the syntax: host "::1"; listen socks5 0 | ✅ | <code>listen socks5 0</code> |
 | should parse the syntax: host directive + port keeps the host | ✅ | <code>host "::1"</code><br><code>port 0</code> |
@@ -214,6 +217,7 @@ Specs: **245** · ✅ pasan: **245** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject retry outside command_pass curl | ✅ | <code>retry 5</code> |
 | should reject ssh_pass without a destination | ✅ | <code>ssh_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should reject ssh_pass without a nested command_pass | ✅ | <code>ssh_pass "user@remote.test"</code> |
+| should reject the same host and port in two proxy blocks | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 9090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 9090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should reject two listen on the same host and port | ✅ | <code>listen http 127.0.0.1 9090</code><br><code>listen https 127.0.0.1 9090</code> |
 | should replay only the last lines of a long log and survive a truncation | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should report an error when a route has not exactly one action | ✅ | <code>route a {</code><br><code>}</code><br><code>route b {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;proxy_pass "http://x/"</code><br><code>}</code> |
