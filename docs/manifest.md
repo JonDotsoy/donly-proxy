@@ -88,6 +88,22 @@ Con `https` la conexión del cliente **hacia el proxy** va cifrada. Sin bloque `
 los archivos, se usan `./certs/cert.pem` y `./certs/key.pem` y se genera un par autofirmado como
 se describe arriba. `CONNECT`, `proxy_pass` y `command_pass` funcionan igual.
 
+#### Varios `listen`
+
+Se puede declarar `listen` más de una vez: el proxy abre un listener por cada uno, cada cual con su
+protocolo, host, puerto y certificados. Todos comparten las mismas `route` y el mismo `log_file`.
+
+```
+proxy {
+  listen http 9080
+  listen https 9081
+}
+```
+
+Al arrancar se imprime una línea `proxy listening on <host>:<puerto> (http|https)` por listener y
+el log escribe un evento `listening` por cada uno. Dos `listen` con el mismo host y un puerto fijo
+(distinto de `0`) hacen fallar el arranque. `port` también se puede repetir.
+
 `port` sigue soportado como alias de `listen` sin host: `port 8080` = `listen http 8080` y
 `port https 0 { ssl { … } }` = `listen https 0 { ssl { … } }`. No se pueden declarar `listen` y
 `port` a la vez. El bloque `ssl` de nivel superior se mantiene por compatibilidad (sigue
@@ -228,6 +244,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `--ui` (CLI) con el puerto ocupado | `no se pudo levantar la ui en 127.0.0.1:<puerto>: EADDRINUSE` |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
 | `listen` y `port` a la vez | `listen y port no se pueden declarar a la vez: port es un alias de listen` |
+| Dos `listen` con el mismo host y puerto fijo | `listen: <host>:<puerto> está declarado más de una vez` |
 | `listen` / `port` sin puerto numérico | `listen: el puerto debe ser un número, no "…"` |
 | `listen` / `port` con argumentos de más | `listen: se esperaba [http\|https] [host] puerto` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |

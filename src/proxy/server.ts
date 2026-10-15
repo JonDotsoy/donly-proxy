@@ -30,7 +30,18 @@ export interface Route {
     | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; podMatch?: { glob: string; selectors: string[] }; password?: string };
 }
 
+/** One `listen` (or `port`) of the `proxy` block. */
+export interface ListenerConfig {
+  host: string;
+  port: number;
+  /** Set when this listener itself speaks TLS (`listen https`). */
+  https?: { cert: string; key: string };
+}
+
 export interface ProxyConfig {
+  /** Every `listen`/`port` of the block, in order; they share the routes and the log. At least one. */
+  listeners: ListenerConfig[];
+  /** Host, port and TLS of the first listener (kept for single-listener callers). */
   host: string;
   port: number;
   /** Deprecated top-level `ssl`: certificate that terminates the TLS of `CONNECT` tunnels. */
@@ -154,39 +165,55 @@ export const loadConfig = async (
   const child = (name: string, parent = proxy) => parent?.children.find((c) => c.name === name);
   const resolve = (p: string) => fileURLToPath(new URL(p, url));
   const ssl = child("ssl");
-  // `listen [http|https] [host] port [{ ssl { cert, key } }]`; `port` is an alias of `listen`
+  // `listen [http|https] [host] port [{ ssl { cert, key } }]`, repeatable; `port` is an alias of `listen`
   // (`port 8080` = `listen http 8080`) and `host` is the default host.
-  const listenDirective = child("listen");
-  const portDirective = child("port");
-  if (listenDirective && portDirective) throw new Error("listen y port no se pueden declarar a la vez: port es un alias de listen");
-  const endpoint = listenDirective ?? portDirective;
-  const name = listenDirective ? "listen" : "port";
-  const endpointArgs = [...(endpoint?.args ?? [])];
-  const scheme = typeof endpointArgs[0] === "string" && ["http", "https"].includes(endpointArgs[0]) ? String(endpointArgs.shift()) : "http";
-  const portValue = endpointArgs.pop() ?? 0;
-  if (typeof portValue !== "number") throw new Error(`${name}: el puerto debe ser un número, no "${portValue}"`);
-  const listenHost = endpointArgs.shift();
-  if (endpointArgs.length > 0) throw new Error(`${name}: se esperaba [http|https] [host] puerto`);
-  const listenSsl = child("ssl", endpoint);
+  const listenDirectives = proxy?.children.filter((c) => c.name === "listen") ?? [];
+  const portDirectives = proxy?.children.filter((c) => c.name === "port") ?? [];
+  if (listenDirectives.length > 0 && portDirectives.length > 0) throw new Error("listen y port no se pueden declarar a la vez: port es un alias de listen");
+  const endpoints = listenDirectives.length > 0 ? listenDirectives : portDirectives;
+  const defaultHost = String(child("host")?.args[0] ?? "127.0.0.1");
+  const listeners = (endpoints.length > 0 ? endpoints : [undefined]).map((endpoint): ListenerConfig => {
+    const name = listenDirectives.length > 0 ? "listen" : "port";
+    const endpointArgs = [...(endpoint?.args ?? [])];
+    const scheme = typeof endpointArgs[0] === "string" && ["http", "https"].includes(endpointArgs[0]) ? String(endpointArgs.shift()) : "http";
+    const portValue = endpointArgs.pop() ?? 0;
+    if (typeof portValue !== "number") throw new Error(`${name}: el puerto debe ser un número, no "${portValue}"`);
+    const listenHost = endpointArgs.shift();
+    if (endpointArgs.length > 0) throw new Error(`${name}: se esperaba [http|https] [host] puerto`);
+    const listenSsl = endpoint && child("ssl", endpoint);
+    return {
+      host: String(listenHost ?? defaultHost),
+      port: portValue,
+      https:
+        scheme === "https"
+          ? {
+              cert: resolve(String(child("cert", listenSsl)?.args[0] ?? "./certs/cert.pem")),
+              key: resolve(String(child("key", listenSsl)?.args[0] ?? "./certs/key.pem")),
+            }
+          : undefined,
+    };
+  });
+  const seen = new Set<string>();
+  for (const { host, port } of listeners) {
+    if (port === 0) continue;
+    const key = `${host}:${port}`;
+    if (seen.has(key)) throw new Error(`listen: ${key} está declarado más de una vez`);
+    seen.add(key);
+  }
   const logFile = child("log_file")?.args[0];
   if (logFile !== undefined && !String(logFile).endsWith(".ndjson")) {
     throw new Error(`log_file ${logFile}: solo se soporta la extensión .ndjson`);
   }
 
   return {
-    host: String(listenHost ?? child("host")?.args[0] ?? "127.0.0.1"),
-    port: portValue,
+    listeners,
+    host: listeners[0]!.host,
+    port: listeners[0]!.port,
     ssl: {
       cert: resolve(String(child("cert", ssl)?.args[0] ?? "./certs/cert.pem")),
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),
     },
-    https:
-      scheme === "https"
-        ? {
-            cert: resolve(String(child("cert", listenSsl)?.args[0] ?? "./certs/cert.pem")),
-            key: resolve(String(child("key", listenSsl)?.args[0] ?? "./certs/key.pem")),
-          }
-        : undefined,
+    https: listeners[0]!.https,
     logFile: logFile === undefined ? undefined : resolve(String(logFile)),
     routes: (proxy?.children ?? [])
       .filter((c) => c.name === "route")
@@ -472,14 +499,14 @@ const text = (status: number, body: string): Reply => ({
  * - HTTPS: CONNECT tunnels are terminated locally with the configured
  *   certificate and then answered directly.
  */
-export const createProxyServer = ({
+export const createProxyServers = ({
   ssl,
-  https: https_,
+  listeners,
   routes,
   logFile,
-}: Pick<ProxyConfig, "ssl" | "https" | "routes"> & { logFile?: string }) => {
+}: Pick<ProxyConfig, "ssl" | "routes"> & { listeners: ListenerConfig[]; logFile?: string }) => {
   ensureCerts(ssl);
-  if (https_) ensureCerts(https_);
+  for (const { https } of listeners) if (https) ensureCerts(https);
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
   if (logFile) mkdirSync(dirname(logFile), { recursive: true });
 
@@ -537,21 +564,15 @@ export const createProxyServer = ({
     res.writeHead(reply.status, reply.headers);
     res.end(reply.body);
   };
-  // With `listen https` the proxy itself speaks TLS (`curl --proxy https://...`).
-  const server: http.Server = https_
-    ? https.createServer({ key: readFileSync(https_.key), cert: readFileSync(https_.cert) }, handle)
-    : http.createServer(handle);
-  if (https_) server.on("tlsClientError", () => {});
-
   // CONNECT tunnels are piped into this loopback HTTPS server instead of wrapping the socket in a
   // `tls.TLSSocket`: Bun 1.3.x never completes the handshake on a wrapped socket.
   const tlsServer = https.createServer(tlsOptions, handle);
   tlsServer.on("tlsClientError", () => {});
   tlsServer.listen(0, "127.0.0.1");
   tlsServer.unref();
-  server.on("close", () => tlsServer.close());
+  let open = listeners.length;
 
-  server.on("connect", (req, socket: Duplex) => {
+  const onConnect = (req: http.IncomingMessage, socket: Duplex) => {
     socket.on("error", () => {});
     socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
     let port: number | undefined;
@@ -566,13 +587,27 @@ export const createProxyServer = ({
     });
     socket.on("close", () => inner.destroy());
     socket.pipe(inner).pipe(socket);
-  });
+  };
 
-  server.on("listening", () => {
-    // `port 0` is assigned by the system: log the real one.
-    const { address, port } = server.address() as AddressInfo;
-    Logger.listening(address, port);
+  return listeners.map(({ https: https_ }) => {
+    // With `listen https` the proxy itself speaks TLS (`curl --proxy https://...`).
+    const server: http.Server = https_
+      ? https.createServer({ key: readFileSync(https_.key), cert: readFileSync(https_.cert) }, handle)
+      : http.createServer(handle);
+    if (https_) server.on("tlsClientError", () => {});
+    server.on("close", () => {
+      if (--open === 0) tlsServer.close();
+    });
+    server.on("connect", onConnect);
+    server.on("listening", () => {
+      // `port 0` is assigned by the system: log the real one.
+      const { address, port } = server.address() as AddressInfo;
+      Logger.listening(address, port);
+    });
+    return server;
   });
-
-  return server;
 };
+
+/** The first server of {@link createProxyServers}: enough when the manifest has a single `listen`. */
+export const createProxyServer = (config: Pick<ProxyConfig, "ssl" | "routes"> & { logFile?: string } & ({ listeners: ListenerConfig[] } | { https?: ProxyConfig["https"] })) =>
+  createProxyServers({ ...config, listeners: "listeners" in config ? config.listeners : [{ host: "127.0.0.1", port: 0, https: config.https }] })[0]!;
