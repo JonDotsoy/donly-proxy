@@ -68,8 +68,8 @@ testFeature.skip(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command
   const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((line) => JSON.parse(line));
 
   // The whole transaction, in order: request → kubectl → node → script → end node → end kubectl → response.
-  const kinds = lines.map((line) => (line.type === "command" || line.type === "command_exit" ? `${line.type}:${line.program}` : line.type));
-  expect(kinds).toEqual(["request", "command:kubectl", "command:node", "script", "command_exit:node", "script_exit", "command_exit:kubectl", "response"]);
+  const kinds = lines.map((line) => (line.type === "command_start" || line.type === "command_end" ? `${line.type}:${line.program}` : line.type));
+  expect(kinds).toEqual(["request", "command_start:kubectl", "command_start:node", "script", "command_end:node", "script_exit", "command_end:kubectl", "response"]);
 
   // Parent/child links: request ← kubectl ← node ← script, and every end shares the span of its command.
   const [request, kubectl, node, script, nodeEnd, , kubectlEnd, response] = lines;
