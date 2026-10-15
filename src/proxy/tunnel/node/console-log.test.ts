@@ -32,7 +32,7 @@ const manifestPayload = (port: number) => `proxy {
 const payload = manifestPayload(8080);
 
 const saved = { PATH: process.env.PATH, NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };
-let server: http.Server;
+let server: ReturnType<typeof createProxyServer>;
 let proxy: string;
 let port: number;
 

@@ -54,7 +54,7 @@ for (const [i, server] of servers.entries()) {
   server.on("error", failed(listener));
   server.listen(listener.port, listener.host, () => {
     // `port 0` is assigned by the system: report the real one.
-    const scheme = listener.https ? "https" : "http";
+    const scheme = listener.socks ? `socks${listener.socks}` : listener.https ? "https" : "http";
     console.log(`proxy listening on ${listener.host}:${(server.address() as AddressInfo).port} (${scheme})`);
   });
 }

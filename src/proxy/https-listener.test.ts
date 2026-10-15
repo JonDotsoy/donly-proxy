@@ -32,7 +32,7 @@ const manifestPayload = (port: number) => `proxy {
 }
 `;
 
-let server: http.Server;
+let server: ReturnType<typeof createProxyServer>;
 let proxyPort: number;
 let savedNoProxy: [string | undefined, string | undefined];
 
@@ -141,7 +141,7 @@ testFeature(`proxy {\n  listen https 127.0.0.1\n}\n`, ["/proxy/listen"], "should
 testFeature(`proxy {\n  listen http a b 0\n}\n`, ["/proxy/listen"], "should reject a listen with too many arguments", async (payload) => {
   const bad = join(dir, "too-many.donly");
   writeFileSync(bad, payload);
-  expect(loadConfig(bad)).rejects.toThrow("listen: se esperaba [http|https] [host] puerto");
+  expect(loadConfig(bad)).rejects.toThrow("listen: se esperaba [http|https|socks4|socks5] [host] puerto");
 });
 
 const selfSigned = join(dir, "selfsigned.donly");

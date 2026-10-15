@@ -28,7 +28,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 
 | Directiva | Valor | Por defecto | Descripción |
 | --- | --- | --- | --- |
-| `listen` | `[http\|https] [host] [puerto] [{ ssl { … } }]` | `http 127.0.0.1 0` | Protocolo, dirección y puerto del listener (ver [`listen`](#listen)). |
+| `listen` | `[http\|https\|socks4\|socks5] [host] [puerto] [{ ssl { … } }]` | `http 127.0.0.1 0` | Protocolo, dirección y puerto del listener (ver [`listen`](#listen)). |
 | `host` | string | `"127.0.0.1"` | Dirección en la que escucha (IPv4 o IPv6: `"::1"`, `"::"`, `"0:0:0:0:0:0:0:1"`, `"[::1]"`, `"::ffff:127.0.0.1"`). Si se omite, solo escucha en loopback. Un `host` dentro de `listen` tiene prioridad. |
 | `port` | `[http\|https] puerto [{ ssl { … } }]` | `0` | Alias de `listen` sin host: `port 8080` equivale a `listen http 8080`. |
 | `ssl` | bloque | ver abajo | **Deprecado.** Certificado usado para terminar el TLS de los túneles `CONNECT`. No sirve para que el proxy escuche por HTTPS: usa `listen https`. |
@@ -57,7 +57,7 @@ rutas, creando las carpetas necesarias. Si ya existen, no los toca.
 ### `listen`
 
 ```
-listen [http|https] [host] puerto [{ ssl { cert "…" key "…" } }]
+listen [http|https|socks4|socks5] [host] puerto [{ ssl { cert "…" key "…" } }]
 ```
 
 El protocolo (`http` por defecto), el `host` (por defecto el de la directiva `host`) y el
@@ -72,6 +72,8 @@ El protocolo (`http` por defecto), el `host` (por defecto el de la directiva `ho
 | `listen http 127.0.0.1 0` | Proxy HTTP en ese host. |
 | `listen https 127.0.0.1 0` | Proxy HTTPS en ese host, certificado autofirmado. |
 | `listen https 127.0.0.1 0 { ssl { cert "…" key "…" } }` | Proxy HTTPS con tus certificados. |
+| `listen socks4 0` | Proxy SOCKS4 / SOCKS4a (ver [SOCKS](#socks4-y-socks5)). |
+| `listen socks5 127.0.0.1 0` | Proxy SOCKS5 en ese host (ver [SOCKS](#socks4-y-socks5)). |
 
 ```
 proxy {
@@ -100,7 +102,7 @@ proxy {
 }
 ```
 
-Al arrancar se imprime una línea `proxy listening on <host>:<puerto> (http|https)` por listener y
+Al arrancar se imprime una línea `proxy listening on <host>:<puerto> (http|https|socks4|socks5)` por listener y
 el log escribe un evento `listening` por cada uno. Dos `listen` con el mismo host y un puerto fijo
 (distinto de `0`) hacen fallar el arranque. `port` también se puede repetir.
 
@@ -112,6 +114,37 @@ terminando el TLS de los túneles `CONNECT`) pero está deprecado y no afecta al
 ```sh
 curl --proxy https://127.0.0.1:8080 --proxy-cacert certs/cert.pem https://example.com/
 # con el certificado autofirmado, sin verificar: --proxy-insecure -k
+```
+
+#### `socks4` y `socks5`
+
+```
+listen socks5 127.0.0.1 1080
+```
+
+El listener habla SOCKS en lugar de HTTP: `socks4` acepta SOCKS4 y SOCKS4a, `socks5` acepta
+SOCKS5 (un cliente de otra versión es desconectado). Sin autenticación (SOCKS5 método «sin
+autenticación»; si el cliente no lo ofrece, responde `0xFF` y cierra), solo el comando `CONNECT`
+(`BIND` y `UDP ASSOCIATE` se rechazan) y destinos IPv4, IPv6 y nombre de dominio (en SOCKS4, el
+nombre solo con SOCKS4a).
+
+Un túnel SOCKS se comporta como un túnel `CONNECT`: el proxy **no abre conexión al destino**,
+sino que termina el túnel y aplica las [`route`](concepts/route.md) a las peticiones que lleva
+dentro. Si el cliente empieza con un `ClientHello` TLS, se termina con el certificado del
+proxy (el cliente debe aceptarlo: `curl -k`) y las rutas ven `https://host/ruta` (sin `:443`;
+otros puertos se conservan, IPv6 entre corchetes); si no, es HTTP en claro y ven
+`http://host/ruta`. Sin ruta que coincida responde `200 ok`. Cada petición del túnel se
+registra en el `log_file` como cualquier otra (`request` / `response`, con la URL completa):
+no hay tipos de línea propios.
+
+Para que una ruta coincida por nombre de dominio con un destino HTTPS, el cliente debe enviar el
+nombre al proxy (`curl --socks4a`, `--socks5-hostname`). Con `--socks4` y `--socks5` curl
+resuelve el DNS él mismo y el proxy solo ve la IP (en HTTP en claro la cabecera `Host` conserva
+el nombre).
+
+```sh
+curl --socks5-hostname 127.0.0.1:1080 -k https://example.com/
+curl --socks4a 127.0.0.1:1080 http://example.com/
 ```
 
 ### `log_file`
@@ -246,7 +279,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `listen` y `port` a la vez | `listen y port no se pueden declarar a la vez: port es un alias de listen` |
 | Dos `listen` con el mismo host y puerto fijo | `listen: <host>:<puerto> está declarado más de una vez` |
 | `listen` / `port` sin puerto numérico | `listen: el puerto debe ser un número, no "…"` |
-| `listen` / `port` con argumentos de más | `listen: se esperaba [http\|https] [host] puerto` |
+| `listen` / `port` con argumentos de más | `listen: se esperaba [http\|https\|socks4\|socks5] [host] puerto` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |
