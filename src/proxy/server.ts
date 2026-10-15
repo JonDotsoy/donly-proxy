@@ -15,6 +15,7 @@ import { nodeRequest } from "./tunnel/node/node";
 import type { Engine } from "./tunnel/remote";
 import { sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
+import type { ConsoleEntry } from "./tunnel/types";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
 
@@ -359,12 +360,17 @@ const commandPass = async (
   const onScript = (s: string) => {
     script = s;
   };
+  // Added only to the `command_exit` line of the program that ran locally (the response to the client is untouched).
+  const consoleLog: ConsoleEntry[] = [];
+  const onConsole = (entry: ConsoleEntry) => {
+    consoleLog.push(entry);
+  };
   const onExit = (code: number | null) => {
     if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code });
-    emit({ type: "command_exit", program: executed?.[0], exit_code: code });
+    emit({ type: "command_exit", program: executed?.[0], exit_code: code, ...(consoleLog.length > 0 && { console_log: consoleLog }) });
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit, onConsole };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
