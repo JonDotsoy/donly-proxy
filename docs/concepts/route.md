@@ -20,7 +20,7 @@ Una ruta coincide cuando se cumplen ambas condiciones:
 
 | Parte | Regla |
 | --- | --- |
-| Método (opcional) | `GET`, `POST`, etc. Sin método aplica a cualquier método. |
+| Método (opcional) | Uno de los métodos HTTP de la [lista del manifest](../manifest.md#route) (sin distinguir mayúsculas). Sin método aplica a cualquier método. |
 | Patrón | [`URLPattern`](https://developer.mozilla.org/docs/Web/API/URLPattern) probado contra la URL completa. Coincide la URL **entera**: la ruta debe coincidir completa, usa `*` para prefijos. |
 
 `route` recibe **uno o dos** argumentos: con uno (`route <patrón>`) solo se valida la URL; con dos

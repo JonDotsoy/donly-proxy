@@ -56,3 +56,46 @@ testFeature(`proxy {\n  route GET POST http://x.test/ {\n    respond 200 "x"\n  
   writeFileSync(bad, payload);
   expect(loadConfig(bad)).rejects.toThrow("route recibe un patrón o un método y un patrón");
 });
+
+testFeature(`proxy {\n  route FETCH http://x.test/ {\n    respond 200 "x"\n  }\n}\n`, ["/proxy/route"], "should reject a method that is not in the list of methods", async (payload) => {
+  const bad = join(dir, "bad-method.donly");
+  writeFileSync(bad, payload);
+  expect(loadConfig(bad)).rejects.toThrow("el método debe ser uno de");
+});
+
+const threeFormats = `proxy {
+  host "127.0.0.1"
+  port 0
+  ssl {
+    cert "./certs/cert.pem"
+    key "./certs/key.pem"
+  }
+  route POST "http://formats.test/*" {
+    respond 201 "method and url"
+  }
+  route "http://formats.test/*" {
+    respond 202 "url only"
+  }
+  route {
+    respond 203 "no arguments"
+  }
+}
+`;
+testFeature(threeFormats, ["/proxy/route", "/proxy/route()"], "the three formats of route are evaluated in order", async () => {
+  const dir3 = mkdtempSync(join(tmpdir(), "donly-proxy-routeformats-"));
+  const file = join(dir3, "manifest.donly");
+  writeFileSync(file, threeFormats);
+  const formatsServer = createProxyServer(await loadConfig(file));
+  await new Promise<void>((resolve) => formatsServer.listen(0, "127.0.0.1", resolve));
+  const via = `http://127.0.0.1:${(formatsServer.address() as AddressInfo).port}`;
+  try {
+    const post = await fetch("http://formats.test/a", { proxy: via, method: "POST", body: "x" });
+    expect([post.status, await post.text()]).toEqual([201, "method and url"]);
+    const get = await fetch("http://formats.test/a", { proxy: via });
+    expect([get.status, await get.text()]).toEqual([202, "url only"]);
+    const other = await fetch("http://other.test/", { proxy: via });
+    expect([other.status, await other.text()]).toEqual([203, "no arguments"]);
+  } finally {
+    formatsServer.close();
+  }
+});

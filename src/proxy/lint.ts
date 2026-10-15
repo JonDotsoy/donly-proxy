@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { lint, renderReport } from "donly/lint";
 import type { LintIssue, LintRuleDocument } from "donly/lint";
 import type { Directive } from "donly";
+import { isRouteMethod, routeMethods } from "./route-methods";
 
 const actions = ["respond", "proxy_pass", "command_pass", "kubectl_pass", "ssh_pass"];
 const proxyDirectives = ["listen", "host", "port", "ssl", "log_file", "route"];
@@ -41,8 +42,8 @@ const routeArguments = (directive: Directive): LintIssue[] => {
   }
   const issues: LintIssue[] = [];
   const [method] = args.length === 2 ? args : [];
-  if (method !== undefined && (typeof method !== "string" || !/^[A-Za-z]+$/.test(method))) {
-    issues.push({ severity: "error", message: `${name}: el método debe ser un nombre como GET o POST, no "${method}"` });
+  if (method !== undefined && !isRouteMethod(method)) {
+    issues.push({ severity: "error", message: `${name}: el método debe ser uno de ${routeMethods.join(", ")}, no "${method}"` });
   }
   const pattern = args[args.length - 1];
   if (pattern !== undefined && typeof pattern !== "string") {

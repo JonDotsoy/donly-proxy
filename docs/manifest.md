@@ -232,7 +232,7 @@ route {                      # sin argumentos: todas las peticiones
 
 - **Argumentos**: `route` recibe **uno o dos**. Con uno (`route <patrón>`) solo se valida la URL;
   con dos (`route <MÉTODO> <patrón>`) se validan el método y la URL. Más de dos es un error.
-- **Método** (opcional): `GET`, `POST`, etc. Sin método, la ruta aplica a cualquier método.
+- **Método** (opcional): uno de `ACL`, `BIND`, `CHECKOUT`, `COPY`, `DELETE`, `GET`, `HEAD`, `LINK`, `LOCK`, `M-SEARCH`, `MERGE`, `MKACTIVITY`, `MKCALENDAR`, `MKCOL`, `MOVE`, `NOTIFY`, `OPTIONS`, `PATCH`, `POST`, `PROPFIND`, `PROPPATCH`, `PURGE`, `PUT`, `QUERY`, `REBIND`, `REPORT`, `SEARCH`, `SOURCE`, `SUBSCRIBE`, `TRACE`, `UNBIND`, `UNLINK`, `UNLOCK`, `UNSUBSCRIBE` (sin distinguir mayúsculas). `CONNECT` no se puede enrutar. Sin método, la ruta aplica a cualquier método.
 - **Patrón**: un [`URLPattern`](https://developer.mozilla.org/docs/Web/API/URLPattern) (estándar
   WHATWG, nativo en Bun) probado contra la **URL completa**, incluidos el esquema, el host, la ruta y
   el query: `https://example.com/a/b?x=1`. Sin esquema es un atajo por host (`example.com`
@@ -288,7 +288,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `port` no es un número entre 0 y 65535 | error |
 | `log_file` no es un string que termine en `.ndjson` | error |
 | `ssl.cert` / `ssl.key` no son strings | error |
-| `route` con más de dos argumentos, un método que no es un nombre (`GET`, `POST`…) o un patrón que no es texto | error |
+| `route` con más de dos argumentos, un método que no está en la lista (`GET`, `POST`, `PUT`… cualquiera de `http.METHODS` salvo `CONNECT`) o un patrón que no es texto | error |
 | `route` con un patrón vacío o que no es un `URLPattern` válido | error |
 | `route` sin exactamente una acción (`respond`, `proxy_pass`, `command_pass`, `kubectl_pass` o `ssh_pass`): cero o dos o más, p. ej. `kubectl_pass` junto a `proxy_pass` | error |
 | `respond` con estado fuera de 100–599 o cuerpo que no es un string | error |
@@ -310,6 +310,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `listen` / `port` sin puerto numérico | `listen: el puerto debe ser un número, no "…"` |
 | `listen` / `port` con argumentos de más | `listen: se esperaba [http\|https\|socks4\|socks5] [host] puerto` |
 | `route` con más de dos argumentos | `route …: route recibe un patrón o un método y un patrón, hay N argumentos` |
+| `route` con un método fuera de la lista | `route …: el método debe ser uno de ACL, BIND, …, no "…"` |
 | `route` con un patrón vacío o que no es un `URLPattern` válido | `route …: patrón inválido (…)` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |

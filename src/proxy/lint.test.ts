@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { lintManifest } from "./lint";
+import { routeMethods } from "./route-methods";
 import { testFeature } from "../utils/test_utils/test-feature/test-feature";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-lint-"));
@@ -131,7 +132,37 @@ testFeature(`proxy {\n  route GET POST a {\n    respond 200\n  }\n}\n`, ["/proxy
 
 testFeature(`proxy {\n  route 5 a {\n    respond 200\n  }\n  route GET 7 {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should report an error when the method or the pattern is not a text", (payload) => {
   expect(messages(payload, "error").sort()).toEqual([
-    'route 5 a: el método debe ser un nombre como GET o POST, no "5"',
+    `route 5 a: el método debe ser uno de ${routeMethods.join(", ")}, no "5"`,
     'route GET 7: el patrón debe ser un texto, no "7"',
   ]);
+});
+
+testFeature(`proxy {\n  route FETCH a {\n    respond 200\n  }\n  route CONNECT b {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should report an error when the method is not in the list of methods", (payload) => {
+  expect(messages(payload, "error").sort()).toEqual([
+    `route CONNECT b: el método debe ser uno de ${routeMethods.join(", ")}, no "CONNECT"`,
+    `route FETCH a: el método debe ser uno de ${routeMethods.join(", ")}, no "FETCH"`,
+  ]);
+});
+
+const allMethods = routeMethods.map((method) => `  route ${method} a {\n    respond 200\n  }\n`).join("");
+testFeature(`proxy {\n${allMethods}  route get b {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should accept every method in the list, in any case", (payload) => {
+  expect(messages(payload)).toEqual([]);
+});
+
+const formats = `proxy {
+  route {
+    respond 200
+  }
+}
+`;
+testFeature(formats, ["/proxy/route()"], "should lint a route with no arguments", (payload) => {
+  expect(messages(payload)).toEqual([]);
+});
+
+testFeature(`proxy {\n  route "example.com" {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should lint a route with only a pattern", (payload) => {
+  expect(messages(payload)).toEqual([]);
+});
+
+testFeature(`proxy {\n  route POST "example.com" {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should lint a route with a method and a pattern", (payload) => {
+  expect(messages(payload)).toEqual([]);
 });
