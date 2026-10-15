@@ -33,7 +33,10 @@ export interface Route {
 export interface ProxyConfig {
   host: string;
   port: number;
+  /** Deprecated top-level `ssl`: certificate that terminates the TLS of `CONNECT` tunnels. */
   ssl: { cert: string; key: string };
+  /** Set by `listen https [host] N [{ ssl { ... } }]`: the proxy listener itself speaks TLS with this certificate. */
+  https?: { cert: string; key: string };
   routes: Route[];
   /** Absolute path of the `.ndjson` transaction log, if configured. */
   logFile?: string;
@@ -151,18 +154,39 @@ export const loadConfig = async (
   const child = (name: string, parent = proxy) => parent?.children.find((c) => c.name === name);
   const resolve = (p: string) => fileURLToPath(new URL(p, url));
   const ssl = child("ssl");
+  // `listen [http|https] [host] port [{ ssl { cert, key } }]`; `port` is an alias of `listen`
+  // (`port 8080` = `listen http 8080`) and `host` is the default host.
+  const listenDirective = child("listen");
+  const portDirective = child("port");
+  if (listenDirective && portDirective) throw new Error("listen y port no se pueden declarar a la vez: port es un alias de listen");
+  const endpoint = listenDirective ?? portDirective;
+  const name = listenDirective ? "listen" : "port";
+  const endpointArgs = [...(endpoint?.args ?? [])];
+  const scheme = typeof endpointArgs[0] === "string" && ["http", "https"].includes(endpointArgs[0]) ? String(endpointArgs.shift()) : "http";
+  const portValue = endpointArgs.pop() ?? 0;
+  if (typeof portValue !== "number") throw new Error(`${name}: el puerto debe ser un número, no "${portValue}"`);
+  const listenHost = endpointArgs.shift();
+  if (endpointArgs.length > 0) throw new Error(`${name}: se esperaba [http|https] [host] puerto`);
+  const listenSsl = child("ssl", endpoint);
   const logFile = child("log_file")?.args[0];
   if (logFile !== undefined && !String(logFile).endsWith(".ndjson")) {
     throw new Error(`log_file ${logFile}: solo se soporta la extensión .ndjson`);
   }
 
   return {
-    host: String(child("host")?.args[0] ?? "127.0.0.1"),
-    port: Number(child("port")?.args[0] ?? 0),
+    host: String(listenHost ?? child("host")?.args[0] ?? "127.0.0.1"),
+    port: portValue,
     ssl: {
       cert: resolve(String(child("cert", ssl)?.args[0] ?? "./certs/cert.pem")),
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),
     },
+    https:
+      scheme === "https"
+        ? {
+            cert: resolve(String(child("cert", listenSsl)?.args[0] ?? "./certs/cert.pem")),
+            key: resolve(String(child("key", listenSsl)?.args[0] ?? "./certs/key.pem")),
+          }
+        : undefined,
     logFile: logFile === undefined ? undefined : resolve(String(logFile)),
     routes: (proxy?.children ?? [])
       .filter((c) => c.name === "route")
@@ -450,10 +474,12 @@ const text = (status: number, body: string): Reply => ({
  */
 export const createProxyServer = ({
   ssl,
+  https: https_,
   routes,
   logFile,
-}: Pick<ProxyConfig, "ssl" | "routes"> & { logFile?: string }) => {
+}: Pick<ProxyConfig, "ssl" | "https" | "routes"> & { logFile?: string }) => {
   ensureCerts(ssl);
+  if (https_) ensureCerts(https_);
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
   if (logFile) mkdirSync(dirname(logFile), { recursive: true });
 
@@ -511,7 +537,11 @@ export const createProxyServer = ({
     res.writeHead(reply.status, reply.headers);
     res.end(reply.body);
   };
-  const server = http.createServer(handle);
+  // With `listen https` the proxy itself speaks TLS (`curl --proxy https://...`).
+  const server: http.Server = https_
+    ? https.createServer({ key: readFileSync(https_.key), cert: readFileSync(https_.cert) }, handle)
+    : http.createServer(handle);
+  if (https_) server.on("tlsClientError", () => {});
 
   // CONNECT tunnels are piped into this loopback HTTPS server instead of wrapping the socket in a
   // `tls.TLSSocket`: Bun 1.3.x never completes the handshake on a wrapped socket.
