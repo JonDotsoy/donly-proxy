@@ -54,6 +54,24 @@ Capturas (tema claro, tema oscuro, una fila expandida con su JSON y la vista en 
 
 ![Vista de logs en un móvil](ui/logs-mobile.png)
 
+Más capturas:
+
+- Buscador: al escribir `kubectl` quedan solo las líneas de esa transacción, con sus procesos hijos con sangría.
+
+  ![Búsqueda de "kubectl" en los logs](ui/logs-search.png)
+
+- Selector de tipo: aquí solo `proxy_pass_response`, con una fila expandida.
+
+  ![Filtro por tipo proxy_pass_response](ui/logs-filter.png)
+
+- Tableta (768 px).
+
+  ![Vista de logs en una tableta](ui/logs-tablet.png)
+
+- Móvil con todos los detalles expandidos y URLs de cientos de caracteres: el texto se parte y nada sobrepasa el ancho de la ventana.
+
+  ![Móvil con detalles expandidos y contenido largo](ui/logs-mobile-expanded.png)
+
 ## Cómo funciona
 
 | Tráfico | Qué hace el proxy |
