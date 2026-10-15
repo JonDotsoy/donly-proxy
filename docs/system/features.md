@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **165** · ✅ pasan: **165** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **167** · ✅ pasan: **167** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -46,7 +46,8 @@ Specs: **165** · ✅ pasan: **165** · 🔴 fallan: **0** · ⏳ sin resultado:
 | its pattern is a real wildcard, not the text 'undefined' | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 202 "catch-all"</code><br><code>}</code> |
 | kubectl command_end logs the console (stdout, stderr and stdin) without changing the response | ✅ | <code>log_file "./console.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "pod/api-0"</code> |
 | kubectl failures are reported as a bad gateway | ✅ | <code>command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass kubectl "pod/api-0" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>}</code><br><code>command_pass kubectl "pod/api-0"</code> |
-| kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options | ✅ | <code>kubectl_pass "-n" "prod" "deploy/api" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
+| kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options | ✅ | <code>kubectl_pass "-n" "prod" "deploy/api" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code><br><code>kubectl_pass {</code><br><code>&nbsp;&nbsp;pod_name "my-pod-12345"</code><br><code>&nbsp;&nbsp;context local-my-context</code><br><code>&nbsp;&nbsp;namespace the-namespace</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
+| kubectl_pass without a positional argument takes the pod from pod_name | ✅ | <code>pod_name "my-pod-12345"</code> |
 | loadConfig reads concurrency, defaulting to 1 | ✅ | <code>concurrency 2</code> |
 | log_file and ssl are resolved relative to the manifest, not the cwd | ✅ | <code>log_file "../out/rel.ndjson"</code><br><code>ssl {</code><br><code>&nbsp;&nbsp;cert "../ssl/cert.pem"</code><br><code>&nbsp;&nbsp;key "../ssl/key.pem"</code><br><code>}</code> |
 | log_file only supports .ndjson | ✅ | <code>log_file "./proxy.log"</code> |
@@ -61,6 +62,7 @@ Specs: **165** · ✅ pasan: **165** · 🔴 fallan: **0** · ⏳ sin resultado:
 | logs the ssh command that was executed, including the remote command | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>&nbsp;&nbsp;command_pass node "--no-warnings"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code> |
 | manifest validation for kubectl | ✅ | <code>command_pass kubectl</code> |
 | manifest validation for kubectl_pass | ✅ | <code>kubectl_pass {</code><br><code>command_pass curl</code><br><code>}</code> |
+| manifest validation for pod_name | ✅ |  |
 | manifest validation for ssh and engine | ✅ | <code>command_pass ssh</code> |
 | manifest.donly configures the proxy | ✅ | <code>host "127.0.0.1"</code><br><code>port 0</code><br><code>ssl {</code><br><code>&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>}</code> |
 | methods other than GET and POST are refused | ✅ | <code>engine wget</code> |
