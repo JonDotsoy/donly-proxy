@@ -38,6 +38,8 @@ especiales para el manifest (`\`, espacios).
 - **Con esquema** (`https://host/*`): se pasa tal cual a `URLPattern`. Si no hay ruta se añade `/*`.
 - **Ruta**: debe coincidir completa. `http://example.com/api` no coincide con `/api/users`; usa
   `/api/*`.
+- **IPv4**: escribe la IP exacta (`192.0.2.1`, `192.0.2.1:8080`). Los comodines no funcionan en una
+  IP: `URLPattern` la canonicaliza (`198.51.100.*` pasa a `198.51.0.100*`).
 - **IPv6**: escapa los `:` dentro de los corchetes, p. ej. `"https://[2001\\:db8\\:\\:1]/*"`.
 
 | Patrón | Coincide con |
