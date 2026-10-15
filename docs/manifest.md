@@ -31,7 +31,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 | `listen` | `[http\|https] [host] puerto [{ ssl { … } }]` | `http 127.0.0.1 0` | Protocolo, dirección y puerto del listener (ver [`listen`](#listen)). |
 | `host` | string | `"127.0.0.1"` | Dirección en la que escucha (IPv4 o IPv6: `"::1"`, `"::"`, `"0:0:0:0:0:0:0:1"`, `"[::1]"`, `"::ffff:127.0.0.1"`). Si se omite, solo escucha en loopback. Un `host` dentro de `listen` tiene prioridad. |
 | `port` | `[http\|https] puerto [{ ssl { … } }]` | `0` | Alias de `listen` sin host: `port 8080` equivale a `listen http 8080`. |
-| `ssl` | bloque | ver abajo | **Deprecado.** Certificado usado para terminar el TLS de los túneles `CONNECT`. No sirve para que el proxy escuche por HTTPS: usa `port https`. |
+| `ssl` | bloque | ver abajo | **Deprecado.** Certificado usado para terminar el TLS de los túneles `CONNECT`. No sirve para que el proxy escuche por HTTPS: usa `listen https`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |
 | `route` | bloque | sin rutas | Regla por petición. Se pueden declarar varias. |
 
