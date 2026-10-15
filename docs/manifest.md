@@ -153,7 +153,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `port` no es un número entre 0 y 65535 | error |
 | `log_file` no es un string que termine en `.ndjson` | error |
 | `ssl.cert` / `ssl.key` no son strings | error |
-| `route` sin exactamente una acción | error |
+| `route` sin exactamente una acción (`respond`, `proxy_pass`, `command_pass`, `kubectl_pass` o `ssh_pass`): cero o dos o más, p. ej. `kubectl_pass` junto a `proxy_pass` | error |
 | `respond` con estado fuera de 100–599 o cuerpo que no es un string | error |
 | `proxy_pass` que no es una URL `http(s)://` | error |
 | Directiva desconocida dentro de `proxy`, `ssl` o `route` | advertencia |

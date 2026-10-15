@@ -29,13 +29,13 @@ const unreachableRoutes = (directive: Directive): LintIssue[] => {
 };
 
 const routeActions = (directive: Directive): LintIssue[] => {
-  const count = directive.children.filter((child) => routeDirectives.includes(child.name)).length;
-  return count === 1
-    ? []
-    : [{
-        severity: "error" as const,
-        message: `route ${directive.args.join(" ")}: se requiere exactamente una acción (${actions.join(", ")}), hay ${count}`
-      }];
+  const found = directive.children.filter((child) => routeDirectives.includes(child.name)).map((child) => child.name);
+  if (found.length === 1) return [];
+  const name = directive.args.length === 0 ? "route" : `route ${directive.args.join(" ")}`;
+  return [{
+    severity: "error",
+    message: `${name}: se requiere exactamente una acción (${actions.join(", ")}), hay ${found.length}${found.length > 0 ? ` (${found.join(", ")})` : ""}`,
+  }];
 };
 
 /** Lint rules for `manifest.donly`, in the `donly/lint` rule-document format. */

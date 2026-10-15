@@ -59,7 +59,7 @@ testFeature(`proxy {\n  ssl {\n    cert 1\n    key 2\n  }\n}\n`, ["/proxy/ssl"],
 testFeature(`proxy {\n  route a {\n  }\n  route b {\n    respond 200\n    proxy_pass "http://x/"\n  }\n}\n`, ["/proxy/route"], "should report an error when a route has not exactly one action", (payload) => {
   expect(messages(payload, "error")).toEqual([
     "route a: se requiere exactamente una acción (respond, proxy_pass, command_pass, kubectl_pass, ssh_pass), hay 0",
-    "route b: se requiere exactamente una acción (respond, proxy_pass, command_pass, kubectl_pass, ssh_pass), hay 2",
+    "route b: se requiere exactamente una acción (respond, proxy_pass, command_pass, kubectl_pass, ssh_pass), hay 2 (respond, proxy_pass)",
   ]);
 });
 
@@ -82,6 +82,12 @@ testFeature(`proxy {\n  tls {\n  }\n  route a {\n    respond 200\n    timeout 5\
 testFeature(`proxy {\n  route {\n    respond 404\n  }\n  route a {\n    respond 200\n  }\n}\n`, ["/proxy/route()"], "should warn about routes declared after a route without arguments", (payload) => {
   expect(messages(payload, "error")).toEqual([]);
   expect(messages(payload, "warning")).toEqual(["ruta inalcanzable: va después de una `route` sin argumentos, que coincide con todo"]);
+});
+
+testFeature(`proxy {\n  route {\n    kubectl_pass {}\n    proxy_pass {}\n  }\n}\n`, ["/proxy/route/kubectl_pass", "/proxy/route/proxy_pass"], "should report an error when a route mixes two passes", (payload) => {
+  expect(messages(payload, "error")).toContain(
+    "route: se requiere exactamente una acción (respond, proxy_pass, command_pass, kubectl_pass, ssh_pass), hay 2 (kubectl_pass, proxy_pass)",
+  );
 });
 
 const run = (payload: string) => {

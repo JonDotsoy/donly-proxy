@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **164** · ✅ pasan: **164** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **165** · ✅ pasan: **165** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -154,6 +154,7 @@ Specs: **164** · ✅ pasan: **164** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject ssh_pass without a destination | ✅ | <code>ssh_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should reject ssh_pass without a nested command_pass | ✅ | <code>ssh_pass "user@remote.test"</code> |
 | should report an error when a route has not exactly one action | ✅ | <code>route a {</code><br><code>}</code><br><code>route b {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;proxy_pass "http://x/"</code><br><code>}</code> |
+| should report an error when a route mixes two passes | ✅ | <code>kubectl_pass {}</code><br><code>proxy_pass {}</code> |
 | should report an error when log_file is not .ndjson | ✅ | <code>log_file "./proxy.log"</code> |
 | should report an error when proxy_pass is not an http url | ✅ | <code>proxy_pass "ftp://x/"</code> |
 | should report an error when ssl cert or key is not a string | ✅ | <code>ssl {</code><br><code>&nbsp;&nbsp;cert 1</code><br><code>&nbsp;&nbsp;key 2</code><br><code>}</code> |
