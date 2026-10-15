@@ -47,9 +47,14 @@ const manifestPayload = `proxy {
     }
   }
   route http://alias.test/ {
-    kubectl_pass {
-      pod_name "pod/api-0"
+    kubectl_pass "pod/api-0" {
       namespaces the-namespace
+      command_pass curl
+    }
+  }
+  route http://podname.test/ {
+    kubectl_pass "pod/api-0" {
+      namespace the-namespace
       command_pass curl
     }
   }
@@ -130,6 +135,13 @@ testFeature(manifestPayload, ["/proxy/route/kubectl_pass"], "should put the sele
 testFeature(manifestPayload, ["/proxy/route/kubectl_pass/namespace"], "should accept namespaces as an alias of namespace", async () => {
   await (await fetch("http://alias.test/", { proxy })).text();
   expect(kubectlOptions()).toEqual(["--namespace", "the-namespace", "pod/api-0"]);
+});
+
+testFeature(manifestPayload, ["/proxy/route/kubectl_pass/namespace"], "should send the namespace to kubectl exec when namespace is defined", async () => {
+  await (await fetch("http://podname.test/", { proxy })).text();
+  const args = readFileSync(argsFile, "utf8").split("\0").slice(0, -1);
+  expect(args.slice(0, 3)).toEqual(["exec", "-i", "-q"]);
+  expect(args.slice(3, args.indexOf("--"))).toEqual(["--namespace", "the-namespace", "pod/api-0"]);
 });
 
 testFeature(manifestPayload, ["/proxy/route/kubectl_pass"], "should not pass --context or --namespace without the selectors", async () => {
