@@ -10,13 +10,14 @@
   header { position: sticky; top: 0; display: flex; gap: 1rem; align-items: center; padding: .5rem 1rem; background: Canvas; border-bottom: 1px solid #8884; }
   header h1 { font-size: 1rem; margin: 0; flex: 1; }
   #status { font-size: .8rem; }
-  table { width: 100%; border-collapse: collapse; font: .8rem ui-monospace, monospace; }
-  td { padding: .2rem .6rem; border-bottom: 1px solid #8882; vertical-align: top; white-space: pre-wrap; word-break: break-all; }
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; font: .8rem ui-monospace, monospace; }
+  td { padding: .2rem .6rem; border-bottom: 1px solid #8882; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+  td:nth-child(1) { width: 6.5rem; } td:nth-child(2) { width: 6rem; } td:nth-child(3) { width: 3.5rem; }
   td.type { font-weight: 600; }
   .request .type { color: #0a7; } .response .type { color: #37f; } .listening .type { color: #a70; }
   .bad .status { color: #d33; }
   tr:hover { background: #8881; cursor: pointer; }
-  pre { margin: 0; }
+  pre { margin: 0; max-width: 100%; max-height: 60vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
