@@ -108,7 +108,9 @@ route {                      # sin argumentos: todas las peticiones
   después de ella nunca se alcanzan.
 - **Orden**: gana la **primera** ruta que coincida; pon las más específicas arriba.
 - **Sin coincidencia**: el proxy responde `200 ok`.
-- Cada `route` debe tener **exactamente una** de estas acciones; con ninguna o con más de una,
+- **Sin cuerpo**: `route {}` (o `route <patrón> {}`) no hace nada: se ignora al cargar el manifiesto,
+  no da error y no tapa a las rutas que van después.
+- Cada `route` con cuerpo debe tener **exactamente una** de estas acciones; con ninguna o con más de una,
   el arranque falla:
 
 | Acción | Qué hace |
@@ -143,7 +145,7 @@ route https?://example.com/ {
 | Causa | Mensaje |
 | --- | --- |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
-| `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
+| `route` con cuerpo pero sin acción, o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |
 | `concurrency` que no es un entero positivo | `route …: concurrency debe ser un entero positivo, no "…"` |

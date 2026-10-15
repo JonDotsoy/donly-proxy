@@ -26,9 +26,11 @@ Una ruta coincide cuando se cumplen ambas condiciones:
 `route { … }` sin argumentos coincide con **todas** las peticiones. Como gana la primera, va al
 **final**: las rutas declaradas después nunca se alcanzan.
 
+`route {}` sin cuerpo no hace nada: se ignora, no da error y no tapa a las rutas siguientes.
+
 ## Acciones
 
-Cada ruta debe tener **exactamente una** acción; con ninguna o con varias el arranque falla.
+Cada ruta con cuerpo debe tener **exactamente una** acción; con ninguna o con varias el arranque falla.
 
 | Acción | Qué hace | Concepto |
 | --- | --- | --- |

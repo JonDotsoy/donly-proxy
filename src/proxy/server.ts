@@ -164,7 +164,8 @@ export const loadConfig = async (
     },
     logFile: logFile === undefined ? undefined : resolve(String(logFile)),
     routes: (proxy?.children ?? [])
-      .filter((c) => c.name === "route")
+      // A route without a body (`route {}`) is a no-op: it is skipped and never shadows later routes.
+      .filter((c) => c.name === "route" && c.children.length > 0)
       .map((route): Route => {
         const name = route.args.join(" ");
         const respond = child("respond", route);

@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **150** · ✅ pasan: **150** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **153** · ✅ pasan: **153** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -14,7 +14,10 @@ Specs: **150** · ✅ pasan: **150** · 🔴 fallan: **0** · ⏳ sin resultado:
 | a failing process frees its place for the next request | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |
 | a GET becomes a fixed wget command line with quoted values | ✅ | <code>engine wget</code> |
 | a later fetch without proxy still adds nothing to the log | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| a route with a body but no action still fails to start | ✅ | <code>route http://a.test/ {</code><br><code>&nbsp;&nbsp;timeout 5</code><br><code>}</code> |
+| a route without a body loads without error and does nothing | ✅ | <code>route {}</code> |
 | a route without arguments matches every request | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 202 "catch-all"</code><br><code>}</code> |
+| an empty route does not shadow the routes declared after it | ✅ | <code>route {}</code><br><code>route http://specific.test/ {}</code><br><code>route http://specific.test/ {</code><br><code>&nbsp;&nbsp;respond 200 "specific"</code><br><code>}</code> |
 | command_pass curl hands the request to curl | ✅ | <code>command_pass curl "--connect-to" "curl.test:80:127.0.0.1:&lt;port&gt;"</code> |
 | command_pass curl reports a bad gateway when curl fails | ✅ | <code>command_pass curl "--connect-to" "dead.test:80:127.0.0.1:&lt;port&gt;"</code> |
 | command_pass curl runs the curl found in PATH | ✅ | <code>command_pass curl "--max-time" "5"</code> |
