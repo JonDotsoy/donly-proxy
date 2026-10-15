@@ -92,10 +92,10 @@ const optionArgs = (name: string, command: string, directive: Directive): string
   ...retryArgs(name, command, directive),
 ];
 
-/** `context <name>` and `namespace <name>` inside a `kubectl_pass` / `command_pass kubectl`: they become `--context` / `--namespace`. */
+/** `context <name>` and `namespace <name>` (alias `namespaces`) inside a `kubectl_pass` / `command_pass kubectl`: they become `--context` / `--namespace`. */
 const selectorArgs = (name: string, directive: Directive, command = "kubectl"): string[] =>
   (["context", "namespace"] as const).flatMap((selector) => {
-    const child = directive.children.find((c) => c.name === selector);
+    const child = directive.children.find((c) => c.name === selector || (selector === "namespace" && c.name === "namespaces"));
     if (!child) return [];
     if (command !== "kubectl") throw new Error(`route ${name}: ${selector} solo aplica a kubectl_pass y command_pass kubectl`);
     const value = child.args[0];

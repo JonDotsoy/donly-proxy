@@ -26,7 +26,7 @@ Service `ClusterIP` que no está expuesto. El proxy ejecuta
 | --- | --- |
 | Argumentos | Opciones de `kubectl exec` seguidas del destino (último): un pod o `tipo/nombre`. Sin destino falla el arranque. |
 | `context <nombre>` | Equivale a `--context`; selecciona el cluster. |
-| `namespace <nombre>` | Equivale a `--namespace`; selecciona el namespace. |
+| `namespace <nombre>` | Equivale a `--namespace`; selecciona el namespace. También se acepta `namespaces` como alias. |
 | `command_pass` hijo | Obligatorio. `curl`, `wget` o `node` (equivale a `engine`); sus argumentos son opciones del comando remoto. |
 
 El `command_pass` hijo admite `concurrency`, `extra_args` y, según el comando, `max_time`,
