@@ -3,7 +3,7 @@
 Reenvía la petición a otro servidor y devuelve su respuesta al cliente.
 
 ```
-route https?://api.example.com/ {
+route http{s}?://api.example.com/* {
   proxy_pass "http://localhost:3000"
 }
 ```
@@ -49,7 +49,7 @@ proxy {
   port 8080
   log_file "./logs/proxy.ndjson"
 
-  route POST https?://example.com/api/ {
+  route POST http{s}?://example.com/api/* {
     proxy_pass "http://localhost:3001"
   }
 }

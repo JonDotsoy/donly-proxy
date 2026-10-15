@@ -5,7 +5,7 @@ forma anidada de [`command_pass kubectl`](command_pass.md): la directiva nombra 
 `command_pass` hijo nombra qué comando corre dentro.
 
 ```
-route https?://api.internal/ {
+route http{s}?://api.internal/* {
   kubectl_pass "deploy/api" {
     context dev
     namespace prod

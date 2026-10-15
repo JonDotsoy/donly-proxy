@@ -34,7 +34,7 @@ const manifestPayload = `proxy {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
   }
-  route http://fake.test/ {
+  route http://fake.test/* {
     command_pass curl "--max-time" "5"
   }
 }

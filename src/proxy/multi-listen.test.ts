@@ -40,10 +40,10 @@ const start = async (name: string, payload: string) => {
 };
 
 const routes = `
-  route http://example.com/ {
+  route http://example.com/* {
     respond 200 "shared good"
   }
-  route https://example.com/ {
+  route https://example.com/* {
     respond 200 "shared good"
   }
 `;

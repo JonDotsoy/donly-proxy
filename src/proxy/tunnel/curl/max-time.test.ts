@@ -27,17 +27,17 @@ chmodSync(join(bin, "curl"), 0o755);
 const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
-  route http://max-time.test/ {
+  route http://max-time.test/* {
     command_pass curl {
       max_time 5
     }
   }
-  route http://combined.test/ {
+  route http://combined.test/* {
     command_pass curl "--insecure" {
       max_time 2.5
     }
   }
-  route http://plain.test/ {
+  route http://plain.test/* {
     command_pass curl
   }
 }

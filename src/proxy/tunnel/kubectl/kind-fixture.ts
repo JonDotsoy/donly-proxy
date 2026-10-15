@@ -110,13 +110,13 @@ const deployed = globalThis as { __donlyKindDeployed?: Promise<void> };
 /** The manifest route that sends `/<engine>/` through the echo pod. */
 const route = (engine: KindEngine) =>
   engine === "node"
-    ? `  route http://${HOST}/node/ {
+    ? `  route http://${HOST}/node/* {
     command_pass kubectl "--context" "${CONTEXT}" "-n" "${NAMESPACE}" "pod/echo" {
       engine node
     }
   }
 `
-    : `  route http://${HOST}/${engine}/ {
+    : `  route http://${HOST}/${engine}/* {
     kubectl_pass "--context" "${CONTEXT}" "-n" "${NAMESPACE}" "pod/echo" {
       command_pass ${engine}
     }
@@ -133,7 +133,7 @@ export const httpbinManifest = `proxy {
   host "127.0.0.1"
   port 0
   log_file "./proxy.ndjson"
-  route https?://httpbin.io/get {
+  route http{s}?://httpbin.io/get {
     kubectl_pass "--context" "${CONTEXT}" "-n" "${NAMESPACE}" "pod/echo" {
       command_pass curl {
         retry 3

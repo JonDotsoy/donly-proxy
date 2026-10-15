@@ -43,10 +43,10 @@ const manifestPayload = (httpPort: number, httpsPort: number) => `proxy {
     cert "./ssl/cert.pem"
     key "./ssl/key.pem"
   }
-  route http://127.0.0.1:${httpPort}/ {
+  route http://127.0.0.1:${httpPort}/* {
     command_pass node "--no-warnings"
   }
-  route https://127.0.0.1:${httpsPort}/ {
+  route https://127.0.0.1:${httpsPort}/* {
     command_pass node "--no-warnings"
   }
 }
@@ -120,7 +120,7 @@ testFeature(payload, ["/proxy/route/command_pass"], "command_pass node performs 
 });
 
 testFeature(
-  `proxy {\n  route http://127.0.0.1:1/ {\n    command_pass node\n  }\n}\n`,
+  `proxy {\n  route http://127.0.0.1:1/* {\n    command_pass node\n  }\n}\n`,
   ["/proxy/route/command_pass"],
   "command_pass node reports a bad gateway when the request fails",
   async () => {
@@ -128,7 +128,7 @@ testFeature(
   const port = await listen(down);
   down.close();
   const manifest = join(dir, "down.donly");
-  writeFileSync(manifest, `proxy {\n  route http://127.0.0.1:${port}/ {\n    command_pass node\n  }\n}\n`);
+  writeFileSync(manifest, `proxy {\n  route http://127.0.0.1:${port}/* {\n    command_pass node\n  }\n}\n`);
   const downProxy = createProxyServer(await loadConfig(manifest));
   await new Promise<void>((resolve) => downProxy.listen(0, "127.0.0.1", resolve));
   try {

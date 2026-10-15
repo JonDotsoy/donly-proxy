@@ -45,7 +45,7 @@ y la respuesta es un `502`. El cuerpo de la petición (stdin) no forma parte de 
 argumentos de la línea `command_pass`, pero escritos como valores sueltos:
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass curl {
     extra_args --foo tar --biz lol
   }
@@ -70,7 +70,7 @@ solo argumento**: el comando se lanza sin shell.
 `"--no-warnings"` (node no imprime avisos de proceso, como los de módulos experimentales):
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass node {
     no_warnings
   }
@@ -89,7 +89,7 @@ route https?://example.com/ {
 (curl no valida el certificado TLS del destino):
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass curl {
     insecure
   }
@@ -107,7 +107,7 @@ route https?://example.com/ {
 `"--max-time" "<segundos>"`:
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass curl {
     max_time 5
   }
@@ -128,7 +128,7 @@ route https?://example.com/ {
 `"--retry" "<n>"` (curl reintenta hasta `n` veces ante errores transitorios):
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass curl {
     retry 5
   }
@@ -148,7 +148,7 @@ la misma ruta mientras hay un proceso en curso, esperan en una cola y se atiende
 llegada**. Para permitir varios procesos en paralelo, usa la directiva hija `concurrency`:
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass curl {
     concurrency 4
   }
@@ -234,7 +234,7 @@ Levanta un proceso `node` que ejecuta la petición con el módulo `http.request`
 o `https.request` (URL `https://`).
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass node "--no-warnings"
 }
 ```
@@ -296,7 +296,7 @@ motor. Sirve para que el tráfico salga desde un host remoto (un bastión, un se
 IP, etc.).
 
 ```
-route https?://example.com/ {
+route http{s}?://example.com/* {
   command_pass ssh "-p" "2222" "-i" "~/.ssh/id_proxy" "user@gateway.example.com" {
     engine curl
   }
@@ -366,7 +366,7 @@ como motor. Sirve para que la petición salga desde dentro del clúster (por eje
 a un servicio interno).
 
 ```
-route https?://api.internal/ {
+route http{s}?://api.internal/* {
   command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
     engine curl
   }
@@ -428,7 +428,7 @@ Forma anidada de [`command_pass kubectl`](#kubectl): la directiva nombra el pod 
 opciones.
 
 ```
-route https?://api.internal/ {
+route http{s}?://api.internal/* {
   kubectl_pass "-n" "prod" "--context" "dev" "deploy/api" {
     command_pass curl "--max-time" "5"
   }
@@ -444,7 +444,7 @@ route https?://api.internal/ {
   (`pod_name ""`, `pod_name 5`) el arranque falla con `pod_name debe ser un nombre`.
 
   ```
-  route https?://api.internal/ {
+  route http{s}?://api.internal/* {
     kubectl_pass {
       pod_name "my-pod-12345"
       context local-my-context
@@ -464,7 +464,7 @@ route https?://api.internal/ {
   `502` (`no running pod matches pod_match …`).
 
   ```
-  route https?://api.internal/ {
+  route http{s}?://api.internal/* {
     kubectl_pass {
       pod_match my-pod-*
       context local-my-context
@@ -478,7 +478,7 @@ route https?://api.internal/ {
   las opciones de la línea y antes del destino:
 
   ```
-  route https?://api.internal/ {
+  route http{s}?://api.internal/* {
     kubectl_pass "deploy/api" {
       context dev
       namespace prod
@@ -531,7 +531,7 @@ directiva nombra el host y el `command_pass` hijo nombra **qué comando se ejecu
 remoto** (`curl`, `wget` o `node`), con sus opciones.
 
 ```
-route https?://api.internal/ {
+route http{s}?://api.internal/* {
   ssh_pass myserver {
     port 2222
     user deploy

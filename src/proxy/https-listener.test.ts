@@ -20,13 +20,13 @@ const manifestPayload = (port: number) => `proxy {
       key "./certs/key.pem"
     }
   }
-  route https://example.com/ {
+  route https://example.com/* {
     respond 200 "secure good"
   }
-  route http://example.com/ {
+  route http://example.com/* {
     respond 200 "plain good"
   }
-  route http://upstream.test/ {
+  route http://upstream.test/* {
     proxy_pass http://127.0.0.1:${port}/
   }
 }
@@ -163,7 +163,7 @@ const ipv6 = process.env.DONLY_TEST_IPV6 ? testFeature : testFeature.skip;
 
 for (const scheme of ["http", "https"]) {
   ipv6(
-    `proxy {\n  listen ${scheme} ::1 0\n  route http://example.com/ {\n    respond 200 "plain good"\n  }\n}\n`,
+    `proxy {\n  listen ${scheme} ::1 0\n  route http://example.com/* {\n    respond 200 "plain good"\n  }\n}\n`,
     ["/proxy/listen"],
     `should serve ${scheme} on the IPv6 loopback with listen ${scheme} ::1 0`,
     async (payload) => {

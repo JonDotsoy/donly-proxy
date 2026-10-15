@@ -35,17 +35,17 @@ let port: number;
 const manifest = (route: string) => `proxy {\n  host "127.0.0.1"\n  port 0\n${route}\n}\n`;
 
 const manifestPayload = (port: number) =>
-  manifest(`  route http://127.0.0.1:${port}/curl/ {
+  manifest(`  route http://127.0.0.1:${port}/curl/* {
     command_pass ssh "-p" "2222" "user@remote.test" {
       engine curl
     }
   }
-  route http://127.0.0.1:${port}/node/ {
+  route http://127.0.0.1:${port}/node/* {
     command_pass ssh "user@remote.test" {
       engine node
     }
   }
-  route http://127.0.0.1:${port}/default/ {
+  route http://127.0.0.1:${port}/default/* {
     command_pass ssh "user@remote.test"
   }`);
 

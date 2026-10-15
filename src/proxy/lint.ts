@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { lint, renderReport } from "donly/lint";
 import type { LintIssue, LintRuleDocument } from "donly/lint";
 import type { Directive } from "donly";
+import { isRouteMethod, routeMethods } from "./route-methods";
 
 const actions = ["respond", "proxy_pass", "command_pass", "kubectl_pass", "ssh_pass"];
 const proxyDirectives = ["listen", "host", "port", "ssl", "log_file", "route"];
@@ -30,6 +31,25 @@ const unreachableRoutes = (directive: Directive): LintIssue[] => {
         severity: "warning" as const,
         message: "ruta inalcanzable: va después de una `route` sin argumentos, que coincide con todo"
       }));
+};
+
+// `route [MÉTODO] <patrón>`: one argument validates only the URL, two validate the method and the URL.
+const routeArguments = (directive: Directive): LintIssue[] => {
+  const { args } = directive;
+  const name = args.length === 0 ? "route" : `route ${args.join(" ")}`;
+  if (args.length > 2) {
+    return [{ severity: "error", message: `${name}: route recibe un patrón o un método y un patrón, hay ${args.length} argumentos` }];
+  }
+  const issues: LintIssue[] = [];
+  const [method] = args.length === 2 ? args : [];
+  if (method !== undefined && !isRouteMethod(method)) {
+    issues.push({ severity: "error", message: `${name}: el método debe ser uno de ${routeMethods.join(", ")}, no "${method}"` });
+  }
+  const pattern = args[args.length - 1];
+  if (pattern !== undefined && typeof pattern !== "string") {
+    issues.push({ severity: "error", message: `${name}: el patrón debe ser un texto, no "${pattern}"` });
+  }
+  return issues;
 };
 
 const routeActions = (directive: Directive): LintIssue[] => {
@@ -66,7 +86,7 @@ export const manifestRules: LintRuleDocument = {
   "/proxy/ssl": { evaluation: unknownChildren(["cert", "key"], "ssl") },
   "/proxy/ssl/cert[1]": { type: "string", message: "ssl.cert debe ser un texto" },
   "/proxy/ssl/key[1]": { type: "string", message: "ssl.key debe ser un texto" },
-  "/proxy/route": { evaluation: (directive) => [...routeActions(directive), ...unknownChildren(routeDirectives, "route")(directive)] },
+  "/proxy/route": { evaluation: (directive) => [...routeArguments(directive), ...routeActions(directive), ...unknownChildren(routeDirectives, "route")(directive)] },
   // The body is optional, so it is checked here instead of with a `[2]` constraint.
   "/proxy/route/respond": {
     evaluation: (directive) => {

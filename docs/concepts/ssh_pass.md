@@ -5,7 +5,7 @@ anidada de [`command_pass ssh`](command_pass.md): la directiva nombra el host y 
 `command_pass` hijo nombra qué comando corre allí.
 
 ```
-route https?://api.internal/ {
+route http{s}?://api.internal/* {
   ssh_pass myserver {
     port 2222
     user deploy

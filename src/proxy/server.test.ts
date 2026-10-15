@@ -27,19 +27,19 @@ const manifestPayload = `proxy {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
   }
-  route https?://pass.test/ {
+  route http{s}?://pass.test/* {
     proxy_pass "${upstreamUrl}"
   }
-  route http://fixed.test/ {
+  route http://fixed.test/* {
     proxy_pass "${upstreamUrl}/fixed"
   }
-  route http://curl.test/ {
+  route http://curl.test/* {
     command_pass curl "--connect-to" "curl.test:80:${upstreamUrl.replace("http://", "")}"
   }
-  route POST http://example.com/ {
+  route POST http://example.com/* {
     respond 201 "created"
   }
-  route https?://example.com/ {
+  route http{s}?://example.com/* {
     respond 200 "good"
   }
 }
@@ -193,13 +193,13 @@ const snapshotPayload = `proxy {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
   }
-  route POST http://example.com/ {
+  route POST http://example.com/* {
     respond 201 "created"
   }
-  route https?://example.com/ {
+  route http{s}?://example.com/* {
     respond 200 "good"
   }
-  route http://pass.test/ {
+  route http://pass.test/* {
     proxy_pass "${upstreamUrl}"
   }
 }
@@ -261,7 +261,7 @@ testFeature(manifestPayload, ["/proxy/route/command_pass"], "command_pass curl h
 });
 
 testFeature(
-  `proxy {\n  route http://dead.test/ {\n    command_pass curl "--connect-to" "dead.test:80:127.0.0.1:1"\n  }\n}\n`,
+  `proxy {\n  route http://dead.test/* {\n    command_pass curl "--connect-to" "dead.test:80:127.0.0.1:1"\n  }\n}\n`,
   ["/proxy/route/command_pass"],
   "command_pass curl reports a bad gateway when curl fails",
   async (payload) => {

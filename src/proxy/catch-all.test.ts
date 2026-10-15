@@ -16,13 +16,13 @@ const manifestPayload = `proxy {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
   }
-  route http://specific.test/ {
+  route http://specific.test/* {
     respond 200 "specific"
   }
   route {
     respond 202 "catch-all"
   }
-  route http://never.test/ {
+  route http://never.test/* {
     respond 200 "unreachable"
   }
 }
