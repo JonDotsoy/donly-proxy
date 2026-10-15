@@ -64,7 +64,8 @@ afterAll(() => {
 
 testFeature(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command_pass"], "logs request, kubectl, node, end node, end kubectl and response as nested transactions", async () => {
   const before = readFileSync(logFile, "utf8").split("\n").filter(Boolean).length;
-  await (await fetch(`http://127.0.0.1:${port}/ping?x=1`, { proxy })).text();
+  // Fixed client headers: the default ones carry the version of the runtime.
+  await (await fetch(`http://127.0.0.1:${port}/ping?x=1`, { proxy, headers: { "user-agent": "test", accept: "*/*", "accept-encoding": "identity" } })).text();
   const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((line) => JSON.parse(line));
 
   // The whole transaction, in order: request → kubectl → node → script → end node → end kubectl → response.
