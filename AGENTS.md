@@ -99,6 +99,13 @@ Cualquier otro título (o sin prefijo) cae en "📦 Otros cambios", sin limpiar.
 español, en minúscula inicial y sin punto final, p. ej. `feat: soporta wget como engine`.
 Los commits `release: vX.Y.Z` los crea el workflow y se omiten de las notas.
 
+## Log `.ndjson`: nombres de los tipos
+
+Formato en `docs/log-format.md`. Al añadir un tipo de línea que abre y cierra algo, nómbralo con
+los sufijos `_start` y `_end` (`command_start`/`command_end`, `script_start`/`script_end`), y
+documéntalo en `docs/log-format.md` y `docs/manifest.md`. Excepciones: `request`/`response` y
+`proxy_pass_request`/`proxy_pass_response` (el `proxy_pass`). Los eventos sueltos no llevan sufijo.
+
 ## Publicación
 
 `publish.yml` es manual (`workflow_dispatch`, bump `patch|minor|major`): instala, corre

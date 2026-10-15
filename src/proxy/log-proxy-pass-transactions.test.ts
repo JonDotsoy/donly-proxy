@@ -60,7 +60,7 @@ testFeature(payload, ["/proxy/log_file", "/proxy/route/proxy_pass"], "logs reque
   const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((line) => JSON.parse(line));
 
   // The whole transaction, in order: request → request proxy_pass → response proxy_pass → response.
-  expect(lines.map((line) => line.type)).toEqual(["request", "request_proxy_pass", "response_proxy_pass", "response"]);
+  expect(lines.map((line) => line.type)).toEqual(["request", "proxy_pass_request", "proxy_pass_response", "response"]);
 
   // The upstream pair is a child of the request and shares one span.
   const [request, proxyPassRequest, proxyPassResponse, response] = lines;

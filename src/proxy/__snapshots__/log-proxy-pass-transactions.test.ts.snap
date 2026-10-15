@@ -37,7 +37,7 @@ exports[`logs request, request proxy_pass, response proxy_pass and response as n
     "target": "http://127.0.0.1:<port>/up?a=b",
     "timestamp": "<timestamp>",
     "transaction_id": "<transaction-1>",
-    "type": "request_proxy_pass",
+    "type": "proxy_pass_request",
     "url": "http://pass.test/up?a=b",
   },
   {
@@ -56,7 +56,7 @@ exports[`logs request, request proxy_pass, response proxy_pass and response as n
     "target": "http://127.0.0.1:<port>/up?a=b",
     "timestamp": "<timestamp>",
     "transaction_id": "<transaction-1>",
-    "type": "response_proxy_pass",
+    "type": "proxy_pass_response",
     "url": "http://pass.test/up?a=b",
   },
   {

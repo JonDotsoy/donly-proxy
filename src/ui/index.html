@@ -14,7 +14,7 @@
   td { padding: .2rem .6rem; border-bottom: 1px solid #8882; vertical-align: top; white-space: pre-wrap; word-break: break-all; }
   td.type { font-weight: 600; }
   .request .type { color: #0a7; } .response .type { color: #37f; } .listening .type { color: #a70; }
-  .request_proxy_pass .type, .response_proxy_pass .type { color: #09c; } .command_start .type, .command_end .type, .script_start .type, .script_exit .type { color: #a3a; } .request_annotation .type, .annotation .type { color: #888; }
+  .proxy_pass_request .type, .proxy_pass_response .type { color: #09c; } .command_start .type, .command_end .type, .script_start .type, .script_end .type { color: #a3a; } .request_annotation .type, .annotation .type { color: #888; }
   .bad .status { color: #d33; }
   tr:hover { background: #8881; cursor: pointer; }
   pre { margin: 0; }
@@ -53,8 +53,8 @@
     tr.className = `${entry.type} ${code >= 400 ? "bad" : ""}`;
     const what = entry.type === "listening" ? `${entry.host}:${entry.port}`
       : entry.type === "command_start" ? [entry.program, ...(entry.args ?? [])].join(" ")
-      : entry.type === "command_end" || entry.type === "script_exit" ? `${entry.program} exit ${entry.exit_code}`
-      : entry.type === "request_proxy_pass" || entry.type === "response_proxy_pass" ? `${entry.method} ${entry.target}`
+      : entry.type === "command_end" || entry.type === "script_end" ? `${entry.program} exit ${entry.exit_code}`
+      : entry.type === "proxy_pass_request" || entry.type === "proxy_pass_response" ? `${entry.method} ${entry.target}`
       : [entry.method, entry.url ?? entry.raw].filter(Boolean).join(" ");
     tr.append(
       cell(entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ""),

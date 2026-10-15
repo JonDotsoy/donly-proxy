@@ -56,7 +56,7 @@ test("nested commands link each child to its parent and end with their own span"
 
   const all = await lines();
   expect(all.map((line) => `${line.type}${line.program ? `:${line.program}` : ""}`)).toEqual([
-    "request", "command_start:kubectl", "command_start:node", "script_start:node", "command_end:node", "script_exit:node", "command_end:kubectl", "response",
+    "request", "command_start:kubectl", "command_start:node", "script_start:node", "command_end:node", "script_end:node", "command_end:kubectl", "response",
   ]);
   const [, kubectlStart, nodeStart, script, nodeEnd, , kubectlEnd, response] = all;
   expect(kubectlStart).toMatchObject({ parent_span_id: transaction.spanId, args: ["exec", "-i", "pod/api-0", "--", "node", "-"], command: ["kubectl", "exec", "-i", "pod/api-0", "--", "node", "-"] });
@@ -68,14 +68,14 @@ test("nested commands link each child to its parent and end with their own span"
   expect(new Set(all.map((line) => line.transaction_id)).size).toBe(1);
 });
 
-test("proxyPass writes request_proxy_pass and response_proxy_pass as a child of the request", async () => {
+test("proxyPass writes proxy_pass_request and proxy_pass_response as a child of the request", async () => {
   const { lines, transaction } = setup();
   const upstream = transaction.proxyPass.openTransaction({ method: "POST", target: "http://up.test/a?b=1", headers: { "x-custom": "1" }, body: Buffer.from("ping") });
   upstream.end({ status: 201, headers: { "content-type": "text/plain" }, body: Buffer.from("created") });
   upstream.end({ status: 500, headers: {}, body: Buffer.alloc(0) });
   transaction.response(reply);
   const all = await lines();
-  expect(all.map((line) => line.type)).toEqual(["request", "request_proxy_pass", "response_proxy_pass", "response"]);
+  expect(all.map((line) => line.type)).toEqual(["request", "proxy_pass_request", "proxy_pass_response", "response"]);
   const [, start, end] = all;
   expect(start).toMatchObject({ span_id: upstream.spanId, parent_span_id: transaction.spanId, target: "http://up.test/a?b=1", headers: { "x-custom": "1" }, payload: "ping" });
   expect(end).toMatchObject({ span_id: upstream.spanId, parent_span_id: transaction.spanId, status: 201, payload: "created" });

@@ -2,14 +2,14 @@
 
 > Estado: **implementado en este PR** (el plan se conserva como registro de las decisiones). Base: `develop` en `v0.0.12`.
 >
-> Pendiente: renombrar `createLogger_experimental` a `createLogger` y las dudas D2, D3 (`script_exit`) y D5 (anotaciones automáticas), que se dejaron como en las recomendaciones sin implementar `annotation` en el servidor.
+> Pendiente: renombrar `createLogger_experimental` a `createLogger` y las dudas D2 y D5 (anotaciones automáticas), que se dejaron como en las recomendaciones sin implementar `annotation` en el servidor.
 
 ## 1. Situación actual
 
 No existe un `Logger`. El log es un cierre `log` dentro de `createProxyServer` (`src/proxy/server.ts:425`) que añade `timestamp` y `performance_timestamp` y escribe una línea en el `.ndjson`. Hay tres piezas mezcladas:
 
 - `handle` crea un objeto `transaction` (`transaction_id`, `http_version`, `method`, `url`) y lo esparce en cada línea (`request`, líneas de comando, `response`).
-- `commandPass` (`server.ts:337`) traduce los callbacks de los túneles (`onCommand`, `onScript`, `onConsole`, `onExit`) en líneas `command`, `script`, `command_exit` y `script_exit` (nombres actuales).
+- `commandPass` (`server.ts:337`) traduce los callbacks de los túneles (`onCommand`, `onScript`, `onConsole`, `onExit`) en líneas `command`, `script`, `command_exit` y `script_exit` (nombres antes de este cambio).
 - Los túneles (`src/proxy/tunnel/**`, `run.ts`) solo llaman callbacks; no saben nada del log.
 
 Consecuencias que motivan el cambio:
@@ -95,6 +95,8 @@ Notas de diseño:
 
 ## 3. Líneas `.ndjson` por llamada
 
+**Norma de nombres:** todo tipo nuevo que abre y cierra algo lleva los sufijos `_start` y `_end` (`command_start`/`command_end`, `script_start`/`script_end`). Excepciones: `request`/`response` y el par del `proxy_pass`, que se llama `proxy_pass_request`/`proxy_pass_response`. Los eventos sueltos (`request_annotation`, `annotation`, `listening`) no llevan sufijo. Quedó escrita en `docs/log-format.md` y en `AGENTS.md`.
+
 Campos comunes de siempre: `timestamp`, `performance_timestamp`, `type`. Campos de transacción (los ya existentes, más dos nuevos): `transaction_id`, `http_version`, `method`, `url`, **`span_id`** y **`parent_span_id`** (este último ausente en la raíz).
 
 | Llamada | Línea generada |
@@ -104,13 +106,13 @@ Campos comunes de siempre: `timestamp`, `performance_timestamp`, `type`. Campos 
 | `.command.openTransaction({program,args})` | `{ …comunes, type: "command_start", span_id, parent_span_id, program, args, command: [program, ...args] }` |
 | `.script.openTransaction({script})` | `{ …comunes, type: "script_start", span_id, parent_span_id, program: "node", script }` (`parent_span_id` = span del comando `node`) |
 | `.end(code, logs)` en un comando | `{ …comunes, type: "command_end", span_id, parent_span_id, program, exit_code, console_log }` |
-| `.proxyPass.openTransaction({method,target,headers,body})` | `{ …comunes, type: "request_proxy_pass", span_id, parent_span_id, target, headers, payload, payload_encoding? }` (lo que se envía al destino) |
-| `.end(reply)` en un `proxy_pass` | `{ …comunes, type: "response_proxy_pass", span_id, parent_span_id, target, status, headers, payload, payload_encoding? }` (mismo `span_id` que su `request_proxy_pass`) |
+| `.proxyPass.openTransaction({method,target,headers,body})` | `{ …comunes, type: "proxy_pass_request", span_id, parent_span_id, target, headers, payload, payload_encoding? }` (lo que se envía al destino) |
+| `.end(reply)` en un `proxy_pass` | `{ …comunes, type: "proxy_pass_response", span_id, parent_span_id, target, status, headers, payload, payload_encoding? }` (mismo `span_id` que su `proxy_pass_request`) |
 | `.response(reply)` | `{ …comunes, type: "response", span_id, status, headers, payload, command? }` (igual que hoy) |
 
 - `annotation` en un comando lleva el mismo `type: "request_annotation"` en la raíz; en hijos se propone `type: "annotation"` con el mismo cuerpo. Ver duda D4.
 - `command` se conserva (lista completa) además de `program` y `args`, para no romper `response.command`, tests ni la UI actuales.
-- `script_exit`: si el comando tuvo `script`, `end` emite además `script_exit` justo después de `command_end` (compatibilidad, ver D3).
+- `script_end`: si el comando tuvo `script`, `end` emite además `script_end` justo después de `command_end`, cerrando el `script_start` (sustituye al antiguo `script_exit`, ver D3).
 
 ### Ejemplo (`kubectl_pass` con motor `node`)
 
@@ -121,7 +123,7 @@ Campos comunes de siempre: `timestamp`, `performance_timestamp`, `type`. Campos 
 {"type":"command_start","transaction_id":"T","span_id":"C","parent_span_id":"B","program":"node","args":["--input-type=module","-"], …}
 {"type":"script_start","transaction_id":"T","span_id":"D","parent_span_id":"C","program":"node","script":"…"}
 {"type":"command_end","transaction_id":"T","span_id":"C","parent_span_id":"B","program":"node","exit_code":0,"console_log":[…]}
-{"type":"script_exit","transaction_id":"T","span_id":"C","parent_span_id":"B","program":"node","exit_code":0,"console_log":[…]}
+{"type":"script_end","transaction_id":"T","span_id":"C","parent_span_id":"B","program":"node","exit_code":0,"console_log":[…]}
 {"type":"command_end","transaction_id":"T","span_id":"B","parent_span_id":"A","program":"kubectl","exit_code":0,"console_log":[…]}
 {"type":"response","transaction_id":"T","span_id":"A","status":200, …}
 ```
@@ -148,7 +150,7 @@ Los túneles **no** cambian de interfaz: `run.ts` y los motores siguen exponiend
 | `onCommand` emite `command` y, con `kubectl`, un segundo `command` del motor (un solo callback para dos procesos) | `onCommand` abre `logger.command.openTransaction(...)`; con `kubectl` abre el hijo con `kubectlLogger.command.openTransaction(...)` |
 | `onScript` guarda el script y `onCommand` emite `script` | `onScript` llama `nodeLogger.script.openTransaction(...)` (en la transacción del `node`) |
 | `onConsole` acumula `consoleLog` | igual, pero `run.ts` añade `timestamp` a cada `ConsoleEntry` |
-| `onExit` emite `command_exit` (×2 en kubectl) y `script_exit` | `onExit` llama `end(code, consoleLog)` en el hijo y luego en el padre |
+| `onExit` emite `command_exit` (×2 en kubectl) y `script_end` | `onExit` llama `end(code, consoleLog)` en el hijo y luego en el padre |
 | `fetch` de `forward()` sin registro | `proxyPass.openTransaction(...)` antes del `fetch` y `end(reply)` al recibir la respuesta (o el 502) |
 | `log({ type: "response", … })` | `logger.response(reply)` |
 | `log({ type: "listening", … })` | `logger.listening(host, port)` |
@@ -159,14 +161,14 @@ Casos por motor:
 - **node local**: `command_start(node)` + `script_start` → `command_end`.
 - **ssh**: `command_start(ssh …)` (el comando remoto va dentro de `args`, como hoy). Sin hijo, salvo que se decida modelar el motor remoto (D2).
 - **kubectl**: padre `kubectl exec`, hijo con el motor (`curl`/`node`); el hijo lleva el `script` si es `node`.
-- **proxy_pass**: `request` → `request_proxy_pass` → `response_proxy_pass` → `response`. `forward()` abre la transacción con la petición que arma (método, URL destino con las reglas de ruta y query, cabeceras sin las hop-by-hop) y la cierra con lo que responde el destino; si el destino falla (502), se cierra con ese 502. El `response` al cliente se escribe después.
+- **proxy_pass**: `request` → `proxy_pass_request` → `proxy_pass_response` → `response`. `forward()` abre la transacción con la petición que arma (método, URL destino con las reglas de ruta y query, cabeceras sin las hop-by-hop) y la cierra con lo que responde el destino; si el destino falla (502), se cierra con ese 502. El `response` al cliente se escribe después.
 - **respond**: solo `request` (+ anotaciones) y `response`.
 
 Anotaciones iniciales sugeridas (opcionales, no se emiten hoy): ruta que coincidió (`route`, patrón) y espera por el semáforo de `concurrency` (`queued_ms`). Se incluyen solo si se acepta D5.
 
 ## 6. Compatibilidad
 
-- **Campos existentes**: se conservan todos (`transaction_id`, `command`, `payload`, `exit_code`, `console_log`, `script_exit`) salvo los tipos `command` y `command_exit`, que se renombran (ver D9). Lo demás es aditivo: `span_id`, `parent_span_id`, `program`/`args` separados, `timestamp` por entrada de `console_log` y `request_annotation`.
+- **Campos existentes**: se conservan todos (`transaction_id`, `command`, `payload`, `exit_code`, `console_log`, `script_end`) salvo los tipos `command` y `command_exit`, que se renombran (ver D9). Lo demás es aditivo: `span_id`, `parent_span_id`, `program`/`args` separados, `timestamp` por entrada de `console_log` y `request_annotation`.
 - **Cambio de comportamiento (único)**: con `kubectl` ya no hay dos `command_exit` idénticos: cada proceso emite su `command_start` y su `command_end`, y cada uno cierra con su propio `console_log` (el del padre trae el tráfico de `kubectl`, el del hijo el del motor). Hoy ambos traen lo mismo. Recomendación en D1.
 - **Archivos antiguos**: un `.ndjson` sin `span_id` sigue siendo válido; la UI debe tratarlo como lista plana.
 - **`docs/log-format.md`**: documentar `span_id`, `parent_span_id`, `request_annotation`, el `timestamp` de `console_log` y el nuevo orden de cierre.
@@ -202,7 +204,7 @@ Antes de abrir el PR de implementación: `bun test` y `bun run features` (regene
 2. **Hecho en este PR:** módulo `src/proxy/logger/` con `createLogger_experimental(writable)` (mismas llamadas del §2) y sus tests unitarios. Aún no está conectado al servidor; al conectarlo se renombra a `createLogger`.
 3. `run.ts` y `ConsoleEntry`: añadir `timestamp`; ajustar los tests que comparan `console_log` exacto.
 4. Reemplazar `log` en `createProxyServer` por `createLogger(writable)` (el `writable` descrito en §2, renombrando desde `createLogger_experimental`): `request`, `response` y `listening` (sin cambio de salida salvo `span_id`).
-5. Migrar `commandPass` a transacciones (curl/wget/node primero, luego ssh y kubectl con hijo). Quitar `script_exit` duplicado solo si D3 lo decide.
+5. Migrar `commandPass` a transacciones (curl/wget/node primero, luego ssh y kubectl con hijo).
 6. Anotaciones iniciales (D5), si se aprueban.
 7. UI: sangría, `request_annotation`, columnas de comando.
 8. Docs: `log-format.md`, `manifest.md` si cambia algo observable, `concepts/command_pass.md`, `kubectl_pass.md`.
@@ -214,7 +216,7 @@ Antes de abrir el PR de implementación: `bun test` y `bun run features` (regene
 | --- | --- | --- |
 | D1 | Con `kubectl`, ¿un `command_end` por proceso (cada uno con su `console_log`) o mantener los dos idénticos de hoy? | **Uno por proceso.** Cada child_process emite un `command_start` al iniciar y un `command_end` al terminar; el árbol ya expresa la relación y el duplicado solo existía porque no había ids. Se avisa en `log-format.md`. |
 | D2 | ¿Modelar el motor remoto de `ssh` como transacción hija (como `kubectl`)? | **No por ahora**: el remoto va dentro de `args` y no hay segundo proceso local. Se puede añadir sin romper nada. |
-| D3 | ¿Conservar `script_exit` además de `command_end`? | **Sí en esta entrega**, marcado como obsoleto en docs; retirarlo en el siguiente minor. |
+| D3 | ¿Mantener una línea que cierre el script además de `command_end`? | **Sí: `script_end`** (antes `script_exit`), pareja de `script_start`, justo después de `command_end` del proceso que lo ejecutó. |
 | D4 | `annotation` en una transacción hija: ¿`type: "annotation"` o siempre `request_annotation`? | **`request_annotation` solo en la raíz y `annotation` en hijos**, así el nombre no miente. |
 | D5 | ¿Emitir anotaciones automáticas (ruta que coincidió, espera de `concurrency`)? | **Sí, solo `route`** (patrón y método). La espera se deja para otra iteración. |
 | D6 | `Logger` ¿estático global (`Logger.request…`) o creado por el sistema? | **Creado por el sistema** con `createLogger_experimental(writable)`, una instancia por servidor. Varios servidores con distinto `log_file` conviven en el mismo proceso (los tests lo hacen); un global los mezclaría. |

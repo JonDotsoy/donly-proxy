@@ -106,7 +106,7 @@ cluster(manifestPayload, ["/proxy/route/kubectl_pass"], "echo-pod is not reachab
     ["command_start", "node"],
     ["script_start", "node"],
     ["command_end", "node"],
-    ["script_exit", "node"],
+    ["script_end", "node"],
     ["command_end", "kubectl"],
     ["response", undefined],
   ]);

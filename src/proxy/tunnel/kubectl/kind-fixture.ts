@@ -202,7 +202,7 @@ export const echoTest = (engine: KindEngine, kind: ReturnType<typeof useKind>) =
     const response = entries.find((entry) => entry.type === "response");
     expect(entries.map((entry) => entry.type)).toEqual(
       engine === "node"
-        ? ["request", "command_start", "command_start", "script_start", "command_end", "script_exit", "command_end", "response"]
+        ? ["request", "command_start", "command_start", "script_start", "command_end", "script_end", "command_end", "response"]
         : ["request", "command_start", "command_start", "command_end", "command_end", "response"],
     );
     expect(request).toMatchObject({ type: "request", method: "POST", url, headers: { "x-custom": "abc" }, payload: "payload" });

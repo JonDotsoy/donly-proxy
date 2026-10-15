@@ -45,7 +45,7 @@ export interface ProxyPassInfo {
 
 export interface ProxyPassTransaction {
   readonly spanId: string;
-  /** Writes `response_proxy_pass` with what the upstream answered. Only the first call writes. */
+  /** Writes `proxy_pass_response` with what the upstream answered. Only the first call writes. */
   end(reply: Omit<ResponseInfo, "command">): void;
 }
 
@@ -68,7 +68,7 @@ export interface CommandTransaction extends Spans {
   readonly spanId: string;
   annotation(data: Record<string, unknown>): void;
   readonly script: { openTransaction(info: ScriptInfo): void };
-  /** Closes the command: `command_end` (plus `script_exit` when it ran a script). Only the first call writes. */
+  /** Closes the command: `command_end` (plus `script_end` when it ran a script). Only the first call writes. */
   end(exitCode: number | null, logs: ConsoleLogEntry[]): void;
 }
 
@@ -134,7 +134,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
         for (const child of [...children].reverse()) child.end(null, []);
         open.delete(command);
         write({ ...common, type: "command_end", program: info.program, exit_code: exitCode, console_log: logs });
-        if (scriptProgram) write({ ...common, type: "script_exit", program: scriptProgram, exit_code: exitCode, console_log: logs });
+        if (scriptProgram) write({ ...common, type: "script_end", program: scriptProgram, exit_code: exitCode, console_log: logs });
       },
     };
     open.add(command);
@@ -166,14 +166,14 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
             openTransaction: (info) => {
               const proxyPassSpanId = randomUUID();
               const common = { ...transaction, span_id: proxyPassSpanId, parent_span_id: spanId, target: info.target };
-              write({ ...common, type: "request_proxy_pass", headers: info.headers, ...encodePayload(info.body) });
+              write({ ...common, type: "proxy_pass_request", headers: info.headers, ...encodePayload(info.body) });
               let ended = false;
               return {
                 spanId: proxyPassSpanId,
                 end: (reply) => {
                   if (ended) return;
                   ended = true;
-                  write({ ...common, type: "response_proxy_pass", status: reply.status, headers: reply.headers, ...encodePayload(reply.body) });
+                  write({ ...common, type: "proxy_pass_response", status: reply.status, headers: reply.headers, ...encodePayload(reply.body) });
                 },
               };
             },

@@ -162,7 +162,7 @@ exports[`log_file snapshot 1`] = `
     "target": "http://127.0.0.1:<port>/up?a=b",
     "timestamp": "<timestamp>",
     "transaction_id": "<transaction-5>",
-    "type": "request_proxy_pass",
+    "type": "proxy_pass_request",
     "url": "http://pass.test/up?a=b",
   },
   {
@@ -179,7 +179,7 @@ exports[`log_file snapshot 1`] = `
     "target": "http://127.0.0.1:<port>/up?a=b",
     "timestamp": "<timestamp>",
     "transaction_id": "<transaction-5>",
-    "type": "response_proxy_pass",
+    "type": "proxy_pass_response",
     "url": "http://pass.test/up?a=b",
   },
   {

@@ -70,7 +70,7 @@ testFeature(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command_pass
 
   // The whole transaction, in order: request → kubectl → node → script → end node → end kubectl → response.
   const kinds = lines.map((line) => (line.type === "command_start" || line.type === "command_end" ? `${line.type}:${line.program}` : line.type));
-  expect(kinds).toEqual(["request", "command_start:kubectl", "command_start:node", "script_start", "command_end:node", "script_exit", "command_end:kubectl", "response"]);
+  expect(kinds).toEqual(["request", "command_start:kubectl", "command_start:node", "script_start", "command_end:node", "script_end", "command_end:kubectl", "response"]);
 
   // Parent/child links: request ← kubectl ← node ← script, and every end shares the span of its command.
   const [request, kubectl, node, script, nodeEnd, , kubectlEnd, response] = lines;

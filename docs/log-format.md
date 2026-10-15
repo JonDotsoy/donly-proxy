@@ -14,13 +14,19 @@ Todas las líneas incluyen:
 
 Las líneas de una transacción añaden `transaction_id` (UUID compartido por todas sus líneas), `http_version`, `method` y `url` (completa, sin `:443`).
 
+## Convención de nombres de los tipos
+
+- Un tipo nuevo que **abre y cierra** algo (un proceso, un script) se nombra con el sufijo `_start` al abrir y `_end` al cerrar: `command_start` y `command_end`, `script_start` y `script_end`. Las dos líneas comparten `span_id`.
+- Excepción: la petición y su respuesta se llaman `request` y `response`, sin sufijo. Lo mismo vale para el par que cubre el envío al destino de un `proxy_pass`: `proxy_pass_request` y `proxy_pass_response`.
+- Los eventos sueltos, que no abren ni cierran nada (`listening`, `request_annotation`, `annotation`), no llevan sufijo.
+
 ## Transacciones anidadas
 
 Cada petición es una **transacción** y todo lo que hace por debajo (cada proceso que ejecuta, la petición que envía al destino de un `proxy_pass`) es una transacción **hija**. Se enlazan con dos campos:
 
 | Campo | Descripción |
 | --- | --- |
-| `span_id` | UUID propio de la transacción. Las líneas que la abren y la cierran lo comparten (`command_start` y `command_end`, `request_proxy_pass` y `response_proxy_pass`; `request` y `response`). |
+| `span_id` | UUID propio de la transacción. Las líneas que la abren y la cierran lo comparten (`command_start` y `command_end`, `proxy_pass_request` y `proxy_pass_response`; `request` y `response`). |
 | `parent_span_id` | `span_id` de la transacción que la abrió. Ausente en `request`. |
 
 `transaction_id` sigue siendo el de la petición y lo comparte todo el árbol. Un hijo siempre se cierra antes que su padre.
@@ -32,18 +38,18 @@ Cada petición es una **transacción** y todo lo que hace por debajo (cada proce
 | `listening` | Al arrancar. | `host`, `port` (el real si `port` es `0`). |
 | `request` | Petición recibida. | `span_id`, `headers`, `payload`, y `payload_encoding: "base64"` si no es UTF-8. |
 | `request_annotation` | Datos propios que se adjuntan a la petición. | `span_id`, `annotation`. |
-| `request_proxy_pass` | Antes de enviar la petición al destino de una ruta `proxy_pass`. | `span_id`, `parent_span_id`, `target` (URL del destino), `headers`, `payload`. |
-| `response_proxy_pass` | Cuando el destino responde (o falla: `502`). | `span_id`, `parent_span_id`, `target`, `status`, `headers`, `payload`. |
+| `proxy_pass_request` | Antes de enviar la petición al destino de una ruta `proxy_pass`. | `span_id`, `parent_span_id`, `target` (URL del destino), `headers`, `payload`. |
+| `proxy_pass_response` | Cuando el destino responde (o falla: `502`). | `span_id`, `parent_span_id`, `target`, `status`, `headers`, `payload`. |
 | `command_start` | Cuando arranca un proceso de una ruta `command_pass`, `kubectl_pass` o `ssh_pass`. | `span_id`, `parent_span_id`, `program`, `args`, `command` (programa y argumentos). Con `kubectl` hay dos: `kubectl exec …` y, hijo suyo, el del motor remoto. |
 | `annotation` | Datos propios que se adjuntan a un proceso. | `span_id`, `parent_span_id`, `annotation`. |
 | `script_start` | Motor `node` (local o remoto), justo después de `command_start`. | `parent_span_id` (el proceso `node`), `program: "node"`, `script` (lo que se envía por stdin). |
 | `command_end` | **Siempre** al terminar cada proceso. | `span_id`, `parent_span_id`, `program`, `exit_code`, `console_log`. |
-| `script_exit` | Al terminar un script (motor `node`), justo después de su `command_end`. | `program: "node"`, `exit_code`, `console_log`. |
+| `script_end` | Al terminar un script (motor `node`), justo después de su `command_end`. | `program: "node"`, `exit_code`, `console_log`. |
 | `response` | Respuesta enviada al cliente. | `span_id`, `status`, `headers`, `payload`, `payload_encoding`, y `command` en rutas con comando. |
 
-Orden de una transacción con `proxy_pass`: `request` → `request_proxy_pass` → `response_proxy_pass` → `response`.
+Orden de una transacción con `proxy_pass`: `request` → `proxy_pass_request` → `proxy_pass_response` → `response`.
 
-Orden de una transacción con comando: `request` → `command_start` (→ `command_start` hijo → `script_start`) → `command_end` del hijo (→ `script_exit`) → `command_end` del padre → `response`.
+Orden de una transacción con comando: `request` → `command_start` (→ `command_start` hijo → `script_start`) → `command_end` del hijo (→ `script_end`) → `command_end` del padre → `response`.
 
 ## `command_end`: `exit_code` y `console_log`
 
