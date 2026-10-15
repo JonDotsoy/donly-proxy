@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { argument, flag, flags } from "@jondotsoy/flags";
 import pkg from "../../package.json";
+import { lintManifestFile } from "../proxy/lint";
 import { createProxyServer, loadConfig } from "../proxy/server";
 import { createUiServer } from "../ui/server";
 
@@ -31,6 +32,11 @@ if (options.help) {
 if (options.version) {
   console.log(pkg.version);
   process.exit(0);
+}
+
+// Lint errors abort the start; warnings are printed and let it continue.
+if (!(await lintManifestFile(options.manifest ?? new URL("../../manifest.donly", import.meta.url)))) {
+  process.exit(1);
 }
 
 const config = await loadConfig(options.manifest);
