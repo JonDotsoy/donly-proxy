@@ -91,9 +91,13 @@ testFeature(`proxy {\n  route {\n    kubectl_pass {}\n    proxy_pass {}\n  }\n}\
 testFeature(`proxy {\n  host "127.0.0.1"\n  port 8080\n}\n`, ["/proxy/host", "/proxy/port"], "should warn that host and port are deprecated", (payload) => {
   expect(messages(payload, "error")).toEqual([]);
   expect(messages(payload, "warning")).toEqual([
-    "`host` está deprecada y se eliminará en una versión futura",
-    "`port` está deprecada y se eliminará en una versión futura",
+    "`host` está deprecada y se eliminará en una versión futura: usa `listen`",
+    "`port` está deprecada y se eliminará en una versión futura: usa `listen`",
   ]);
+});
+
+testFeature(`proxy {\n  listen http 127.0.0.1 8080\n}\n`, ["/proxy/listen"], "should not warn about listen", (payload) => {
+  expect(lintManifest(payload)).toEqual([]);
 });
 
 const run = (payload: string) => {

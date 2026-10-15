@@ -5,7 +5,7 @@ import type { LintIssue, LintRuleDocument } from "donly/lint";
 import type { Directive } from "donly";
 
 const actions = ["respond", "proxy_pass", "command_pass", "kubectl_pass", "ssh_pass"];
-const proxyDirectives = ["host", "port", "ssl", "log_file", "route"];
+const proxyDirectives = ["listen", "host", "port", "ssl", "log_file", "route"];
 const routeDirectives = actions;
 
 const unknownChildren = (known: string[], where: string) => (directive: Directive): LintIssue[] =>
@@ -17,7 +17,7 @@ const unknownChildren = (known: string[], where: string) => (directive: Directiv
     }));
 
 const deprecated = (name: string) => (): LintIssue[] => [
-  { severity: "warning", message: `\`${name}\` está deprecada y se eliminará en una versión futura` },
+  { severity: "warning", message: `\`${name}\` está deprecada y se eliminará en una versión futura: usa \`listen\`` },
 ];
 
 // A `route` with no arguments matches everything: whatever follows it is unreachable.

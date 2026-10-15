@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **214** · ✅ pasan: **214** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -122,6 +122,7 @@ Specs: **214** · ✅ pasan: **214** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should not pass --no-warnings to node with no_warnings false | ✅ | <code>no_warnings</code><br><code>no_warnings true</code><br><code>no_warnings false</code><br><code>no_warnings</code> |
 | should not pass --no-warnings to node without no_warnings | ✅ | <code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings true</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings false</code><br><code>}</code><br><code>command_pass node "--max-old-space-size=64" {</code><br><code>&nbsp;&nbsp;extra_args --no-deprecation</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node</code> |
 | should not pass --retry to curl without retry | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;retry 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;retry 0</code><br><code>}</code><br><code>command_pass curl</code> |
+| should not warn about listen | ✅ | <code>listen http 127.0.0.1 8080</code> |
 | should only deliver a log line once it is complete | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should only warn about unknown directives | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;tls {</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route a {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;timeout 5</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should parse the syntax: host directive + port keeps the host | ✅ | <code>host "::1"</code><br><code>port 0</code> |
