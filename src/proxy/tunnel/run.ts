@@ -25,15 +25,15 @@ export const run = (
     const err: Buffer[] = [];
     child.stdout.on("data", (chunk) => {
       out.push(chunk);
-      onConsole?.({ type: "stdout", message: chunk.toString() });
+      onConsole?.({ type: "stdout", timestamp: new Date().toISOString(), message: chunk.toString() });
     });
     child.stderr.on("data", (chunk) => {
       err.push(chunk);
-      onConsole?.({ type: "stderr", message: chunk.toString() });
+      onConsole?.({ type: "stderr", timestamp: new Date().toISOString(), message: chunk.toString() });
     });
     child.on("error", reject);
     child.stdin.on("error", () => {});
-    onConsole?.({ type: "stdin", message: input.toString() });
+    onConsole?.({ type: "stdin", timestamp: new Date().toISOString(), message: input.toString() });
     child.stdin.end(input);
     child.on("close", (code) => {
       onExit?.(code);

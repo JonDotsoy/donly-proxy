@@ -232,8 +232,13 @@ testFeature(snapshotPayload, ["/proxy/log_file"], "log_file snapshot", async (pa
       entry.timestamp = "<timestamp>";
       delete entry.performance_timestamp; // a high-resolution clock reading: never the same twice
       if (entry.headers.date) entry.headers.date = "<date>";
-      if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${ids.size + 1}>`);
+      if (!ids.has(entry.transaction_id)) ids.set(entry.transaction_id, `<transaction-${[...ids.values()].filter((v) => v.startsWith("<transaction-")).length + 1}>`);
       entry.transaction_id = ids.get(entry.transaction_id);
+      for (const key of ["span_id", "parent_span_id"]) {
+        if (entry[key] === undefined) continue;
+        if (!ids.has(entry[key])) ids.set(entry[key], `<span-${[...ids.values()].filter((v) => v.startsWith("<span-")).length + 1}>`);
+        entry[key] = ids.get(entry[key]);
+      }
       return JSON.parse(JSON.stringify(entry).replaceAll(upstreamUrl.split(":").pop()!, "<port>"));
     });
 

@@ -30,7 +30,18 @@ curl -k -x http://127.0.0.1:8080 https://example.com/        # -> ok
 `--ui` levanta, además del proxy, un servidor HTTP con una página que muestra el
 [`log_file`](manifest.md#log_file) en tiempo real: al abrirla muestra las últimas 200 líneas y luego
 las nuevas, que llegan por Server-Sent Events (`GET /events`). Pulsa una fila para ver el JSON
-completo.
+completo (con botón para copiarlo).
+
+- Cada petición tiene su color en el borde izquierdo y sus transacciones hijas (procesos, `proxy_pass`)
+  van con sangría bajo la que las abrió.
+- Un buscador y un selector de tipo filtran las líneas; "Expandir todo" abre o cierra todos los detalles.
+- El botón **Línea de tiempo** cambia a una vista por transacción: un carril por span (request,
+  `proxy_pass`, procesos y script), con barras posicionadas según su tiempo de inicio y fin y una regla
+  de duración. Los spans aún abiertos se dibujan rayados, los `*_annotation` como rombos y un proceso con
+  `exit_code` distinto de 0 queda marcado en rojo. Pulsa un carril para ver sus líneas en JSON. La vista
+  elegida se recuerda; también se puede abrir con `?view=timeline`.
+- Es responsive: en pantallas estrechas cada línea pasa a dos filas y el detalle expandido se ajusta
+  al ancho de la ventana (el texto largo se parte, nunca se desborda).
 
 - Escucha **solo en `127.0.0.1`** (el log incluye cabeceras y cuerpos) y en el puerto `8081`, o el de
   `--ui-port <n>` (`0` = el que asigne el sistema). Es distinto del puerto del proxy.
@@ -38,13 +49,41 @@ completo.
   `--ui requiere log_file en el manifiesto para poder mostrar los logs`.
 - No añade dependencias: la página va embebida como texto, también en el bundle de `dist/`.
 
-Capturas (tema claro, tema oscuro y una fila expandida con su JSON):
+Capturas (tema claro, tema oscuro, una fila expandida con su JSON y la vista en un móvil):
 
 ![Vista de logs en vivo, tema claro](ui/logs-light.png)
 
 ![Vista de logs en vivo, tema oscuro](ui/logs-dark.png)
 
 ![Fila expandida con el JSON completo](ui/logs-detail.png)
+
+![Vista de logs en un móvil](ui/logs-mobile.png)
+
+Más capturas:
+
+- Buscador: al escribir `kubectl` quedan solo las líneas de esa transacción, con sus procesos hijos con sangría.
+
+  ![Búsqueda de "kubectl" en los logs](ui/logs-search.png)
+
+- Selector de tipo: aquí solo `proxy_pass_response`, con una fila expandida.
+
+  ![Filtro por tipo proxy_pass_response](ui/logs-filter.png)
+
+- Tableta (768 px).
+
+  ![Vista de logs en una tableta](ui/logs-tablet.png)
+
+- Móvil con todos los detalles expandidos y URLs de cientos de caracteres: el texto se parte y nada sobrepasa el ancho de la ventana.
+
+  ![Móvil con detalles expandidos y contenido largo](ui/logs-mobile-expanded.png)
+
+Vista de línea de tiempo (tema claro con un carril expandido, tema oscuro y móvil):
+
+![Línea de tiempo, tema claro](ui/timeline-light.png)
+
+![Línea de tiempo, tema oscuro](ui/timeline-dark.png)
+
+<img src="ui/timeline-mobile.png" alt="Línea de tiempo en un móvil" width="320">
 
 ## Cómo funciona
 

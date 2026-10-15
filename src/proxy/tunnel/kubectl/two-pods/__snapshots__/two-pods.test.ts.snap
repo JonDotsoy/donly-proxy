@@ -70,7 +70,7 @@ exports[`echo-pod is not reachable directly but answers through kubectl_pass int
     "script": "<script>",
     "timestamp": "<timestamp>",
     "transaction_id": "<transaction-1>",
-    "type": "script",
+    "type": "script_start",
     "url": "http://echo-pod.donly-proxy-two-pods.svc.cluster.local/via-conn-pod?x=1",
   },
   {

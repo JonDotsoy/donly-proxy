@@ -31,9 +31,9 @@ El primer argumento es el comando; los siguientes son **opciones adicionales** d
   `502 bad gateway: <comando> exited with <código>: <salida>`.
 - Con [`log_file`](../manifest.md#log_file), la línea `response` incluye `command` con lo que se
   ejecutó, incluso si falló.
-- Con `log_file`, cada programa ejecutado cierra con una línea `command_exit` que lleva `exit_code` y
+- Con `log_file`, cada programa ejecutado abre con una línea `command_start` (`program`, `args`) y cierra con una línea `command_end` que lleva `exit_code` y
   `console_log`: la lista ordenada de lo que pasó por su consola
-  (`{"type":"stdin"|"stdout"|"stderr","message":"…"}`; `[]` si no hubo nada). Con `node`, `stdin` es
+  (`{"type":"stdin"|"stdout"|"stderr","timestamp":"…","message":"…"}`; `[]` si no hubo nada). Con `node`, `stdin` es
   el script, `stdout` el JSON del resultado y `stderr` sus avisos. No altera la respuesta al cliente.
 
 ## Directivas hijas

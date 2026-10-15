@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **163** · ✅ pasan: **163** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **165** · ✅ pasan: **165** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ Specs: **163** · ✅ pasan: **163** · 🔴 fallan: **0** · ⏳ sin resultado:
 | a GET becomes a fixed wget command line with quoted values | ✅ | <code>engine wget</code> |
 | a later fetch without proxy still adds nothing to the log | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | a route without arguments matches every request | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 202 "catch-all"</code><br><code>}</code> |
-| command_pass curl ends with command_exit carrying exit_code and console_log | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl</code> |
+| command_pass curl ends with command_end carrying exit_code and console_log | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl</code> |
 | command_pass curl hands the request to curl | ✅ | <code>command_pass curl "--connect-to" "curl.test:80:127.0.0.1:&lt;port&gt;"</code> |
 | command_pass curl reports a bad gateway when curl fails | ✅ | <code>command_pass curl "--connect-to" "dead.test:80:127.0.0.1:&lt;port&gt;"</code> |
 | command_pass curl runs the curl found in PATH | ✅ | <code>command_pass curl "--max-time" "5"</code> |
@@ -25,7 +25,7 @@ Specs: **163** · ✅ pasan: **163** · 🔴 fallan: **0** · ⏳ sin resultado:
 | command_pass kubectl with engine node reaches an echo Service in the kind-kind-cluster | ✅ |  |
 | command_pass kubectl with engine node runs the request inside the pod | ✅ | <code>engine curl</code><br><code>engine node</code> |
 | command_pass kubectl with engine wget reaches an echo Service in the kind-kind-cluster | ✅ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass wget</code><br><code>}</code> |
-| command_pass node logs its console in command_exit without changing the response | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass node</code> |
+| command_pass node logs its console in command_end without changing the response | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass node</code> |
 | command_pass node performs https requests with https.request | ✅ | <code>command_pass node "--no-warnings"</code><br><code>command_pass node "--no-warnings"</code> |
 | command_pass node performs the request with http.request | ✅ | <code>command_pass node "--no-warnings"</code><br><code>command_pass node "--no-warnings"</code> |
 | command_pass node reports a bad gateway when the request fails | ✅ | <code>command_pass node</code> |
@@ -44,7 +44,7 @@ Specs: **163** · ✅ pasan: **163** · 🔴 fallan: **0** · ⏳ sin resultado:
 | GET http://example.com through the proxy is answered by the route | ✅ | <code>respond 201 "created"</code><br><code>respond 200 "good"</code> |
 | GET https://example.com through the proxy is answered by the route | ✅ | <code>ssl {</code><br><code>&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>}</code><br><code>&nbsp;&nbsp;respond 201 "created"</code><br><code>&nbsp;&nbsp;respond 200 "good"</code> |
 | its pattern is a real wildcard, not the text 'undefined' | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 202 "catch-all"</code><br><code>}</code> |
-| kubectl command_exit logs the console (stdout, stderr and stdin) without changing the response | ✅ | <code>log_file "./console.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "pod/api-0"</code> |
+| kubectl command_end logs the console (stdout, stderr and stdin) without changing the response | ✅ | <code>log_file "./console.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "pod/api-0"</code> |
 | kubectl failures are reported as a bad gateway | ✅ | <code>command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass kubectl "pod/api-0" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>}</code><br><code>command_pass kubectl "pod/api-0"</code> |
 | kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options | ✅ | <code>kubectl_pass "-n" "prod" "deploy/api" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
 | loadConfig reads concurrency, defaulting to 1 | ✅ | <code>concurrency 2</code> |
@@ -52,6 +52,8 @@ Specs: **163** · ✅ pasan: **163** · 🔴 fallan: **0** · ⏳ sin resultado:
 | log_file only supports .ndjson | ✅ | <code>log_file "./proxy.log"</code> |
 | log_file records request and response sharing a transaction id | ✅ | <code>log_file "./logs/proxy.ndjson"</code> |
 | log_file snapshot | ✅ | <code>log_file "./snap.ndjson"</code> |
+| logs request, kubectl, node, end node, end kubectl and response as nested transactions | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;command_pass node</code> |
+| logs request, request proxy_pass, response proxy_pass and response as nested transactions | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;proxy_pass "http://127.0.0.1:&lt;port&gt;"</code> |
 | logs the curl command that was executed | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>&nbsp;&nbsp;command_pass node "--no-warnings"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code> |
 | logs the kubectl command that was executed | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>&nbsp;&nbsp;command_pass node "--no-warnings"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code> |
 | logs the node command that was executed | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>&nbsp;&nbsp;command_pass node "--no-warnings"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code> |

@@ -1,6 +1,8 @@
 /** One piece of console traffic of a command: what was written to its stdin and what it printed. */
 export interface ConsoleEntry {
   type: "stdout" | "stderr" | "stdin";
+  /** ISO 8601 moment of the piece. */
+  timestamp: string;
   message: string;
 }
 

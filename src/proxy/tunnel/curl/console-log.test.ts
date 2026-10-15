@@ -58,15 +58,15 @@ afterAll(() => {
 testFeature(
   payload,
   ["/proxy/log_file", "/proxy/route/command_pass"],
-  "command_pass curl ends with command_exit carrying exit_code and console_log",
+  "command_pass curl ends with command_end carrying exit_code and console_log",
   async () => {
     const res = await fetch("http://console.test/", { proxy });
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("ok");
     const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
-    const exit = lines.find((line) => line.type === "command_exit");
+    const exit = lines.find((line) => line.type === "command_end");
     expect(exit).toMatchObject({ program: "curl", exit_code: 0 });
-    expect(exit.console_log).toContainEqual({ type: "stdout", message: "ok" });
+    expect(exit.console_log).toContainEqual({ type: "stdout", timestamp: expect.any(String), message: "ok" });
     expect(exit.console_log.some((e: { type: string }) => e.type === "stderr")).toBe(true);
     expect(lines.find((line) => line.type === "response")).not.toHaveProperty("console_log");
   },

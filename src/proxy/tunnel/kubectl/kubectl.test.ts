@@ -195,7 +195,7 @@ const consolePayload = (port: number) => `proxy {
 }
 `;
 
-testFeature(consolePayload(8080), ["/proxy/log_file", "/proxy/route/command_pass"], "kubectl command_exit logs the console (stdout, stderr and stdin) without changing the response", async () => {
+testFeature(consolePayload(8080), ["/proxy/log_file", "/proxy/route/command_pass"], "kubectl command_end logs the console (stdout, stderr and stdin) without changing the response", async () => {
   const noisy = join(dir, "noisy");
   mkdirSync(noisy);
   writeFileSync(join(noisy, "kubectl"), `#!/bin/sh\necho 'kubectl-warning' >&2\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n`);
@@ -215,8 +215,8 @@ testFeature(consolePayload(8080), ["/proxy/log_file", "/proxy/route/command_pass
     expect(await res.json()).toMatchObject({ method: "POST", url: "/x", body: "payload" });
 
     const lines = readFileSync(join(dir, "console.ndjson"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
-    const exits = lines.filter((l) => l.type === "command_exit");
-    // Both lines (the remote command and kubectl itself) carry the same list.
+    const exits = lines.filter((l) => l.type === "command_end");
+    // Both lines (the remote command and kubectl itself) carry the same list: one process wrote it.
     expect(exits).toHaveLength(2);
     expect(exits[1].program).toBe("kubectl");
     expect(exits[0].exit_code).toBe(0);

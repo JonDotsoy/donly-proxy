@@ -2,7 +2,6 @@ import http from "node:http";
 import https from "node:https";
 import net, { type AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
-import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { readFile } from "node:fs/promises";
@@ -16,6 +15,7 @@ import type { Engine } from "./tunnel/remote";
 import { sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
 import type { ConsoleEntry } from "./tunnel/types";
+import { createLogger_experimental, type CommandTransaction, type RequestTransaction } from "./logger";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
 
@@ -291,6 +291,7 @@ const forward = async (
   body: Buffer,
   url: string,
   target: URL,
+  logger: RequestTransaction,
 ): Promise<Reply> => {
   const original = new URL(url);
   const upstream = new URL(target);
@@ -302,13 +303,20 @@ const forward = async (
     if (!hopByHop.has(k) && v !== undefined) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
   }
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const proxyPass = logger.proxyPass.openTransaction({
+    method: req.method ?? "GET",
+    target: upstream.toString(),
+    headers: Object.fromEntries(headers),
+    body: hasBody ? body : Buffer.alloc(0),
+  });
+  const reply = await fetchUpstream(upstream, req.method, headers, hasBody ? body : undefined);
+  proxyPass.end(reply);
+  return reply;
+};
+
+const fetchUpstream = async (upstream: URL, method: string | undefined, headers: Headers, body: Buffer | undefined): Promise<Reply> => {
   try {
-    const response = await fetch(upstream, {
-      method: req.method,
-      headers,
-      body: hasBody ? body : undefined,
-      redirect: "manual",
-    });
+    const response = await fetch(upstream, { method, headers, body, redirect: "manual" });
     // fetch has already decoded the body, so encoding/length no longer apply.
     return {
       status: response.status,
@@ -336,7 +344,7 @@ const commandPass = async (
   args: string[],
   engineArgs: string[] | undefined,
   password: string | undefined,
-  emit: (entry: Record<string, unknown>) => void,
+  logger: RequestTransaction,
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
@@ -347,15 +355,21 @@ const commandPass = async (
   }
   let executed: string[] | undefined;
   let script: string | undefined;
-  // kubectl runs the engine after `--`: both programs are logged, and the exit code of kubectl
-  // is the one of the engine (`kubectl exec` forwards it).
+  // One transaction per process: kubectl runs the engine after `--`, so it opens two (the engine is
+  // the child of kubectl). The exit code of kubectl is the one of the engine (`kubectl exec` forwards it).
+  const processes: CommandTransaction[] = [];
   const onCommand = (c: string[]) => {
     executed = c;
-    emit({ type: "command", program: c[0], command: c });
+    const open = (parent: { command: RequestTransaction["command"] }, line: string[]) => {
+      const process = parent.command.openTransaction({ program: line[0]!, args: line.slice(1) });
+      processes.push(process);
+      return process;
+    };
+    const outer = open(logger, c);
     const remote = command === "kubectl" ? c.indexOf("--") : -1;
-    if (remote >= 0) emit({ type: "command", program: c[remote + 1], command: c.slice(remote + 1) });
+    const inner = remote >= 0 ? open(outer, c.slice(remote + 1)) : outer;
     // `node` reads its script from stdin: the command alone does not say what it runs.
-    if (script !== undefined) emit({ type: "script", program: "node", script });
+    if (script !== undefined) inner.script.openTransaction({ script, program: "node" });
   };
   const onScript = (s: string) => {
     script = s;
@@ -366,11 +380,9 @@ const commandPass = async (
     consoleLog.push(entry);
   };
   const onExit = (code: number | null) => {
-    // Every command that ran ends with an exit code and a `console_log` (empty when it wrote nothing).
-    if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code, console_log: consoleLog });
-    emit({ type: "command_exit", program: executed?.[0], exit_code: code, console_log: consoleLog });
-    // A script (the `node` engine) also ends with its own line, right after the command's.
-    if (script !== undefined) emit({ type: "script_exit", program: "node", exit_code: code, console_log: consoleLog });
+    // Every process that ran ends with an exit code and a `console_log` (empty when it wrote nothing);
+    // the innermost ends first.
+    for (const process of [...processes].reverse()) process.end(code, consoleLog);
   };
   try {
     const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit, onConsole };
@@ -399,14 +411,6 @@ const text = (status: number, body: string): Reply => ({
   body: Buffer.from(body),
 });
 
-/** Payload as utf8 when lossless, base64 otherwise. */
-const encodePayload = (body: Buffer) => {
-  const utf8 = body.toString("utf8");
-  return Buffer.from(utf8).equals(body)
-    ? { payload: utf8 }
-    : { payload: body.toString("base64"), payload_encoding: "base64" };
-};
-
 /**
  * Proxy that answers every request with `ok`.
  * - HTTP: absolute-URI requests are answered directly.
@@ -422,10 +426,10 @@ export const createProxyServer = ({
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
   if (logFile) mkdirSync(dirname(logFile), { recursive: true });
 
-  const log = (entry: Record<string, unknown>) => {
-    // `timestamp` is the wall clock (ms); `performance_timestamp` is the exact moment from the Performance API.
-    if (logFile) appendFileSync(logFile, JSON.stringify({ timestamp: new Date().toISOString(), performance_timestamp: performance.timeOrigin + performance.now(), ...entry }) + "\n");
-  };
+  // The logger writes `.ndjson` lines to this stream; without `log_file` they are dropped.
+  const Logger = createLogger_experimental(
+    new WritableStream<Uint8Array>({ write: (chunk) => void (logFile && appendFileSync(logFile, chunk)) }),
+  );
 
   // One semaphore per command_pass route: `concurrency` processes at a time, the rest queue up.
   const limits = new Map<Route, Semaphore>();
@@ -434,18 +438,18 @@ export const createProxyServer = ({
     return limits.get(route)!;
   };
 
-  const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string, emit: (entry: Record<string, unknown>) => void) => {
+  const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string, logger: RequestTransaction) => {
     const action = route?.action;
     if (!route || !action) return text(200, "ok");
     switch (action.kind) {
       case "respond":
         return text(action.status, action.body);
       case "proxy_pass":
-        return forward(req, body, url, action.target);
+        return forward(req, body, url, action.target, logger);
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password, emit);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password, logger);
         } finally {
           release();
         }
@@ -459,27 +463,20 @@ export const createProxyServer = ({
   const handle = async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = requestUrl(req, tunnels);
     const body = Buffer.concat(await Array.fromAsync(req));
-    const transaction = {
-      transaction_id: randomUUID(),
-      http_version: `HTTP/${req.httpVersion}`,
-      method: req.method,
+    const logger = Logger.request.openTransaction({
+      method: req.method ?? "GET",
       url,
-    };
-    log({ ...transaction, type: "request", headers: req.headers, ...encodePayload(body) });
+      httpVersion: req.httpVersion,
+      headers: req.headers,
+      body,
+    });
 
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
-    const reply = await answer(route, req, body, url, (entry) => log({ ...transaction, ...entry }));
+    const reply = await answer(route, req, body, url, logger);
 
-    log({
-      ...transaction,
-      type: "response",
-      status: reply.status,
-      ...(reply.command && { command: reply.command }),
-      headers: reply.headers,
-      ...encodePayload(reply.body),
-    });
+    logger.response(reply);
     res.writeHead(reply.status, reply.headers);
     res.end(reply.body);
   };
@@ -513,7 +510,7 @@ export const createProxyServer = ({
   server.on("listening", () => {
     // `port 0` is assigned by the system: log the real one.
     const { address, port } = server.address() as AddressInfo;
-    log({ type: "listening", host: address, port });
+    Logger.listening(address, port);
   });
 
   return server;

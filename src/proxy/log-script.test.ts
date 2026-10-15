@@ -54,12 +54,12 @@ testFeature(manifestPayload, ["/proxy/log_file", "/proxy/route/kubectl_pass/comm
   await (await fetch("http://logscript.test/path?x=1", { proxy, method: "POST", body: "payload" })).text();
   const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((line) => JSON.parse(line));
   const types = lines.map((line) => line.type);
-  const script = lines.find((line) => line.type === "script");
+  const script = lines.find((line) => line.type === "script_start");
   expect(script).toMatchObject({ program: "node" });
   // The script is the whole stdin: the request prelude and the code that performs it.
   expect(script.script).toContain("globalThis.__donlyRequest");
   expect(script.script).toContain("http");
   // The order: the kubectl and node commands, then their script.
-  expect(types.indexOf("script")).toBe(types.lastIndexOf("command") + 1);
+  expect(types.indexOf("script_start")).toBe(types.lastIndexOf("command_start") + 1);
   expect(lines.find((line) => line.type === "request")).not.toHaveProperty("script");
 });
