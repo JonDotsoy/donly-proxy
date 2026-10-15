@@ -15,11 +15,11 @@ const upstream = http.createServer((_req, res) => res.end("from upstream"));
 
 const manifestPayload = (port: number) => `proxy {
   host "127.0.0.1"
-  port 0
-  ssl {
-    cert "./certs/cert.pem"
-    key "./certs/key.pem"
-    listen true
+  port https 0 {
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
   }
   route https://example.com/ {
     respond 200 "secure good"
@@ -60,28 +60,44 @@ const curl = async (...args: string[]) => {
   return { out, err, code: await proc.exited };
 };
 
-testFeature(manifestPayload(0), ["/proxy/ssl/listen", "/proxy/route/respond"], "should accept an http request through an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/port", "/proxy/route/respond"], "should accept an http request through an https proxy", async () => {
   const res = await curl("--proxy", `https://127.0.0.1:${proxyPort}`, "http://example.com/");
   expect(res.out).toBe("plain good");
 });
 
-testFeature(manifestPayload(0), ["/proxy/ssl/listen", "/proxy/route/respond"], "should tunnel an https request through an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/port", "/proxy/route/respond"], "should tunnel an https request through an https proxy", async () => {
   const res = await curl("--proxy", `https://127.0.0.1:${proxyPort}`, "https://example.com/");
   expect(res.out).toBe("secure good");
 });
 
-testFeature(manifestPayload(0), ["/proxy/ssl/listen", "/proxy/route/proxy_pass"], "should proxy_pass through an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/port", "/proxy/route/proxy_pass"], "should proxy_pass through an https proxy", async () => {
   const res = await curl("--proxy", `https://127.0.0.1:${proxyPort}`, "http://upstream.test/");
   expect(res.out).toBe("from upstream");
 });
 
-testFeature(manifestPayload(0), ["/proxy/ssl/listen"], "should refuse a plain http connection to an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/port"], "should refuse a plain http connection to an https proxy", async () => {
   const res = await curl("--proxy", `http://127.0.0.1:${proxyPort}`, "http://example.com/");
   expect(res.out).not.toBe("plain good");
 });
 
-testFeature(`proxy {\n  ssl {\n    listen "yes"\n  }\n}\n`, ["/proxy/ssl/listen"], "should reject a non-boolean ssl.listen", async (payload) => {
+testFeature(`proxy {\n  port ftp 0\n}\n`, ["/proxy/port"], "should reject an unknown port protocol", async (payload) => {
   const bad = join(dir, "bad.donly");
   writeFileSync(bad, payload);
-  expect(loadConfig(bad)).rejects.toThrow('ssl.listen debe ser true o false, no "yes"');
+  expect(loadConfig(bad)).rejects.toThrow('port: protocolo debe ser http o https, no "ftp"');
+});
+
+testFeature(`proxy {\n  port http 0\n}\n`, ["/proxy/port"], "should accept an explicit http protocol on port", async (payload) => {
+  const explicit = join(dir, "explicit-http.donly");
+  writeFileSync(explicit, payload);
+  const config = await loadConfig(explicit);
+  expect(config.port).toBe(0);
+  expect(config.https).toBeUndefined();
+});
+
+testFeature(`proxy {\n  port 8080\n}\n`, ["/proxy/port"], "should keep plain port as http", async (payload) => {
+  const plain = join(dir, "plain-port.donly");
+  writeFileSync(plain, payload);
+  const config = await loadConfig(plain);
+  expect(config.port).toBe(8080);
+  expect(config.https).toBeUndefined();
 });

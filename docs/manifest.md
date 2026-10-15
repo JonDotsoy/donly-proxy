@@ -29,8 +29,8 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 | Directiva | Valor | Por defecto | Descripción |
 | --- | --- | --- | --- |
 | `host` | string | `"127.0.0.1"` | Dirección en la que escucha (IPv4 o IPv6: `"::1"`, `"::"`, `"0:0:0:0:0:0:0:1"`, `"[::1]"`, `"::ffff:127.0.0.1"`). Si se omite, solo escucha en loopback. |
-| `port` | número | `0` | Puerto. Si se omite o es `0`, el sistema asigna uno libre. |
-| `ssl` | bloque | ver abajo | Certificado usado para terminar el TLS de los túneles `CONNECT` y, con `listen true`, para que el propio proxy escuche por HTTPS. |
+| `port` | `[http\|https] número [{ ssl { … } }]` | `0` (http) | Puerto y protocolo del listener. Si se omite o es `0`, el sistema asigna uno libre. Con `https` el proxy habla TLS (ver [`port https`](#port-https)). |
+| `ssl` | bloque | ver abajo | **Deprecado.** Certificado usado para terminar el TLS de los túneles `CONNECT`. No sirve para que el proxy escuche por HTTPS: usa `port https`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |
 | `route` | bloque | sin rutas | Regla por petición. Se pueden declarar varias. |
 
@@ -40,11 +40,10 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 ssl {
   cert "./certs/cert.pem"
   key "./certs/key.pem"
-  listen true
 }
 ```
 
-| Directiva | Valor | Por defecto | Descripción |
+Por defecto | Descripción |
 | --- | --- | --- | --- |
 | `cert` | string | `"./certs/cert.pem"` | Certificado. |
 | `key` | string | `"./certs/key.pem"` | Clave privada. |
@@ -54,19 +53,32 @@ Por defecto `./certs/cert.pem` y `./certs/key.pem`. Si alguno de los dos archivo
 proxy genera un par autofirmado con `openssl` (CN `donly-proxy`, 365 días) y lo guarda en esas
 rutas, creando las carpetas necesarias. Si ya existen, no los toca.
 
-### Proxy HTTPS (`ssl.listen`)
+### `port https` {#port-https}
 
-Con `listen true` la conexión del cliente **hacia el proxy** va cifrada con ese mismo certificado,
-además de la de los túneles `CONNECT`. `CONNECT`, `proxy_pass` y `command_pass` funcionan igual.
-Sin `listen` (o con `false`) el proxy habla HTTP plano, como siempre: la presencia del bloque
-`ssl` no activa nada por sí sola, porque el bloque ya se usa para los túneles.
+```
+proxy {
+  port 0                 # proxy por http (por defecto)
+}
+
+proxy {
+  port https 0 {         # proxy por https
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+  }
+}
+```
+
+Con `port https` la conexión del cliente **hacia el proxy** va cifrada con el `ssl` del bloque
+(mismos valores por defecto y generación autofirmada que arriba). `CONNECT`, `proxy_pass` y
+`command_pass` funcionan igual. El bloque `ssl` de nivel superior se mantiene por compatibilidad
+(sigue terminando el TLS de los túneles `CONNECT`) pero está deprecado y no afecta al listener.
 
 ```sh
 curl --proxy https://127.0.0.1:8080 --proxy-cacert certs/cert.pem https://example.com/
 # con el certificado autofirmado, sin verificar: --proxy-insecure -k
 ```
-
-Un valor que no sea booleano hace fallar el arranque (ver "Errores de arranque").
 
 ### `log_file`
 
@@ -174,7 +186,7 @@ route https?://example.com/ {
 | `--ui` (CLI) con un manifest sin `log_file` | `--ui requiere log_file en el manifiesto para poder mostrar los logs` |
 | `--ui` (CLI) con el puerto ocupado | `no se pudo levantar la ui en 127.0.0.1:<puerto>: EADDRINUSE` |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
-| `ssl.listen` no booleano | `ssl.listen debe ser true o false, no "…"` |
+| `port` con un protocolo distinto de `http` / `https` | `port: protocolo debe ser http o https, no "…"` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |
