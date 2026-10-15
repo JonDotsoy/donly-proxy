@@ -235,6 +235,10 @@ route {                      # sin argumentos: todas las peticiones
   esquema, el host, la ruta y el query: `https://example.com/a/b?x=1`. No está anclada: busca
   coincidencia en cualquier parte de la URL. Ancla con `^` y `$` si lo necesitas, y recuerda
   que `.` coincide con cualquier carácter.
+- **Patrón `urlpattern:`**: si el patrón empieza por `urlpattern:`, se interpreta como un
+  [`URLPattern`](https://developer.mozilla.org/docs/Web/API/URLPattern) (estándar WHATWG, nativo en
+  Bun) en vez de una regex. Va entre comillas y sirve para filtrar por host sin escapar puntos:
+  [detalle](concepts/route.md#patrón-urlpattern).
 - **Sin argumentos**: `route { … }` coincide con **todas** las peticiones (HTTP y HTTPS, cualquier
   método). Como gana la primera ruta que coincide, ponla **al final**: las rutas declaradas
   después de ella nunca se alcanzan.
@@ -285,6 +289,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `port` no es un número entre 0 y 65535 | error |
 | `log_file` no es un string que termine en `.ndjson` | error |
 | `ssl.cert` / `ssl.key` no son strings | error |
+| `route` con un patrón `urlpattern:` vacío o mal formado | error |
 | `route` sin exactamente una acción (`respond`, `proxy_pass`, `command_pass`, `kubectl_pass` o `ssh_pass`): cero o dos o más, p. ej. `kubectl_pass` junto a `proxy_pass` | error |
 | `respond` con estado fuera de 100–599 o cuerpo que no es un string | error |
 | `proxy_pass` que no es una URL `http(s)://` | error |
@@ -304,6 +309,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | Dos `listen` con el mismo host y puerto fijo | `listen: <host>:<puerto> está declarado más de una vez` |
 | `listen` / `port` sin puerto numérico | `listen: el puerto debe ser un número, no "…"` |
 | `listen` / `port` con argumentos de más | `listen: se esperaba [http\|https\|socks4\|socks5] [host] puerto` |
+| `route` con `urlpattern:` vacío o mal formado | `route …: patrón inválido (…)` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |

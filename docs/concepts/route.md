@@ -23,6 +23,30 @@ Una ruta coincide cuando se cumplen ambas condiciones:
 | Método (opcional) | `GET`, `POST`, etc. Sin método aplica a cualquier método. |
 | Patrón | Expresión regular de JavaScript probada contra la URL completa. **No está anclada**: usa `^` y `$` si lo necesitas, y recuerda que `.` coincide con cualquier carácter. |
 
+### Patrón `urlpattern:`
+
+Un patrón que empieza por `urlpattern:` se evalúa como un [`URLPattern`](https://developer.mozilla.org/docs/Web/API/URLPattern)
+contra la URL completa, en lugar de una regex. Los patrones sin prefijo siguen siendo regex, así que
+los manifests existentes no cambian. Escríbelo entre comillas.
+
+- **Sin esquema** (`urlpattern:<host>[:puerto][/ruta]`): atajo por host. Se expande a
+  `*://<…>/*`, de modo que cubre cualquier esquema, ruta y query. El puerto **debe** coincidir si
+  se indica; sin puerto solo coincide el puerto por defecto (usa `:*` para cualquiera).
+- **Con esquema** (`urlpattern:https://host/*`): se pasa tal cual a `URLPattern`. Si no hay ruta se
+  añade `/*`.
+
+| Patrón | Coincide con |
+| --- | --- |
+| `urlpattern:example.com` | `http://example.com/`, `https://example.com/a?x=1` |
+| `urlpattern:example.com:8080` | solo el puerto `8080` |
+| `urlpattern:example.com:*` | cualquier puerto |
+| `urlpattern:*.example.com` | `http://a.b.example.com/` (no `example.com`) |
+| `urlpattern:example.com/api/*` | rutas bajo `/api/` |
+| `urlpattern:https://example.com/*` | solo HTTPS |
+| `urlpattern:http{s}?://example.com/*` | HTTP y HTTPS (esquema explícito) |
+
+Un patrón vacío o mal formado hace fallar el arranque (`route …: patrón inválido (…)`).
+
 `route { … }` sin argumentos coincide con **todas** las peticiones. Como gana la primera, va al
 **final**: las rutas declaradas después nunca se alcanzan.
 

@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **257** · ✅ pasan: **257** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -14,7 +14,12 @@ Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado:
 | a failing process frees its place for the next request | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |
 | a GET becomes a fixed wget command line with quoted values | ✅ | <code>engine wget</code> |
 | a later fetch without proxy still adds nothing to the log | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| a pattern without the urlpattern prefix is still a regular expression | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
 | a route without arguments matches every request | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 202 "catch-all"</code><br><code>}</code> |
+| a urlpattern supports wildcards in the host and path | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
+| a urlpattern with a scheme restricts the protocol | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
+| a urlpattern with host and port matches only that port | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
+| a urlpattern with only a host matches any scheme, path and query | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
 | command_pass curl ends with command_end carrying exit_code and console_log | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl</code> |
 | command_pass curl hands the request to curl | ✅ | <code>command_pass curl "--connect-to" "curl.test:80:127.0.0.1:&lt;port&gt;"</code> |
 | command_pass curl reports a bad gateway when curl fails | ✅ | <code>command_pass curl "--connect-to" "dead.test:80:127.0.0.1:&lt;port&gt;"</code> |
@@ -33,6 +38,7 @@ Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado:
 | command_pass ssh uses curl when no engine is given | ✅ | <code>command_pass ssh "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass ssh "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>}</code><br><code>command_pass ssh "user@remote.test"</code> |
 | command_pass ssh with engine curl runs the request on the remote host | ✅ | <code>engine curl</code><br><code>engine node</code> |
 | command_pass ssh with engine node runs the request on the remote host | ✅ | <code>engine curl</code><br><code>engine node</code> |
+| compileRoutePattern expands host shorthands | ✅ | <code>route "urlpattern:only.test" {</code><br><code>&nbsp;&nbsp;respond 200 "host only"</code><br><code>}</code><br><code>route "urlpattern:port.test:8080" {</code><br><code>&nbsp;&nbsp;respond 200 "host and port"</code><br><code>}</code><br><code>route "urlpattern:*.wild.test" {</code><br><code>&nbsp;&nbsp;respond 200 "wildcard"</code><br><code>}</code><br><code>route "urlpattern:path.test/api/*" {</code><br><code>&nbsp;&nbsp;respond 200 "host and path"</code><br><code>}</code><br><code>route "urlpattern:https://secure.test/*" {</code><br><code>&nbsp;&nbsp;respond 200 "https only"</code><br><code>}</code><br><code>route "urlpattern:http{s}?://both.test/*" {</code><br><code>&nbsp;&nbsp;respond 200 "both schemes"</code><br><code>}</code><br><code>route GET https?://regex.test/ {</code><br><code>&nbsp;&nbsp;respond 200 "regex"</code><br><code>}</code> |
 | concurrency <n> allows n processes in parallel | ✅ | <code>concurrency 2</code> |
 | concurrency must be a positive integer | ✅ | <code>concurrency 0</code> |
 | each route has its own limit | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |
@@ -195,6 +201,7 @@ Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject a context that is not a name | ✅ | <code>context 5</code> |
 | should reject a listen with too many arguments | ✅ | <code>listen http a b 0</code> |
 | should reject a listen without a numeric port | ✅ | <code>listen https 127.0.0.1</code> |
+| should reject a malformed urlpattern | ✅ | <code>route "urlpattern:http://(" {</code><br><code>&nbsp;&nbsp;respond 200 "x"</code><br><code>}</code> |
 | should reject a max_time that is not a positive number | ✅ | <code>max_time 0</code> |
 | should reject a namespace of command_pass kubectl that is not a name | ✅ | <code>namespace 5</code> |
 | should reject a namespace that is not a name | ✅ | <code>namespace 5</code> |
@@ -208,6 +215,7 @@ Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject a socks5 client that does not offer no-auth | ✅ | <code>listen socks5 127.0.0.1 0</code> |
 | should reject a socks5 UDP ASSOCIATE request | ✅ | <code>listen socks5 127.0.0.1 0</code> |
 | should reject a user that is not a name | ✅ | <code>user ""</code> |
+| should reject an empty urlpattern | ✅ | <code>route "urlpattern:" {</code><br><code>&nbsp;&nbsp;respond 200 "x"</code><br><code>}</code> |
 | should reject an insecure that is not true or false | ✅ | <code>insecure maybe</code> |
 | should reject context and namespace outside kubectl | ✅ | <code>namespace prod</code> |
 | should reject insecure outside command_pass curl | ✅ | <code>insecure</code> |

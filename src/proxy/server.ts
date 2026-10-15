@@ -14,6 +14,7 @@ import { nodeRequest } from "./tunnel/node/node";
 import type { Engine } from "./tunnel/remote";
 import { sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
+import { compileRoutePattern, type RoutePattern } from "./route-pattern";
 import type { ConsoleEntry } from "./tunnel/types";
 import { socksHandshake, targetName } from "./socks";
 import { createLogger_experimental, type CommandTransaction, type RequestTransaction } from "./logger";
@@ -24,7 +25,7 @@ export interface Route {
   /** `null` matches any method. */
   method: string | null;
   /** Tested against the full request URL, e.g. `https://example.com/path`. */
-  pattern: RegExp;
+  pattern: RoutePattern;
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
@@ -253,7 +254,12 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
         }
         const method = route.args.length > 1 ? String(route.args[0]).toUpperCase() : null;
         // `route { … }` without arguments matches every request.
-        const pattern = route.args.length === 0 ? /(?:)/ : new RegExp(String(route.args[route.args.length - 1]));
+        let pattern: RoutePattern;
+        try {
+          pattern = route.args.length === 0 ? /(?:)/ : compileRoutePattern(String(route.args[route.args.length - 1]));
+        } catch (error) {
+          throw new Error(`route ${name}: patrón inválido (${(error as Error).message})`);
+        }
         const pass = kubectlPass ?? sshPass;
         if (pass) {
           // kubectl_pass <kubectl options…> <target> { command_pass <curl|wget|node> [options…] }
