@@ -11,6 +11,10 @@ cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `c
 bun install
 bun start                        # usa ./manifest.donly
 bun src/cli/main.ts otro.donly     # usa otro manifiesto
+bun src/cli/main.ts --ui           # además, página de logs en vivo en http://127.0.0.1:8081
+bun src/cli/main.ts --ui --ui-port 9000   # la misma página en otro puerto
+bun src/cli/main.ts --version      # imprime la versión (-V)
+bun src/cli/main.ts --help         # muestra la ayuda (-h)
 bun test
 ```
 
@@ -20,6 +24,27 @@ Con el servidor levantado (el `manifest.donly` de la raíz usa el puerto 8080; s
 curl -x http://127.0.0.1:8080 http://example.com/            # -> ok
 curl -k -x http://127.0.0.1:8080 https://example.com/        # -> ok
 ```
+
+### `--ui`: logs en vivo
+
+`--ui` levanta, además del proxy, un servidor HTTP con una página que muestra el
+[`log_file`](manifest.md#log_file) en tiempo real: al abrirla muestra las últimas 200 líneas y luego
+las nuevas, que llegan por Server-Sent Events (`GET /events`). Pulsa una fila para ver el JSON
+completo.
+
+- Escucha **solo en `127.0.0.1`** (el log incluye cabeceras y cuerpos) y en el puerto `8081`, o el de
+  `--ui-port <n>` (`0` = el que asigne el sistema). Es distinto del puerto del proxy.
+- Requiere `log_file` en el manifest; sin él, el arranque falla con
+  `--ui requiere log_file en el manifiesto para poder mostrar los logs`.
+- No añade dependencias: la página va embebida como texto, también en el bundle de `dist/`.
+
+Capturas (tema claro, tema oscuro y una fila expandida con su JSON):
+
+![Vista de logs en vivo, tema claro](ui/logs-light.png)
+
+![Vista de logs en vivo, tema oscuro](ui/logs-dark.png)
+
+![Fila expandida con el JSON completo](ui/logs-detail.png)
 
 ## Cómo funciona
 
@@ -50,6 +75,7 @@ Los certificados se generan automáticamente con `openssl` si no existen (ver
 - [`concepts/`](concepts/route.md): conceptos en breve: [`route`](concepts/route.md), [`proxy_pass`](concepts/proxy_pass.md), [`command_pass`](concepts/command_pass.md), [`kubectl_pass`](concepts/kubectl_pass.md) y [`ssh_pass`](concepts/ssh_pass.md).
 - [`tunnel/proxy-pass.md`](tunnel/proxy-pass.md): reenviar una ruta a otro servidor.
 - [`tunnel/command-pass.md`](tunnel/command-pass.md): pasar una ruta a `curl`, `node`, `ssh` o `kubectl`.
+- [`errores-conocidos/`](errores-conocidos/README.md): errores ya vistos, con causa, diagnóstico y soluciones.
 
 ## Estructura del código
 

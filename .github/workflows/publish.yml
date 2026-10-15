@@ -20,13 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run features:check
-      - run: bun run build
       - name: Bump version
         id: version
         run: |
@@ -34,56 +35,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           npm version "${{ inputs.bump }}" -m "release: v%s"
           echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      # Build after the bump so the bundle embeds the new package.json version
+      - run: bun run build
       - name: Push commit and tag
         run: git push origin HEAD --follow-tags
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ steps.version.outputs.tag }}" --generate-notes --title "${{ steps.version.outputs.tag }}" dist/donly-proxy.js
-      - name: Add sha256 and Homebrew formula to release notes
-        env:
-          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          version="${TAG#v}"
           sha=$(sha256sum dist/donly-proxy.js | cut -d' ' -f1)
-          gh release view "$TAG" --json body --jq .body > notes.md
-          cat >> notes.md <<'TEMPLATE'
-
-
-          ## SHA256
-
-          ```
-          @SHA@  donly-proxy.js
-          ```
-
-          ## Fórmula de Homebrew (template)
-
-          ```ruby
-          class DonlyProxy < Formula
-            desc "Proxy for donly: continuation of the demo proxy"
-            homepage "https://github.com/@REPO@"
-            version "@VERSION@"
-            url "https://github.com/@REPO@/releases/download/@TAG@/donly-proxy.js"
-            sha256 "@SHA@"
-            license "MIT"
-
-            depends_on "oven-sh/bun/bun"
-
-            def install
-              libexec.install "donly-proxy.js"
-              (bin/"donly-proxy").write <<~EOS
-                #!/bin/sh
-                exec bun "#{libexec}/donly-proxy.js" "$@"
-              EOS
-            end
-
-            test do
-              assert_predicate libexec/"donly-proxy.js", :exist?
-            end
-          end
-          ```
-          TEMPLATE
-          sed -i -e "s|@SHA@|$sha|g" -e "s|@REPO@|$REPO|g" -e "s|@VERSION@|$version|g" -e "s|@TAG@|$TAG|g" notes.md
-          gh release edit "$TAG" --notes-file notes.md
+          bun scripts/release-notes.ts "$TAG" "$REPO" "$sha" > notes.md
+          gh release create "$TAG" --title "$TAG" --notes-file notes.md dist/donly-proxy.js

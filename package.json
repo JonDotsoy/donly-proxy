@@ -1,7 +1,7 @@
 {
   "name": "donly-proxy",
   "type": "module",
-  "version": "0.0.5",
+  "version": "0.0.10",
   "scripts": {
     "start": "bun src/cli/main.ts",
     "build": "bun build src/cli/main.ts --outfile dist/donly-proxy.js --target bun",
@@ -13,6 +13,7 @@
     "@types/bun": "latest"
   },
   "dependencies": {
+    "@jondotsoy/flags": "^3.2.1",
     "donly": "^0.0.32"
   }
 }

@@ -241,14 +241,16 @@ route https?://example.com/ {
 
 ### Qué hace el proxy
 
-Ejecuta `node <argumentos del manifiesto> src/proxy/tunnel/node/node-request.mjs`. Los argumentos del manifiesto
-son **opciones de node** y van antes del script (`--no-warnings`, `--use-openssl-ca`, etc.).
+Ejecuta `node <argumentos del manifiesto> --input-type=module -`. Los argumentos del manifiesto
+son **opciones de node** y van antes de las opciones de módulo (`--no-warnings`, `--use-openssl-ca`, etc.).
+El script (`node-request.mjs`) va embebido como texto en el bundle y node lo lee por stdin, así que no depende de
+ningún archivo junto al ejecutable.
 
 El proxy se comunica con el script mediante JSON:
 
 | Canal | Contenido |
 | --- | --- |
-| stdin | `{ "method", "url", "headers", "body" }`, con el cuerpo en base64. |
+| stdin | El script, precedido de `globalThis.__donlyRequest = { "method", "url", "headers", "body" }`, con el cuerpo en base64. |
 | stdout | `{ "status", "headers", "body" }`, con el cuerpo en base64. |
 | stderr / código de salida | Si el script falla (conexión rechazada, protocolo no soportado…) escribe el motivo y sale con código `1`. |
 
@@ -265,7 +267,7 @@ El proxy se comunica con el script mediante JSON:
 ### Pruebas
 
 `src/proxy/tunnel/node/node.test.ts` pone un `node` que registra sus argumentos y ejecuta el node real al inicio
-del `PATH`, y comprueba que el proxy lanza `node --no-warnings …/node-request.mjs`, que la
+del `PATH`, y comprueba que el proxy lanza `node --no-warnings --input-type=module -`, que la
 petición llega a un servidor HTTP y a uno HTTPS con método, cabeceras, ruta, query y cuerpo
 correctos, y que un destino caído produce un `502`.
 
