@@ -241,14 +241,16 @@ route https?://example.com/ {
 
 ### Qué hace el proxy
 
-Ejecuta `node <argumentos del manifiesto> src/proxy/tunnel/node/node-request.mjs`. Los argumentos del manifiesto
-son **opciones de node** y van antes del script (`--no-warnings`, `--use-openssl-ca`, etc.).
+Ejecuta `node <argumentos del manifiesto> --input-type=module -`. Los argumentos del manifiesto
+son **opciones de node** y van antes de las opciones de módulo (`--no-warnings`, `--use-openssl-ca`, etc.).
+El script (`node-request.mjs`) va embebido como texto en el bundle y node lo lee por stdin, así que no depende de
+ningún archivo junto al ejecutable.
 
 El proxy se comunica con el script mediante JSON:
 
 | Canal | Contenido |
 | --- | --- |
-| stdin | `{ "method", "url", "headers", "body" }`, con el cuerpo en base64. |
+| stdin | El script, precedido de `globalThis.__donlyRequest = { "method", "url", "headers", "body" }`, con el cuerpo en base64. |
 | stdout | `{ "status", "headers", "body" }`, con el cuerpo en base64. |
 | stderr / código de salida | Si el script falla (conexión rechazada, protocolo no soportado…) escribe el motivo y sale con código `1`. |
 
@@ -262,10 +264,28 @@ El proxy se comunica con el script mediante JSON:
   puedes usar las variables de entorno de node (`NODE_EXTRA_CA_CERTS`) en el entorno del proxy,
   o la opción `--use-openssl-ca`.
 
+### Consola en el log
+
+Con [`log_file`](../manifest.md#log_file), la línea `command_end` de `node` incluye `exit_code` y
+`console_log`, en el orden en que ocurrió cada cosa:
+
+```json
+{"type":"command_end","program":"node","exit_code":0,"console_log":[
+  {"type":"stdin","message":"globalThis.__donlyRequest = …"},
+  {"type":"stdout","message":"{\"status\":200,\"headers\":{…},\"body\":\"…\"}"},
+  {"type":"stderr","message":"aviso de node"}
+]}
+```
+
+- `stdin`: el script completo (prelude con la petición más el código que la ejecuta).
+- `stdout`: el JSON del resultado (`status`, `headers`, `body` en base64); puede venir en varios trozos.
+- `stderr`: lo que node escribió como error o aviso. Si no hay, no aparece la entrada.
+- La respuesta al cliente no cambia. Prueba: `src/proxy/tunnel/node/console-log.test.ts`.
+
 ### Pruebas
 
 `src/proxy/tunnel/node/node.test.ts` pone un `node` que registra sus argumentos y ejecuta el node real al inicio
-del `PATH`, y comprueba que el proxy lanza `node --no-warnings …/node-request.mjs`, que la
+del `PATH`, y comprueba que el proxy lanza `node --no-warnings --input-type=module -`, que la
 petición llega a un servidor HTTP y a uno HTTPS con método, cabeceras, ruta, query y cuerpo
 correctos, y que un destino caído produce un `502`.
 
@@ -417,7 +437,43 @@ route https?://api.internal/ {
 
 - Los argumentos de `kubectl_pass` son los de `command_pass kubectl`: opciones de
   `kubectl exec` seguidas del destino (último). Sin destino, el arranque falla.
-- `context <nombre>` y `namespace <nombre>` son subdirectivas que seleccionan el cluster y el
+- `pod_name <nombre>` indica el pod (o `tipo/nombre`) como subdirectiva, así que el bloque puede ir
+  sin argumento posicional. Con `pod_name`, los argumentos de la línea son solo opciones de
+  `kubectl exec` y el destino es siempre el valor de `pod_name`. La forma anterior (destino como
+  último argumento) sigue funcionando. El valor debe ser un nombre (texto no vacío); con otro
+  (`pod_name ""`, `pod_name 5`) el arranque falla con `pod_name debe ser un nombre`.
+
+  ```
+  route https?://api.internal/ {
+    kubectl_pass {
+      pod_name "my-pod-12345"
+      context local-my-context
+      namespace the-namespace
+      command_pass node
+    }
+  }
+  ```
+- `pod_match <patrón>` elige el pod en cada petición: el proxy ejecuta
+  `kubectl get pods [--context …] [--namespace …] --field-selector=status.phase=Running -o name` y usa el
+  **primero** (en el orden que lista kubectl) cuyo nombre coincida con el patrón, donde `*` es cualquier
+  secuencia y `?` un carácter (el patrón abarca el nombre completo). Con `pod_match`, los argumentos de
+  la línea son solo opciones de `kubectl exec`; no se combina con `pod_name`
+  (`pod_name y pod_match no se pueden combinar`). Un valor vacío falla con
+  `pod_match debe ser un patrón`. El `kubectl get pods` queda en el `log_file` como su propio
+  `command_start` / `command_end` (con su `console_log`), antes del `kubectl exec`. Si `kubectl get pods` falla o ningún pod coincide, el cliente recibe
+  `502` (`no running pod matches pod_match …`).
+
+  ```
+  route https?://api.internal/ {
+    kubectl_pass {
+      pod_match my-pod-*
+      context local-my-context
+      namespace the-namespace
+      command_pass node
+    }
+  }
+  ```
+- `context <nombre>` y `namespace <nombre>` (alias `namespaces`) son subdirectivas que seleccionan el cluster y el
   namespace; equivalen a `"--context" "<nombre>" "--namespace" "<nombre>"` y se añaden después de
   las opciones de la línea y antes del destino:
 
@@ -442,6 +498,9 @@ route https?://api.internal/ {
 - [`concurrency`](#concurrencia) va dentro del `command_pass` hijo.
 - Un `route` no puede combinar `kubectl_pass` con otra acción.
 - El `log_file` registra el `kubectl exec …` completo, igual que con `command_pass kubectl`.
+- Cada ejecución cierra con dos líneas `command_end` (comando remoto y `kubectl`) con el mismo
+  `exit_code` y `console_log` (`[{"type":"stdin"|"stdout"|"stderr","message":"…"}]`, `[]` si no hubo
+  salida), igual que con `command_pass kubectl`. Ver [`kubectl_pass`](../concepts/kubectl_pass.md).
 
 ### Ejemplo: dos pods (`conn-pod` y `echo-pod`)
 

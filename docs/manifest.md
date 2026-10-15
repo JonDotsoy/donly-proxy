@@ -28,9 +28,10 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 
 | Directiva | Valor | Por defecto | Descripción |
 | --- | --- | --- | --- |
-| `host` | string | `"127.0.0.1"` | Dirección en la que escucha (IPv4 o IPv6: `"::1"`, `"::"`, `"0:0:0:0:0:0:0:1"`, `"[::1]"`, `"::ffff:127.0.0.1"`). Si se omite, solo escucha en loopback. |
-| `port` | número | `0` | Puerto. Si se omite o es `0`, el sistema asigna uno libre. |
-| `ssl` | bloque | ver abajo | Certificado usado para terminar el TLS de los túneles `CONNECT`. |
+| `listen` | `[http\|https] [host] [puerto] [{ ssl { … } }]` | `http 127.0.0.1 0` | Protocolo, dirección y puerto del listener (ver [`listen`](#listen)). |
+| `host` | string | `"127.0.0.1"` | Dirección en la que escucha (IPv4 o IPv6: `"::1"`, `"::"`, `"0:0:0:0:0:0:0:1"`, `"[::1]"`, `"::ffff:127.0.0.1"`). Si se omite, solo escucha en loopback. Un `host` dentro de `listen` tiene prioridad. |
+| `port` | `[http\|https] puerto [{ ssl { … } }]` | `0` | Alias de `listen` sin host: `port 8080` equivale a `listen http 8080`. |
+| `ssl` | bloque | ver abajo | **Deprecado.** Certificado usado para terminar el TLS de los túneles `CONNECT`. No sirve para que el proxy escuche por HTTPS: usa `listen https`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |
 | `route` | bloque | sin rutas | Regla por petición. Se pueden declarar varias. |
 
@@ -43,14 +44,68 @@ ssl {
 }
 ```
 
+Por defecto | Descripción |
+| --- | --- | --- | --- |
+| `cert` | string | `"./certs/cert.pem"` | Certificado. |
+| `key` | string | `"./certs/key.pem"` | Clave privada. |
+| `listen` | `true`/`false` | `false` | Si es `true`, el listener del proxy habla TLS: el cliente se conecta con `https://` al proxy. |
+
 Por defecto `./certs/cert.pem` y `./certs/key.pem`. Si alguno de los dos archivos no existe, el
 proxy genera un par autofirmado con `openssl` (CN `donly-proxy`, 365 días) y lo guarda en esas
 rutas, creando las carpetas necesarias. Si ya existen, no los toca.
+
+### `listen`
+
+```
+listen [http|https] [host] puerto [{ ssl { cert "…" key "…" } }]
+```
+
+El protocolo (`http` por defecto), el `host` (por defecto el de la directiva `host`) y el
+`puerto` (`0` = lo asigna el sistema, también si se omite) son posicionales y todos opcionales.
+
+| Sintaxis | Qué hace |
+| --- | --- |
+| `listen` | Sin argumentos: HTTP en `127.0.0.1` con un puerto aleatorio (`0`). |
+| `listen 0` | Proxy HTTP en el host por defecto. |
+| `listen http 0` | Igual que la anterior. |
+| `listen https 0` | Proxy HTTPS con certificado autofirmado generado localmente. |
+| `listen http 127.0.0.1 0` | Proxy HTTP en ese host. |
+| `listen https 127.0.0.1 0` | Proxy HTTPS en ese host, certificado autofirmado. |
+| `listen https 127.0.0.1 0 { ssl { cert "…" key "…" } }` | Proxy HTTPS con tus certificados. |
+
+```
+proxy {
+  listen https 127.0.0.1 0 {
+    ssl {
+      cert "./certs/cert.pem"
+      key "./certs/key.pem"
+    }
+  }
+}
+```
+
+Con `https` la conexión del cliente **hacia el proxy** va cifrada. Sin bloque `ssl`, o si faltan
+los archivos, se usan `./certs/cert.pem` y `./certs/key.pem` y se genera un par autofirmado como
+se describe arriba. `CONNECT`, `proxy_pass` y `command_pass` funcionan igual.
+
+`port` sigue soportado como alias de `listen` sin host: `port 8080` = `listen http 8080` y
+`port https 0 { ssl { … } }` = `listen https 0 { ssl { … } }`. No se pueden declarar `listen` y
+`port` a la vez. El bloque `ssl` de nivel superior se mantiene por compatibilidad (sigue
+terminando el TLS de los túneles `CONNECT`) pero está deprecado y no afecta al listener.
+
+```sh
+curl --proxy https://127.0.0.1:8080 --proxy-cacert certs/cert.pem https://example.com/
+# con el certificado autofirmado, sin verificar: --proxy-insecure -k
+```
 
 ### `log_file`
 
 Solo se admite la extensión `.ndjson`; con otra, el arranque falla. Se crean las carpetas que
 falten y cada evento se agrega como una línea JSON al final del archivo.
+
+El formato completo de todas las líneas (incluidos `exit_code` y `console_log`) está en [`log-format.md`](log-format.md).
+
+Con `donly-proxy --ui` el archivo se puede seguir en el navegador (ver [`--ui`](overview.md#--ui-logs-en-vivo)).
 
 Al empezar a escuchar, el proxy escribe una línea `listening` con el `host` y el `port` reales
 (el que asignó el sistema si `port` es `0`):
@@ -70,14 +125,18 @@ Cada petición genera **dos líneas**, una `request` y una `response`, que compa
 | Campo | Descripción |
 | --- | --- |
 | `timestamp` | Fecha y hora ISO 8601 (UTC) del evento. |
-| `transaction_id` | UUID compartido por la `request` y su `response`. |
+| `transaction_id` | UUID compartido por todas las líneas de una petición (`request`, comandos, `proxy_pass` y `response`). |
+| `span_id` / `parent_span_id` | `span_id` identifica cada transacción (la petición, cada proceso, el par del `proxy_pass`); `parent_span_id` es el `span_id` de la que la abrió. Ver [formato del log](log-format.md). |
 | `http_version` | Versión HTTP de la petición, p. ej. `HTTP/1.1`. |
 | `method` | Método de la petición. |
 | `url` | URL completa, p. ej. `https://example.com/ruta?q=1` (sin `:443`). |
-| `type` | `request`, `response`, `listening` (arranque), `command`, `command_exit` o `script`. |
+| `type` | `request`, `response`, `listening` (arranque), `request_annotation`, `annotation`, `command_start`, `command_end`, `proxy_pass_request`, `proxy_pass_response`, `script_start` o `script_end`. |
 | `status` | Solo en `response`: código de estado devuelto al cliente. |
 | `command` | Solo en `response` de rutas `command_pass`: la línea de comandos ejecutada, como lista (programa y argumentos). |
-| `script` | Solo en líneas `type: "script"`: el script completo que el motor `node` envía por stdin al `node` remoto (`kubectl_pass` / `ssh_pass`), justo después de las líneas `command`. |
+| `script` | Solo en líneas `type: "script_start"`: el script completo que el motor `node` envía por stdin (local, o al `node` remoto con `kubectl_pass` / `ssh_pass`), justo después de las líneas `command_start`. |
+| `script_end` | Solo en líneas `type: "script_end"`: cierra un `script_start` (motor `node`) con el `exit_code` y el `console_log` del proceso que lo ejecutó, justo después de su `command_end`. |
+| `exit_code` | Siempre presente en líneas `type: "command_end"`: código de salida del programa (`null` si lo mató una señal). Todo proceso ejecutado termina su log con `command_end`. |
+| `console_log` | En **toda** línea `type: "command_end"` (`curl`, `wget`, `node`, `ssh`, `kubectl`; con `kubectl` ambas líneas, la de `kubectl` y la del motor, llevan la misma lista): lista ordenada `{ "type": "stdout" \| "stderr" \| "stdin", "timestamp": string, "message": string }[]` con lo que se escribió por stdin y lo que el programa imprimió por stdout y stderr. Es `[]` si no hubo salida. No altera la respuesta al cliente. |
 | `headers` | Cabeceras de la petición o de la respuesta. |
 | `payload` | Cuerpo como texto UTF-8. Si no es UTF-8 válido se guarda en base64 y la línea incluye `"payload_encoding":"base64"`. |
 
@@ -164,7 +223,12 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 
 | Causa | Mensaje |
 | --- | --- |
+| `--ui` (CLI) con un manifest sin `log_file` | `--ui requiere log_file en el manifiesto para poder mostrar los logs` |
+| `--ui` (CLI) con el puerto ocupado | `no se pudo levantar la ui en 127.0.0.1:<puerto>: EADDRINUSE` |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
+| `listen` y `port` a la vez | `listen y port no se pueden declarar a la vez: port es un alias de listen` |
+| `listen` / `port` sin puerto numérico | `listen: el puerto debe ser un número, no "…"` |
+| `listen` / `port` con argumentos de más | `listen: se esperaba [http\|https] [host] puerto` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |
@@ -173,6 +237,9 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `insecure` con un valor que no es `true` / `false`, o fuera de `command_pass curl` | `route …: insecure debe ser true o false, no "…"` / `insecure solo aplica a command_pass curl` |
 | `max_time` que no es un número positivo, o fuera de `command_pass curl` | `route …: max_time debe ser un número positivo, no "…"` / `max_time solo aplica a command_pass curl` |
 | `kubectl_pass` / `command_pass kubectl` con `context` / `namespace` que no es un nombre | `route …: context debe ser un nombre, no "…"` / `namespace debe ser un nombre, no "…"` |
+| `kubectl_pass` con `pod_name` vacío o que no es un nombre | `route …: pod_name debe ser un nombre, no "…"` |
+| `kubectl_pass` sin destino ni `pod_name` | `route …: kubectl_pass requiere el destino (pod o tipo/nombre, o las subdirectivas pod_name / pod_match)` |
+| `kubectl_pass` con `pod_match` vacío, o combinado con `pod_name` | `route …: pod_match debe ser un patrón, no "…"` / `pod_name y pod_match no se pueden combinar` |
 | `ssh_pass` con `port` fuera de 1–65535, `user` o `pass` inválidos | `route …: port debe ser un puerto entre 1 y 65535, no "…"` / `user debe ser un nombre, no "…"` / `pass debe ser un texto no vacío` |
 | `context` / `namespace` fuera de `kubectl_pass` y `command_pass kubectl` | `route …: namespace solo aplica a kubectl_pass y command_pass kubectl` |
 | `retry` que no es un entero no negativo, o fuera de `command_pass curl` | `route …: retry debe ser un entero no negativo, no "…"` / `retry solo aplica a command_pass curl` |

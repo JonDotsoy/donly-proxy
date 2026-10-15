@@ -1,8 +1,7 @@
 import http from "node:http";
-import tls from "node:tls";
+import https from "node:https";
+import net, { type AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
-import type { AddressInfo } from "node:net";
-import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { readFile } from "node:fs/promises";
@@ -15,6 +14,8 @@ import { nodeRequest } from "./tunnel/node/node";
 import type { Engine } from "./tunnel/remote";
 import { sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
+import type { ConsoleEntry } from "./tunnel/types";
+import { createLogger_experimental, type CommandTransaction, type RequestTransaction } from "./logger";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
 
@@ -26,13 +27,16 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; password?: string };
+    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; podMatch?: { glob: string; selectors: string[] }; password?: string };
 }
 
 export interface ProxyConfig {
   host: string;
   port: number;
+  /** Deprecated top-level `ssl`: certificate that terminates the TLS of `CONNECT` tunnels. */
   ssl: { cert: string; key: string };
+  /** Set by `listen https [host] N [{ ssl { ... } }]`: the proxy listener itself speaks TLS with this certificate. */
+  https?: { cert: string; key: string };
   routes: Route[];
   /** Absolute path of the `.ndjson` transaction log, if configured. */
   logFile?: string;
@@ -91,10 +95,10 @@ const optionArgs = (name: string, command: string, directive: Directive): string
   ...retryArgs(name, command, directive),
 ];
 
-/** `context <name>` and `namespace <name>` inside a `kubectl_pass` / `command_pass kubectl`: they become `--context` / `--namespace`. */
+/** `context <name>` and `namespace <name>` (alias `namespaces`) inside a `kubectl_pass` / `command_pass kubectl`: they become `--context` / `--namespace`. */
 const selectorArgs = (name: string, directive: Directive, command = "kubectl"): string[] =>
   (["context", "namespace"] as const).flatMap((selector) => {
-    const child = directive.children.find((c) => c.name === selector);
+    const child = directive.children.find((c) => c.name === selector || (selector === "namespace" && c.name === "namespaces"));
     if (!child) return [];
     if (command !== "kubectl") throw new Error(`route ${name}: ${selector} solo aplica a kubectl_pass y command_pass kubectl`);
     const value = child.args[0];
@@ -150,18 +154,39 @@ export const loadConfig = async (
   const child = (name: string, parent = proxy) => parent?.children.find((c) => c.name === name);
   const resolve = (p: string) => fileURLToPath(new URL(p, url));
   const ssl = child("ssl");
+  // `listen [http|https] [host] port [{ ssl { cert, key } }]`; `port` is an alias of `listen`
+  // (`port 8080` = `listen http 8080`) and `host` is the default host.
+  const listenDirective = child("listen");
+  const portDirective = child("port");
+  if (listenDirective && portDirective) throw new Error("listen y port no se pueden declarar a la vez: port es un alias de listen");
+  const endpoint = listenDirective ?? portDirective;
+  const name = listenDirective ? "listen" : "port";
+  const endpointArgs = [...(endpoint?.args ?? [])];
+  const scheme = typeof endpointArgs[0] === "string" && ["http", "https"].includes(endpointArgs[0]) ? String(endpointArgs.shift()) : "http";
+  const portValue = endpointArgs.pop() ?? 0;
+  if (typeof portValue !== "number") throw new Error(`${name}: el puerto debe ser un número, no "${portValue}"`);
+  const listenHost = endpointArgs.shift();
+  if (endpointArgs.length > 0) throw new Error(`${name}: se esperaba [http|https] [host] puerto`);
+  const listenSsl = child("ssl", endpoint);
   const logFile = child("log_file")?.args[0];
   if (logFile !== undefined && !String(logFile).endsWith(".ndjson")) {
     throw new Error(`log_file ${logFile}: solo se soporta la extensión .ndjson`);
   }
 
   return {
-    host: String(child("host")?.args[0] ?? "127.0.0.1"),
-    port: Number(child("port")?.args[0] ?? 0),
+    host: String(listenHost ?? child("host")?.args[0] ?? "127.0.0.1"),
+    port: portValue,
     ssl: {
       cert: resolve(String(child("cert", ssl)?.args[0] ?? "./certs/cert.pem")),
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),
     },
+    https:
+      scheme === "https"
+        ? {
+            cert: resolve(String(child("cert", listenSsl)?.args[0] ?? "./certs/cert.pem")),
+            key: resolve(String(child("key", listenSsl)?.args[0] ?? "./certs/key.pem")),
+          }
+        : undefined,
     logFile: logFile === undefined ? undefined : resolve(String(logFile)),
     routes: (proxy?.children ?? [])
       .filter((c) => c.name === "route")
@@ -188,8 +213,21 @@ export const loadConfig = async (
           const command = kubectlPass ? "kubectl" : "ssh";
           const inner = child("command_pass", pass);
           const innerCommand = inner?.args[0];
-          if (pass.args.length < 1) {
-            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre" : "usuario@host"})`);
+          // kubectl_pass may name the pod with `pod_name <target>` instead of the last argument of the line.
+          const podName = kubectlPass ? child("pod_name", pass)?.args[0] : undefined;
+          if (kubectlPass && child("pod_name", pass) && (typeof podName !== "string" || podName === "")) {
+            throw new Error(`route ${name}: pod_name debe ser un nombre, no "${podName}"`);
+          }
+          const podMatchDirective = kubectlPass ? child("pod_match", pass) : undefined;
+          const podMatch = podMatchDirective?.args[0];
+          if (podMatchDirective && (typeof podMatch !== "string" || podMatch === "")) {
+            throw new Error(`route ${name}: pod_match debe ser un patrón, no "${podMatch}"`);
+          }
+          if (podMatchDirective && podName !== undefined) {
+            throw new Error(`route ${name}: pod_name y pod_match no se pueden combinar`);
+          }
+          if (pass.args.length < 1 && podName === undefined && podMatch === undefined) {
+            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre, o las subdirectivas pod_name / pod_match" : "usuario@host"})`);
           }
           if (!inner || (innerCommand !== "curl" && innerCommand !== "wget" && innerCommand !== "node")) {
             throw new Error(`route ${name}: ${directive} requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
@@ -218,7 +256,12 @@ export const loadConfig = async (
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
               // The options of the line, the context / namespace selectors (kubectl), then the target (always last).
-              args: sshArgs?.args ?? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))],
+              ...(typeof podMatch === "string" ? { podMatch: { glob: podMatch, selectors: selectorArgs(name, pass) } } : {}),
+              args: sshArgs?.args ?? (typeof podMatch === "string"
+                ? [...pass.args.map(String), ...selectorArgs(name, pass)]
+                : podName === undefined
+                ? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))]
+                : [...pass.args.map(String), ...selectorArgs(name, pass), String(podName)]),
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
               ...(sshArgs?.password === undefined ? {} : { password: sshArgs.password }),
             },
@@ -261,9 +304,9 @@ export const loadConfig = async (
 };
 
 /** Full URL of a request, including requests tunnelled through CONNECT. */
-const requestUrl = (req: http.IncomingMessage) => {
+const requestUrl = (req: http.IncomingMessage, tunnels: Map<number, string | undefined>) => {
   if (/^https?:\/\//.test(req.url ?? "")) return req.url!;
-  const tunnel = (req.socket as TunnelSocket).tunnelHost;
+  const tunnel = tunnels.get(req.socket.remotePort!);
   if (tunnel) return `https://${tunnel}${req.url}`;
   return `http://${req.headers.host}${req.url}`;
 };
@@ -290,6 +333,7 @@ const forward = async (
   body: Buffer,
   url: string,
   target: URL,
+  logger: RequestTransaction,
 ): Promise<Reply> => {
   const original = new URL(url);
   const upstream = new URL(target);
@@ -301,13 +345,20 @@ const forward = async (
     if (!hopByHop.has(k) && v !== undefined) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
   }
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const proxyPass = logger.proxyPass.openTransaction({
+    method: req.method ?? "GET",
+    target: upstream.toString(),
+    headers: Object.fromEntries(headers),
+    body: hasBody ? body : Buffer.alloc(0),
+  });
+  const reply = await fetchUpstream(upstream, req.method, headers, hasBody ? body : undefined);
+  proxyPass.end(reply);
+  return reply;
+};
+
+const fetchUpstream = async (upstream: URL, method: string | undefined, headers: Headers, body: Buffer | undefined): Promise<Reply> => {
   try {
-    const response = await fetch(upstream, {
-      method: req.method,
-      headers,
-      body: hasBody ? body : undefined,
-      redirect: "manual",
-    });
+    const response = await fetch(upstream, { method, headers, body, redirect: "manual" });
     // fetch has already decoded the body, so encoding/length no longer apply.
     return {
       status: response.status,
@@ -334,8 +385,9 @@ const commandPass = async (
   engine: Engine | undefined,
   args: string[],
   engineArgs: string[] | undefined,
+  podMatch: { glob: string; selectors: string[] } | undefined,
   password: string | undefined,
-  emit: (entry: Record<string, unknown>) => void,
+  logger: RequestTransaction,
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
@@ -346,25 +398,49 @@ const commandPass = async (
   }
   let executed: string[] | undefined;
   let script: string | undefined;
-  // kubectl runs the engine after `--`: both programs are logged, and the exit code of kubectl
-  // is the one of the engine (`kubectl exec` forwards it).
+  // One transaction per process: kubectl runs the engine after `--`, so it opens two (the engine is
+  // the child of kubectl). The exit code of kubectl is the one of the engine (`kubectl exec` forwards it).
+  const processes: CommandTransaction[] = [];
   const onCommand = (c: string[]) => {
     executed = c;
-    emit({ type: "command", program: c[0], command: c });
+    const open = (parent: { command: RequestTransaction["command"] }, line: string[]) => {
+      const process = parent.command.openTransaction({ program: line[0]!, args: line.slice(1) });
+      processes.push(process);
+      return process;
+    };
+    const outer = open(logger, c);
     const remote = command === "kubectl" ? c.indexOf("--") : -1;
-    if (remote >= 0) emit({ type: "command", program: c[remote + 1], command: c.slice(remote + 1) });
+    const inner = remote >= 0 ? open(outer, c.slice(remote + 1)) : outer;
     // `node` reads its script from stdin: the command alone does not say what it runs.
-    if (script !== undefined) emit({ type: "script", program: "node", script });
+    if (script !== undefined) inner.script.openTransaction({ script, program: "node" });
+  };
+  // The `kubectl get pods` of `pod_match` is a process of its own, a sibling of the `kubectl exec`.
+  const lookupLog: ConsoleEntry[] = [];
+  let lookup: CommandTransaction | undefined;
+  const onLookup = {
+    onCommand: (c: string[]) => {
+      lookup = logger.command.openTransaction({ program: c[0]!, args: c.slice(1) });
+    },
+    onConsole: (entry: ConsoleEntry) => {
+      lookupLog.push(entry);
+    },
+    onExit: (code: number | null) => lookup?.end(code, lookupLog),
   };
   const onScript = (s: string) => {
     script = s;
   };
+  // Goes only to the log (the response to the client is untouched).
+  const consoleLog: ConsoleEntry[] = [];
+  const onConsole = (entry: ConsoleEntry) => {
+    consoleLog.push(entry);
+  };
   const onExit = (code: number | null) => {
-    if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code });
-    emit({ type: "command_exit", program: executed?.[0], exit_code: code });
+    // Every process that ran ends with an exit code and a `console_log` (empty when it wrote nothing);
+    // the innermost ends first.
+    for (const process of [...processes].reverse()) process.end(code, consoleLog);
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onScript, onExit, onConsole };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -390,16 +466,6 @@ const text = (status: number, body: string): Reply => ({
   body: Buffer.from(body),
 });
 
-/** Payload as utf8 when lossless, base64 otherwise. */
-const encodePayload = (body: Buffer) => {
-  const utf8 = body.toString("utf8");
-  return Buffer.from(utf8).equals(body)
-    ? { payload: utf8 }
-    : { payload: body.toString("base64"), payload_encoding: "base64" };
-};
-
-type TunnelSocket = tls.TLSSocket & { tunnelHost?: string };
-
 /**
  * Proxy that answers every request with `ok`.
  * - HTTP: absolute-URI requests are answered directly.
@@ -408,17 +474,19 @@ type TunnelSocket = tls.TLSSocket & { tunnelHost?: string };
  */
 export const createProxyServer = ({
   ssl,
+  https: https_,
   routes,
   logFile,
-}: Pick<ProxyConfig, "ssl" | "routes"> & { logFile?: string }) => {
+}: Pick<ProxyConfig, "ssl" | "https" | "routes"> & { logFile?: string }) => {
   ensureCerts(ssl);
+  if (https_) ensureCerts(https_);
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
   if (logFile) mkdirSync(dirname(logFile), { recursive: true });
 
-  const log = (entry: Record<string, unknown>) => {
-    // `timestamp` is the wall clock (ms); `performance_timestamp` is the exact moment from the Performance API.
-    if (logFile) appendFileSync(logFile, JSON.stringify({ timestamp: new Date().toISOString(), performance_timestamp: performance.timeOrigin + performance.now(), ...entry }) + "\n");
-  };
+  // The logger writes `.ndjson` lines to this stream; without `log_file` they are dropped.
+  const Logger = createLogger_experimental(
+    new WritableStream<Uint8Array>({ write: (chunk) => void (logFile && appendFileSync(logFile, chunk)) }),
+  );
 
   // One semaphore per command_pass route: `concurrency` processes at a time, the rest queue up.
   const limits = new Map<Route, Semaphore>();
@@ -427,18 +495,18 @@ export const createProxyServer = ({
     return limits.get(route)!;
   };
 
-  const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string, emit: (entry: Record<string, unknown>) => void) => {
+  const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string, logger: RequestTransaction) => {
     const action = route?.action;
     if (!route || !action) return text(200, "ok");
     switch (action.kind) {
       case "respond":
         return text(action.status, action.body);
       case "proxy_pass":
-        return forward(req, body, url, action.target);
+        return forward(req, body, url, action.target, logger);
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password, emit);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.podMatch, action.password, logger);
         } finally {
           release();
         }
@@ -446,47 +514,64 @@ export const createProxyServer = ({
     }
   };
 
-  const server = http.createServer(async (req, res) => {
-    const url = requestUrl(req);
+  // Client port of each loopback connection -> host of the CONNECT that opened it.
+  const tunnels = new Map<number, string | undefined>();
+
+  const handle = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const url = requestUrl(req, tunnels);
     const body = Buffer.concat(await Array.fromAsync(req));
-    const transaction = {
-      transaction_id: randomUUID(),
-      http_version: `HTTP/${req.httpVersion}`,
-      method: req.method,
+    const logger = Logger.request.openTransaction({
+      method: req.method ?? "GET",
       url,
-    };
-    log({ ...transaction, type: "request", headers: req.headers, ...encodePayload(body) });
+      httpVersion: req.httpVersion,
+      headers: req.headers,
+      body,
+    });
 
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
-    const reply = await answer(route, req, body, url, (entry) => log({ ...transaction, ...entry }));
+    const reply = await answer(route, req, body, url, logger);
 
-    log({
-      ...transaction,
-      type: "response",
-      status: reply.status,
-      ...(reply.command && { command: reply.command }),
-      headers: reply.headers,
-      ...encodePayload(reply.body),
-    });
+    logger.response(reply);
     res.writeHead(reply.status, reply.headers);
     res.end(reply.body);
-  });
+  };
+  // With `listen https` the proxy itself speaks TLS (`curl --proxy https://...`).
+  const server: http.Server = https_
+    ? https.createServer({ key: readFileSync(https_.key), cert: readFileSync(https_.cert) }, handle)
+    : http.createServer(handle);
+  if (https_) server.on("tlsClientError", () => {});
+
+  // CONNECT tunnels are piped into this loopback HTTPS server instead of wrapping the socket in a
+  // `tls.TLSSocket`: Bun 1.3.x never completes the handshake on a wrapped socket.
+  const tlsServer = https.createServer(tlsOptions, handle);
+  tlsServer.on("tlsClientError", () => {});
+  tlsServer.listen(0, "127.0.0.1");
+  tlsServer.unref();
+  server.on("close", () => tlsServer.close());
 
   server.on("connect", (req, socket: Duplex) => {
     socket.on("error", () => {});
     socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
-    const secure: TunnelSocket = new tls.TLSSocket(socket as any, { ...tlsOptions, isServer: true });
-    secure.tunnelHost = req.url?.replace(/:443$/, "");
-    secure.on("error", () => {});
-    server.emit("connection", secure);
+    let port: number | undefined;
+    const inner = net.connect((tlsServer.address() as AddressInfo).port, "127.0.0.1", () => {
+      port = inner.localPort!;
+      tunnels.set(port, req.url?.replace(/:443$/, ""));
+    });
+    inner.on("error", () => socket.destroy());
+    inner.on("close", () => {
+      if (port) tunnels.delete(port);
+      socket.destroy();
+    });
+    socket.on("close", () => inner.destroy());
+    socket.pipe(inner).pipe(socket);
   });
 
   server.on("listening", () => {
     // `port 0` is assigned by the system: log the real one.
     const { address, port } = server.address() as AddressInfo;
-    log({ type: "listening", host: address, port });
+    Logger.listening(address, port);
   });
 
   return server;

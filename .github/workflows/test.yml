@@ -13,4 +13,18 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun test
+      - run: bun test src/proxy/host.test.ts src/proxy/https-listener.test.ts
+        env:
+          DONLY_TEST_IPV6: "1"
       - run: bun run features:check
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright-core install --with-deps chromium
+      - run: bun run e2e

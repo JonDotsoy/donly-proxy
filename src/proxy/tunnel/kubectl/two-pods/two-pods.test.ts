@@ -102,14 +102,15 @@ cluster(manifestPayload, ["/proxy/route/kubectl_pass"], "echo-pod is not reachab
   const entries = readLog().slice(before);
   expect(entries.map((entry) => [entry.type, entry.program])).toEqual([
     ["request", undefined],
-    ["command", "kubectl"],
-    ["command", "node"],
-    ["script", "node"],
-    ["command_exit", "node"],
-    ["command_exit", "kubectl"],
+    ["command_start", "kubectl"],
+    ["command_start", "node"],
+    ["script_start", "node"],
+    ["command_end", "node"],
+    ["script_end", "node"],
+    ["command_end", "kubectl"],
     ["response", undefined],
   ]);
-  const [request, kubectlStart, nodeStart, script, nodeExit, kubectlExit, response] = entries;
+  const [request, kubectlStart, nodeStart, script, nodeExit, , kubectlExit, response] = entries;
   expect(request).toMatchObject({ method: "POST", url: `http://${HOST}/via-conn-pod?x=1` });
   expect(kubectlStart.command).toEqual(["kubectl", "exec", "-i", "-q", "--context", CONTEXT, "--namespace", NAMESPACE, "conn-pod", "--", "node", "--input-type=module", "-"]);
   expect(nodeStart.command).toEqual(["node", "--input-type=module", "-"]);

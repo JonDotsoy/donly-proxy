@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>donly-proxy · logs</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fafafa; --panel: #fff; --text: #1b1f24; --muted: #6a737d; --line: #d8dde3; --hover: #0000000d;
+    --request: #0a7a55; --response: #2457e6; --listening: #a86a00; --proxy: #0a84a8; --process: #9b3a9b; --note: #6a737d; --bad: #d1242f;
+    font-family: system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --panel: #151b23; --text: #e6edf3; --muted: #8b949e; --line: #2d333b; --hover: #ffffff0f;
+      --request: #3fb985; --response: #6c9cff; --listening: #d9a441; --proxy: #4cc3e6; --process: #d58ad5; --note: #8b949e; --bad: #ff7b72;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { min-height: 100vh; overflow-x: hidden; }
+
+  header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center; padding: .6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 1rem; margin: 0; flex: 1 1 10rem; min-width: 0; }
+  header .tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; flex: 999 1 auto; justify-content: flex-end; min-width: 0; }
+  input[type="search"], select, button { font: inherit; font-size: .85rem; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .55rem; }
+  input[type="search"] { flex: 1 1 10rem; min-width: 0; max-width: 20rem; }
+  select { max-width: 100%; }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover); }
+  label { display: inline-flex; gap: .3rem; align-items: center; font-size: .85rem; white-space: nowrap; }
+  #status { display: inline-flex; gap: .35rem; align-items: center; font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  #status::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: var(--listening); }
+  #status.live::before { background: var(--request); }
+
+  main { padding: .5rem 1rem 2rem; max-width: 100%; }
+  #empty { color: var(--muted); text-align: center; padding: 3rem 1rem; }
+
+  .row { --tx: var(--line); border-left: 3px solid var(--tx); border-bottom: 1px solid var(--line); background: var(--panel); min-width: 0; }
+  .row[hidden] { display: none; }
+  .head { display: grid; grid-template-columns: 5.5rem 11rem 3rem minmax(0, 1fr); gap: .25rem .75rem; align-items: baseline; padding: .35rem .6rem; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; min-width: 0; }
+  .head:hover { background: var(--hover); }
+  .head > * { min-width: 0; overflow-wrap: anywhere; }
+  .time { color: var(--muted); }
+  .type { font-weight: 600; }
+  .what { padding-left: calc(var(--depth, 0) * 1.2rem); }
+  .status { font-weight: 600; }
+  .request .type { color: var(--request); } .response .type { color: var(--response); } .listening .type { color: var(--listening); }
+  .proxy_pass_request .type, .proxy_pass_response .type { color: var(--proxy); }
+  .command_start .type, .command_end .type, .script_start .type, .script_end .type { color: var(--process); }
+  .request_annotation .type, .annotation .type, .raw .type { color: var(--note); }
+  .bad .status { color: var(--bad); }
+
+  .detail { padding: .25rem .6rem .6rem; min-width: 0; }
+  .detail .bar { display: flex; justify-content: flex-end; margin-bottom: .25rem; }
+  .detail pre { margin: 0; padding: .6rem; max-height: 26rem; max-width: 100%; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: .78rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+
+  .views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .views button { border: 0; border-radius: 0; background: transparent; }
+  .views button + button { border-left: 1px solid var(--line); }
+  .views button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+  body.timeline-view #kind-wrap, body.timeline-view #toggle { display: none; }
+  body:not(.timeline-view) #timeline { display: none; }
+  body.timeline-view #rows { display: none; }
+
+  /* Timeline: one card per transaction, one lane per span, bars positioned by time. */
+  #timeline { display: grid; gap: .75rem; padding-top: .5rem; min-width: 0; }
+  .tx { --tx: var(--line); background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--tx); border-radius: 6px; padding: .5rem .75rem .6rem; min-width: 0; }
+  .tx[hidden] { display: none; }
+  .tx-head { display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: baseline; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 0; }
+  .tx-head .title { font-weight: 600; flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+  .tx-head .meta { color: var(--muted); }
+  .tx-head .code { font-weight: 600; }
+  .tx.bad .tx-head .code { color: var(--bad); }
+  .lane, .ruler { display: grid; grid-template-columns: minmax(7rem, 15rem) minmax(0, 1fr); gap: .15rem .75rem; align-items: center; min-width: 0; }
+  .ruler { margin-top: .5rem; font: .7rem ui-monospace, monospace; color: var(--muted); }
+  .ruler .ticks { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: .15rem; }
+  .lane { padding: .15rem 0; cursor: pointer; }
+  .lane:hover { background: var(--hover); }
+  .lane .name { display: flex; justify-content: space-between; gap: .5rem; min-width: 0; font: .75rem ui-monospace, SFMono-Regular, Menlo, monospace; padding-left: calc(var(--depth, 0) * .9rem); }
+  .lane .name span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lane .name .dur { color: var(--muted); flex: none; }
+  .track { position: relative; height: 1rem; min-width: 0; background: linear-gradient(to right, var(--line) 1px, transparent 1px) 0 0 / 25% 100%; border-right: 1px solid var(--line); }
+  .bar { position: absolute; top: .15rem; bottom: .15rem; min-width: 3px; border-radius: 3px; background: var(--k, var(--note)); }
+  .bar.open { background: repeating-linear-gradient(45deg, var(--k), var(--k) 4px, transparent 4px, transparent 8px); border: 1px solid var(--k); }
+  .bar.fail { outline: 2px solid var(--bad); }
+  .mark { position: absolute; top: .27rem; width: .45rem; height: .45rem; margin-left: -.22rem; background: var(--text); transform: rotate(45deg); }
+  .k-request { --k: var(--request); } .k-proxy_pass { --k: var(--proxy); } .k-command { --k: var(--process); } .k-script { --k: var(--listening); }
+  .lane-detail { grid-column: 1 / -1; min-width: 0; }
+  .lane-detail pre { margin: .2rem 0 .4rem; padding: .6rem; max-height: 20rem; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .event { color: var(--muted); font: .75rem ui-monospace, monospace; padding: 0 .25rem; overflow-wrap: anywhere; }
+
+  /* Narrow screens: the line wraps into two rows (time, type, status; then the summary). */
+  @media (max-width: 640px) {
+    header { padding: .5rem .75rem; }
+    header .tools { justify-content: flex-start; flex-basis: 100%; }
+    input[type="search"] { max-width: none; flex-basis: 100%; }
+    main { padding: .25rem .5rem 2rem; }
+    .head { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .what { grid-column: 1 / -1; }
+    .detail { padding: .25rem .4rem .5rem; }
+    .lane, .ruler { grid-template-columns: minmax(0, 1fr); }
+    .ruler > span:first-child { display: none; }
+    .tx { padding: .5rem; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>donly-proxy · logs</h1>
+  <div class="tools">
+    <input id="search" type="search" placeholder="Buscar en los logs…" aria-label="Buscar en los logs">
+    <span class="views" role="group" aria-label="Vista">
+      <button id="view-list" type="button" aria-pressed="true">Lista</button>
+      <button id="view-timeline" type="button" aria-pressed="false">Línea de tiempo</button>
+    </span>
+    <span id="kind-wrap"><select id="kind" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option></select></span>
+    <label><input id="follow" type="checkbox" checked> seguir</label>
+    <button id="toggle" type="button">Expandir todo</button>
+    <button id="clear" type="button">Limpiar</button>
+    <span id="status">conectando…</span>
+  </div>
+</header>
+<main>
+  <div id="rows"></div>
+  <div id="timeline"></div>
+  <div id="empty" hidden>No hay líneas que coincidan.</div>
+</main>
+<script>
+  const rows = document.getElementById("rows");
+  const empty = document.getElementById("empty");
+  const status = document.getElementById("status");
+  const follow = document.getElementById("follow");
+  const search = document.getElementById("search");
+  const kind = document.getElementById("kind");
+  const toggle = document.getElementById("toggle");
+
+  const depths = new Map(); // span_id -> depth
+  const kinds = new Set();
+  let total = 0;
+
+  // One stable color per transaction, so the lines of a request read as a group.
+  const hue = (id) => [...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+
+  const summary = (entry) => {
+    switch (entry.type) {
+      case "listening": return `${entry.host}:${entry.port}`;
+      case "command_start": return [entry.program, ...(entry.args ?? [])].join(" ");
+      case "command_end":
+      case "script_end": return `${entry.program} exit ${entry.exit_code}`;
+      case "script_start": return `${entry.program} script`;
+      case "proxy_pass_request":
+      case "proxy_pass_response": return `${entry.method} ${entry.target}`;
+      case "request_annotation":
+      case "annotation": return JSON.stringify(entry.annotation);
+      default: return [entry.method, entry.url ?? entry.raw].filter(Boolean).join(" ");
+    }
+  };
+
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  const visible = (row) =>
+    (!kind.value || row.dataset.type === kind.value) &&
+    (!search.value || row.dataset.text.includes(search.value.toLowerCase()));
+
+  const refresh = () => {
+    let shown = 0;
+    for (const row of rows.children) {
+      row.hidden = !visible(row);
+      if (!row.hidden) shown++;
+    }
+    empty.hidden = shown > 0 || total === 0;
+  };
+
+  const add = (line) => {
+    let entry;
+    try { entry = JSON.parse(line); } catch { entry = { type: "raw", raw: line }; }
+    const type = entry.type ?? "raw";
+    const depth = !entry.parent_span_id ? 0 : (depths.get(entry.parent_span_id) ?? 0) + 1;
+    if (entry.span_id) depths.set(entry.span_id, depth);
+    const code = entry.status ?? entry.statusCode;
+
+    const row = el("div", `row ${type}${code >= 400 ? " bad" : ""}`);
+    row.dataset.type = type;
+    row.dataset.text = line.toLowerCase();
+    if (entry.transaction_id) row.style.setProperty("--tx", `hsl(${hue(entry.transaction_id)} 60% 50%)`);
+
+    const head = el("div", "head");
+    head.tabIndex = 0;
+    head.setAttribute("role", "button");
+    head.setAttribute("aria-expanded", "false");
+    const what = el("span", "what", summary(entry));
+    what.style.setProperty("--depth", depth);
+    head.append(
+      el("span", "time", entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ""),
+      el("span", "type", type),
+      el("span", "status", code ?? ""),
+      what,
+    );
+
+    const detail = el("div", "detail");
+    detail.hidden = true;
+    const copy = el("button", "", "Copiar JSON");
+    copy.type = "button";
+    const json = JSON.stringify(entry, null, 2);
+    copy.onclick = (event) => {
+      event.stopPropagation();
+      navigator.clipboard?.writeText(json).then(() => { copy.textContent = "Copiado"; setTimeout(() => (copy.textContent = "Copiar JSON"), 1200); });
+    };
+    const bar = el("div", "bar");
+    bar.append(copy);
+    detail.append(bar, el("pre", "", json));
+
+    const open = () => {
+      detail.hidden = !detail.hidden;
+      head.setAttribute("aria-expanded", String(!detail.hidden));
+    };
+    head.onclick = open;
+    head.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } };
+
+    row.append(head, detail);
+    rows.append(row);
+    addToTimeline(entry, line);
+    total++;
+    if (!kinds.has(type)) {
+      kinds.add(type);
+      kind.append(new Option(type, type));
+    }
+    row.hidden = !visible(row);
+    empty.hidden = true;
+    if (follow.checked && !row.hidden) row.scrollIntoView({ block: "end" });
+  };
+
+  const refreshTimeline = () => { for (const tx of txs.values()) tx.card.hidden = !txVisible(tx); };
+  search.oninput = kind.onchange = () => { refresh(); refreshTimeline(); };
+  document.getElementById("clear").onclick = () => { rows.textContent = ""; timeline.textContent = ""; txs.clear(); depths.clear(); total = 0; refresh(); };
+  toggle.onclick = () => {
+    const expand = toggle.textContent === "Expandir todo";
+    for (const row of rows.children) {
+      if (row.hidden) continue;
+      row.querySelector(".detail").hidden = !expand;
+      row.querySelector(".head").setAttribute("aria-expanded", String(expand));
+    }
+    toggle.textContent = expand ? "Contraer todo" : "Expandir todo";
+  };
+
+  // ---- Timeline view ----
+  const timeline = document.getElementById("timeline");
+  const txs = new Map(); // transaction_id -> { entries, card, open: Set<span_id> }
+  const timeOf = (e) => e.performance_timestamp ?? Date.parse(e.timestamp);
+  const fmt = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms < 10 ? ms.toFixed(1) : Math.round(ms)} ms`);
+
+  const buildSpans = (entries) => {
+    const spans = new Map();
+    const scripts = new Map(); // process span -> script span
+    const open = (e, kind, label, id = e.span_id) => {
+      spans.set(id, { id, kind, label, parent: e.parent_span_id, start: timeOf(e), end: null, marks: [], entries: [e] });
+    };
+    for (const e of entries) {
+      const span = spans.get(e.span_id);
+      switch (e.type) {
+        case "request": open(e, "request", `${e.method} ${e.url}`); break;
+        case "proxy_pass_request": open(e, "proxy_pass", `proxy_pass ${e.method} ${e.target}`); break;
+        case "command_start": open(e, "command", [e.program, ...(e.args ?? [])].join(" ")); break;
+        case "script_start": open(e, "script", `${e.program} script`); scripts.set(e.parent_span_id, e.span_id); break;
+        case "request_annotation":
+        case "annotation": span?.marks.push({ t: timeOf(e), text: JSON.stringify(e.annotation) }); span?.entries.push(e); break;
+        case "script_end": {
+          const script = spans.get(scripts.get(e.span_id));
+          if (script) { script.end = timeOf(e); script.entries.push(e); }
+          break;
+        }
+        case "response":
+        case "proxy_pass_response":
+        case "command_end":
+          if (span) {
+            span.end = timeOf(e);
+            span.entries.push(e);
+            span.code = e.status ?? e.statusCode ?? span.code;
+            if (e.type === "command_end") span.exit = e.exit_code;
+          }
+          break;
+      }
+    }
+    return spans;
+  };
+
+  const renderTx = (tx) => {
+    const spans = buildSpans(tx.entries);
+    const times = tx.entries.map(timeOf).filter(Number.isFinite);
+    const t0 = Math.min(...times);
+    const t1 = Math.max(...times);
+    const total = Math.max(t1 - t0, 1);
+    const root = [...spans.values()].find((s) => !s.parent);
+    const done = root?.end != null;
+    const code = root?.code;
+    const depth = (s) => (s.parent && spans.get(s.parent) ? depth(spans.get(s.parent)) + 1 : 0);
+
+    const head = el("div", "tx-head");
+    head.append(
+      el("span", "title", root?.label ?? "(sin request)"),
+      el("span", "code", code ?? (done ? "" : "en curso")),
+      el("span", "meta", `${fmt(total)} · ${spans.size} spans`),
+      el("span", "meta", new Date(tx.entries[0].timestamp).toLocaleTimeString()),
+    );
+
+    const ruler = el("div", "ruler");
+    const ticks = el("div", "ticks");
+    for (const f of [0, 0.25, 0.5, 0.75, 1]) ticks.append(el("span", "", fmt(total * f)));
+    ruler.append(el("span"), ticks);
+
+    const nodes = [head, ruler];
+    for (const span of spans.values()) {
+      const end = span.end ?? t1;
+      const lane = el("div", "lane");
+      lane.dataset.span = span.id;
+      lane.tabIndex = 0;
+      lane.setAttribute("role", "button");
+      const name = el("div", "name");
+      name.style.setProperty("--depth", depth(span));
+      name.append(el("span", "", span.label), el("span", "dur", span.end == null ? "…" : fmt(end - span.start)));
+      name.title = `${span.kind}: ${span.label}`;
+      const track = el("div", "track");
+      const bar = el("div", `bar k-${span.kind}${span.end == null ? " open" : ""}${span.exit ? " fail" : ""}`);
+      bar.style.left = `${((span.start - t0) / total) * 100}%`;
+      bar.style.width = `${Math.max(((end - span.start) / total) * 100, 0)}%`;
+      bar.title = `${span.label}\n${fmt(span.start - t0)} → ${fmt(end - t0)}`;
+      track.append(bar);
+      for (const m of span.marks) {
+        const mark = el("div", "mark");
+        mark.style.left = `${((m.t - t0) / total) * 100}%`;
+        mark.title = m.text;
+        track.append(mark);
+      }
+      lane.append(name, track);
+      const toggleDetail = () => {
+        tx.open.has(span.id) ? tx.open.delete(span.id) : tx.open.add(span.id);
+        renderTx(tx);
+      };
+      lane.onclick = toggleDetail;
+      lane.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleDetail(); } };
+      nodes.push(lane);
+      if (tx.open.has(span.id)) {
+        const detail = el("div", "lane-detail");
+        detail.append(el("pre", "", JSON.stringify(span.entries, null, 2)));
+        nodes.push(detail);
+      }
+    }
+    tx.card.replaceChildren(...nodes);
+    tx.card.classList.toggle("bad", code >= 400 || [...spans.values()].some((s) => s.exit));
+    tx.card.hidden = !txVisible(tx);
+  };
+
+  const txVisible = (tx) => !search.value || tx.entries.some((e) => e.__text.includes(search.value.toLowerCase()));
+
+  const addToTimeline = (entry, line) => {
+    if (!entry.transaction_id) {
+      if (entry.type === "listening" || entry.type === "raw") {
+        timeline.append(el("div", "event", `${entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() + " · " : ""}${summary(entry)}`));
+      }
+      return;
+    }
+    let tx = txs.get(entry.transaction_id);
+    if (!tx) {
+      const card = el("div", "tx");
+      card.style.setProperty("--tx", `hsl(${hue(entry.transaction_id)} 60% 50%)`);
+      tx = { entries: [], card, open: new Set() };
+      txs.set(entry.transaction_id, tx);
+      timeline.append(card);
+    }
+    Object.defineProperty(entry, "__text", { value: line.toLowerCase(), enumerable: false });
+    tx.entries.push(entry);
+    renderTx(tx);
+    if (follow.checked && document.body.classList.contains("timeline-view")) tx.card.scrollIntoView({ block: "end" });
+  };
+
+  const setView = (name) => {
+    const isTimeline = name === "timeline";
+    document.body.classList.toggle("timeline-view", isTimeline);
+    document.getElementById("view-list").setAttribute("aria-pressed", String(!isTimeline));
+    document.getElementById("view-timeline").setAttribute("aria-pressed", String(isTimeline));
+    try { localStorage.setItem("donly-ui-view", name); } catch {}
+  };
+  document.getElementById("view-list").onclick = () => setView("list");
+  document.getElementById("view-timeline").onclick = () => setView("timeline");
+  try { setView(new URLSearchParams(location.search).get("view") ?? localStorage.getItem("donly-ui-view") ?? "list"); } catch { setView("list"); }
+
+  const source = new EventSource("/events");
+  source.onopen = () => {
+    rows.textContent = ""; timeline.textContent = ""; txs.clear(); depths.clear(); total = 0; // the server replays the history on every (re)connection
+    status.textContent = "en vivo";
+    status.className = "live";
+  };
+  source.onerror = () => { status.textContent = "reconectando…"; status.className = ""; };
+  source.onmessage = (event) => add(event.data);
+</script>
+</body>
+</html>
