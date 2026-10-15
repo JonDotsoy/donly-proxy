@@ -175,6 +175,7 @@ Cada comportamiento nuevo entra con `testFeature(payload, paths, "should …", f
 
 1. **Unit de `createLogger`** (archivo temporal, sin servidor): `request.openTransaction` escribe `request` con `span_id`; `annotation` genera `request_annotation`; `command.openTransaction` anida `parent_span_id`; `script` cuelga del comando; `end` es idempotente; cerrar un padre cierra los hijos abiertos; sin `log_file` es no-op.
 2. **Servidor** (extender `log-command.test.ts`, `log-script.test.ts`): líneas con `span_id`/`parent_span_id` correctos para curl, node, ssh y kubectl falso (script al inicio del `PATH`); un solo `command_exit` por transacción; `console_log` con `timestamp`.
+   Ya está declarado el caso de punta a punta en `src/proxy/log-transactions.test.ts` (request → kubectl → node → end node → end kubectl → response) con snapshot de todas las líneas, hoy con `testFeature.skip`: el paso 2 de implementación lo activa.
 3. **No regresión**: los tests y snapshots actuales (`log-*.test.ts`, `console-log.test.ts`, `kubectl.test.ts`, `two-pods`) pasan sin tocar, salvo los que cuentan los dos `command_exit` de kubectl.
 4. **UI**: test de que el HTML contiene el manejo de `request_annotation`; sin Playwright.
 5. **Seguridad** (`SECURITY.md`): test `no-shell-injection` no se ve afectado; añadir uno de que `annotation` no recibe cabeceras ni la contraseña de `ssh_pass`.

@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **163** · ✅ pasan: **163** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **164** · ✅ pasan: **164** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -52,6 +52,7 @@ Specs: **163** · ✅ pasan: **163** · 🔴 fallan: **0** · ⏳ sin resultado:
 | log_file only supports .ndjson | ✅ | <code>log_file "./proxy.log"</code> |
 | log_file records request and response sharing a transaction id | ✅ | <code>log_file "./logs/proxy.ndjson"</code> |
 | log_file snapshot | ✅ | <code>log_file "./snap.ndjson"</code> |
+| logs request, kubectl, node, end node, end kubectl and response as nested transactions | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;command_pass node</code> |
 | logs the curl command that was executed | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>&nbsp;&nbsp;command_pass node "--no-warnings"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code> |
 | logs the kubectl command that was executed | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>&nbsp;&nbsp;command_pass node "--no-warnings"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code> |
 | logs the node command that was executed | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>&nbsp;&nbsp;command_pass node "--no-warnings"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code> |
