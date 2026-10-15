@@ -19,7 +19,7 @@ Consecuencias que motivan el cambio:
 
 ## 2. API propuesta
 
-Módulo nuevo, de momento `src/proxy/logger-experimental/` (luego `src/proxy/logger/`). El sistema crea el logger sobre un `WritableStream<Uint8Array>` que recibe las líneas `.ndjson` (un JSON por línea, utf8): `const Logger = createLogger(writable)`. Se mantiene la sintaxis pedida:
+Módulo nuevo `src/proxy/logger/`; la función se llama `createLogger_experimental` mientras no esté conectada al servidor. El sistema crea el logger sobre un `WritableStream<Uint8Array>` que recibe las líneas `.ndjson` (un JSON por línea, utf8): `const Logger = createLogger_experimental(writable)`. Se mantiene la sintaxis pedida:
 
 ```ts
 const logger = Logger.request.openTransaction(request);
@@ -81,7 +81,7 @@ export interface Logger {
   listening(host: string, port: number): void;
 }
 
-// implementado como `createLogger(writable: WritableStream<Uint8Array>): Logger`
+// implementado como `createLogger_experimental(writable: WritableStream<Uint8Array>): Logger`
 ```
 
 Notas de diseño:
@@ -184,7 +184,7 @@ La agrupación por `transaction_id` plegable queda fuera de este plan.
 
 Cada comportamiento nuevo entra con `testFeature(payload, paths, "should …", fn)`, sin prefijos `[id]` y con puertos dinámicos. Rutas de feature nuevas: `/proxy/log_file/transactions` y `/proxy/log_file/annotation`.
 
-1. **Unit de `createLogger`** (hecho; stream en memoria, sin servidor): `request.openTransaction` escribe `request` con `span_id`; `annotation` genera `request_annotation`; `command.openTransaction` anida `parent_span_id`; `script` cuelga del comando; `end` es idempotente; cerrar un padre cierra los hijos abiertos; un stream que falla no lanza.
+1. **Unit de `createLogger_experimental`** (hecho; stream en memoria, sin servidor): `request.openTransaction` escribe `request` con `span_id`; `annotation` genera `request_annotation`; `command.openTransaction` anida `parent_span_id`; `script` cuelga del comando; `end` es idempotente; cerrar un padre cierra los hijos abiertos; un stream que falla no lanza.
 2. **Servidor** (extender `log-command.test.ts`, `log-script.test.ts`): líneas con `span_id`/`parent_span_id` correctos para curl, node, ssh y kubectl falso (script al inicio del `PATH`); un `command_start` y un `command_end` por proceso; `console_log` con `timestamp`.
    Ya está declarado el caso de `proxy_pass` en `src/proxy/log-proxy-pass-transactions.test.ts` (request → request proxy_pass → response proxy_pass → response), también con snapshot y `testFeature.skip`.
    Ya está declarado el caso de punta a punta en `src/proxy/log-transactions.test.ts` (request → kubectl → node → end node → end kubectl → response) con snapshot de todas las líneas, hoy con `testFeature.skip`: el paso 2 de implementación lo activa.
@@ -197,9 +197,9 @@ Antes de abrir el PR de implementación: `bun test` y `bun run features` (regene
 ## 8. Pasos de implementación (en orden)
 
 1. Tests unitarios del logger en rojo (`src/proxy/logger/logger.test.ts`).
-2. **Hecho en este PR:** módulo experimental `src/proxy/logger-experimental/` con `createLogger(writable)` (mismas llamadas del §2) y sus tests unitarios. Aún no está conectado al servidor; al conectarlo se mueve a `src/proxy/logger/`.
+2. **Hecho en este PR:** módulo `src/proxy/logger/` con `createLogger_experimental(writable)` (mismas llamadas del §2) y sus tests unitarios. Aún no está conectado al servidor; al conectarlo se renombra a `createLogger`.
 3. `run.ts` y `ConsoleEntry`: añadir `timestamp`; ajustar los tests que comparan `console_log` exacto.
-4. Reemplazar `log` en `createProxyServer` por `createLogger(writable)` (el `writable` descrito en §2): `request`, `response` y `listening` (sin cambio de salida salvo `span_id`).
+4. Reemplazar `log` en `createProxyServer` por `createLogger(writable)` (el `writable` descrito en §2, renombrando desde `createLogger_experimental`): `request`, `response` y `listening` (sin cambio de salida salvo `span_id`).
 5. Migrar `commandPass` a transacciones (curl/wget/node primero, luego ssh y kubectl con hijo). Quitar `script_exit` duplicado solo si D3 lo decide.
 6. Anotaciones iniciales (D5), si se aprueban.
 7. UI: sangría, `request_annotation`, columnas de comando.
@@ -215,7 +215,7 @@ Antes de abrir el PR de implementación: `bun test` y `bun run features` (regene
 | D3 | ¿Conservar `script_exit` además de `command_end`? | **Sí en esta entrega**, marcado como obsoleto en docs; retirarlo en el siguiente minor. |
 | D4 | `annotation` en una transacción hija: ¿`type: "annotation"` o siempre `request_annotation`? | **`request_annotation` solo en la raíz y `annotation` en hijos**, así el nombre no miente. |
 | D5 | ¿Emitir anotaciones automáticas (ruta que coincidió, espera de `concurrency`)? | **Sí, solo `route`** (patrón y método). La espera se deja para otra iteración. |
-| D6 | `Logger` ¿estático global (`Logger.request…`) o creado por el sistema? | **Creado por el sistema** con `createLogger(writable)`, una instancia por servidor. Varios servidores con distinto `log_file` conviven en el mismo proceso (los tests lo hacen); un global los mezclaría. |
+| D6 | `Logger` ¿estático global (`Logger.request…`) o creado por el sistema? | **Creado por el sistema** con `createLogger_experimental(writable)`, una instancia por servidor. Varios servidores con distinto `log_file` conviven en el mismo proceso (los tests lo hacen); un global los mezclaría. |
 | D7 | `transaction_id`: ¿se queda como id de la petición o pasa a ser el de cada transacción? | **Se queda como id de la petición** (compatibilidad con UI y tests); el id propio es `span_id`. |
 | D8 | `end(exitCode, logs)` ¿recibe los logs o el logger los acumula? | **Recibe los logs, como en tu ejemplo.** Quien ejecuta el proceso (`commandPass`) ya los acumula con `onConsole`. |
 | D9 | Los tipos `command` y `command_exit` pasan a `command_start` y `command_end`: ¿se emiten también con los nombres viejos durante una versión? | **No: renombrar sin alias.** El `.ndjson` es de consumo interno (UI y tests); se actualizan ambos y se documenta. `response.command` se mantiene. Si hay consumidores externos, alias por un minor. |

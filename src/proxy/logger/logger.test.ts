@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createLogger } from "./logger";
+import { createLogger_experimental } from "./logger";
 
 /** A stream that collects every chunk written to it, decoded as `.ndjson` lines. */
 const sink = () => {
@@ -11,7 +11,7 @@ const sink = () => {
 
 const setup = () => {
   const { writable, lines, chunks } = sink();
-  const Logger = createLogger(writable);
+  const Logger = createLogger_experimental(writable);
   const transaction = Logger.request.openTransaction({
     method: "POST",
     url: "http://example.com/a?b=1",
@@ -133,7 +133,7 @@ test("every line is a utf8 chunk ending in a newline", async () => {
 });
 
 test("a failing stream does not make the logger throw", async () => {
-  const Logger = createLogger(new WritableStream<Uint8Array>({ write: () => Promise.reject(new Error("disk full")) }));
+  const Logger = createLogger_experimental(new WritableStream<Uint8Array>({ write: () => Promise.reject(new Error("disk full")) }));
   const transaction = Logger.request.openTransaction({ method: "GET", url: "http://x.test/", httpVersion: "1.1", headers: {}, body: Buffer.alloc(0) });
   transaction.response(reply);
   await Logger.flush();

@@ -90,12 +90,12 @@ const encodePayload = (body: Buffer) => {
 /**
  * Experimental logger with nested transactions (see docs/plans/logger-transacciones.md).
  * Not wired to the proxy yet. The system creates it over the stream that receives the `.ndjson`
- * lines (one JSON object per line, utf8): `const Logger = createLogger(writable)`.
+ * lines (one JSON object per line, utf8): `const Logger = createLogger_experimental(writable)`.
  *
  * `transaction_id` is the id of the request and is shared by the whole tree; `span_id` is the id of
  * each open transaction and `parent_span_id` the one that opened it.
  */
-export const createLogger = (writable: WritableStream<Uint8Array>): Logger => {
+export const createLogger_experimental = (writable: WritableStream<Uint8Array>): Logger => {
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
   let pending: Promise<unknown> = Promise.resolve();
