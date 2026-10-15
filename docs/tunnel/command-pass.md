@@ -437,7 +437,7 @@ route https?://api.internal/ {
 
 - Los argumentos de `kubectl_pass` son los de `command_pass kubectl`: opciones de
   `kubectl exec` seguidas del destino (último). Sin destino, el arranque falla.
-- `context <nombre>` y `namespace <nombre>` son subdirectivas que seleccionan el cluster y el
+- `context <nombre>` y `namespace <nombre>` (alias `namespaces`) son subdirectivas que seleccionan el cluster y el
   namespace; equivalen a `"--context" "<nombre>" "--namespace" "<nombre>"` y se añaden después de
   las opciones de la línea y antes del destino:
 

@@ -46,6 +46,13 @@ const manifestPayload = `proxy {
       command_pass curl
     }
   }
+  route http://alias.test/ {
+    kubectl_pass {
+      pod_name "pod/api-0"
+      namespaces the-namespace
+      command_pass curl
+    }
+  }
   route http://plain.test/ {
     kubectl_pass "deploy/api" {
       command_pass curl
@@ -118,6 +125,11 @@ testFeature(manifestPayload, ["/proxy/route/kubectl_pass/namespace"], "should pa
 testFeature(manifestPayload, ["/proxy/route/kubectl_pass"], "should put the selectors after the options given as arguments", async () => {
   await (await fetch("http://options.test/", { proxy })).text();
   expect(kubectlOptions()).toEqual(["--kubeconfig", "/tmp/kube", "--context", "dev", "deploy/api"]);
+});
+
+testFeature(manifestPayload, ["/proxy/route/kubectl_pass/namespace"], "should accept namespaces as an alias of namespace", async () => {
+  await (await fetch("http://alias.test/", { proxy })).text();
+  expect(kubectlOptions()).toEqual(["--namespace", "the-namespace", "pod/api-0"]);
 });
 
 testFeature(manifestPayload, ["/proxy/route/kubectl_pass"], "should not pass --context or --namespace without the selectors", async () => {
