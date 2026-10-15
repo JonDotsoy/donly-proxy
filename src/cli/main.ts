@@ -2,7 +2,7 @@ import type { AddressInfo } from "node:net";
 import { argument, flag, flags } from "@jondotsoy/flags";
 import pkg from "../../package.json";
 import { lintManifestFile } from "../proxy/lint";
-import { createProxyServer, loadConfig } from "../proxy/server";
+import { createProxyServers, loadConfig } from "../proxy/server";
 import { createUiServer } from "../ui/server";
 
 const parser = flags({
@@ -44,11 +44,20 @@ if (options.ui && !config.logFile) {
   console.error("Error: --ui requiere log_file en el manifiesto para poder mostrar los logs");
   process.exit(1);
 }
-const server = createProxyServer(config);
-server.listen(config.port, config.host, () => {
-  // `port 0` (the default) is assigned by the system: report the real one.
-  console.log(`proxy listening on ${config.host}:${(server.address() as AddressInfo).port}`);
-});
+const servers = createProxyServers(config);
+const failed = (listener: { host: string; port: number }) => (error: NodeJS.ErrnoException) => {
+  console.error(`Error: no se pudo escuchar en ${listener.host}:${listener.port}: ${error.code ?? error.message}`);
+  process.exit(1);
+};
+for (const [i, server] of servers.entries()) {
+  const listener = config.listeners[i]!;
+  server.on("error", failed(listener));
+  server.listen(listener.port, listener.host, () => {
+    // `port 0` is assigned by the system: report the real one.
+    const scheme = listener.https ? "https" : "http";
+    console.log(`proxy listening on ${listener.host}:${(server.address() as AddressInfo).port} (${scheme})`);
+  });
+}
 
 if (options.ui && config.logFile) {
   const ui = createUiServer(config.logFile);

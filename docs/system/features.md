@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **223** · ✅ pasan: **223** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -83,6 +83,7 @@ Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should abort the start with a non-zero exit code when the lint has errors | ✅ | <code>port 70000</code> |
 | should accept an http request through an https proxy | ✅ | <code>listen https 127.0.0.1 0 {</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>&nbsp;&nbsp;respond 200 "secure good"</code><br><code>&nbsp;&nbsp;respond 200 "plain good"</code> |
 | should accept namespaces as an alias of namespace | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
+| should accept several port aliases | ✅ | <code>port 9080</code><br><code>port https 9081</code> |
 | should accept the IPv4-mapped IPv6 notation ::ffff:127.0.0.1 | ✅ | <code>host "::ffff:127.0.0.1"</code> |
 | should accept the IPv6 notation ::0001 | ✅ | <code>host "::0001"</code> |
 | should accept the IPv6 notation [::1] | ✅ | <code>host "[::1]"</code> |
@@ -90,6 +91,7 @@ Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should accept the IPv6 notation 0:0:0:0:0:0:0:1 | ✅ | <code>host "0:0:0:0:0:0:0:1"</code> |
 | should accept the IPv6 notation 0000:0000:0000:0000:0000:0000:0000:0001 | ✅ | <code>host "0000:0000:0000:0000:0000:0000:0000:0001"</code> |
 | should add the extra_args to the ssh options, keeping the destination last | ✅ | <code>extra_args "-p" 2222</code> |
+| should allow the same port on different hosts | ✅ | <code>listen http 127.0.0.1 9090</code><br><code>listen http ::1 9090</code> |
 | should answer 404 for unknown ui paths | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should call http://httpbin.io/get through kubectl_pass from the pod | ✅ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass curl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;retry 3</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;extra_args --retry-all-errors --retry-delay 2</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should call https://httpbin.io/get through kubectl_pass from the pod | ✅ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass curl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;retry 3</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;extra_args --retry-all-errors --retry-delay 2</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
@@ -107,6 +109,7 @@ Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should keep the port declared in the manifest | ✅ | <code>port 3456</code> |
 | should keep the target of command_pass kubectl last with extra_args and selectors | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>extra_args --request-timeout 5s</code><br><code>namespace prod</code> |
 | should lint a valid manifest without issues | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;log_file "./logs/proxy.ndjson"</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route https?://example.com/ {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "good"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 404</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should lint several listen without warnings | ✅ | <code>listen http 9080</code><br><code>listen https 9081</code> |
 | should listen on 127.0.0.1 when the manifest has no host | ✅ |  |
 | should listen on a random free port when the manifest has none | ✅ |  |
 | should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
@@ -125,6 +128,7 @@ Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should not warn about listen | ✅ | <code>listen http 127.0.0.1 8080</code> |
 | should only deliver a log line once it is complete | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should only warn about unknown directives | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;tls {</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route a {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;timeout 5</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should parse several listen into one listener each | ✅ | <code>listen http 9080</code><br><code>listen https 9081</code> |
 | should parse the syntax: host directive + port keeps the host | ✅ | <code>host "::1"</code><br><code>port 0</code> |
 | should parse the syntax: listen 0 | ✅ | <code>listen 0</code> |
 | should parse the syntax: listen 8080 | ✅ | <code>listen 8080</code> |
@@ -194,6 +198,7 @@ Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject retry outside command_pass curl | ✅ | <code>retry 5</code> |
 | should reject ssh_pass without a destination | ✅ | <code>ssh_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should reject ssh_pass without a nested command_pass | ✅ | <code>ssh_pass "user@remote.test"</code> |
+| should reject two listen on the same host and port | ✅ | <code>listen http 127.0.0.1 9090</code><br><code>listen https 127.0.0.1 9090</code> |
 | should replay only the last lines of a long log and survive a truncation | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should report an error when a route has not exactly one action | ✅ | <code>route a {</code><br><code>}</code><br><code>route b {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;proxy_pass "http://x/"</code><br><code>}</code> |
 | should report an error when a route mixes two passes | ✅ | <code>kubectl_pass {}</code><br><code>proxy_pass {}</code> |
@@ -207,10 +212,13 @@ Specs: **215** · ✅ pasan: **215** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should report errors for an invalid respond status or body | ✅ | <code>respond 700 "x"</code><br><code>respond 200 5</code> |
 | should run the request over ssh with the curl of the nested command_pass | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
 | should send the namespace to kubectl exec when namespace is defined | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
+| should serve http and https listeners at once | ✅ | <code>listen http 127.0.0.1 0</code><br><code>listen https 127.0.0.1 0</code><br><code>&nbsp;&nbsp;respond 200 "shared good"</code><br><code>&nbsp;&nbsp;respond 200 "shared good"</code> |
 | should serve http on the IPv6 loopback with listen http ::1 0 | ✅ | <code>listen http ::1 0</code> |
 | should serve https on the IPv6 loopback with listen https ::1 0 | ✅ | <code>listen https ::1 0</code> |
 | should serve https with a self-signed certificate generated next to the manifest | ✅ | <code>listen https 127.0.0.1 0</code> |
 | should serve the log viewer page on the ui port | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| should serve two http listeners on different ports | ✅ | <code>listen http 127.0.0.1 0</code><br><code>listen http 127.0.0.1 0</code><br><code>&nbsp;&nbsp;respond 200 "shared good"</code><br><code>&nbsp;&nbsp;respond 200 "shared good"</code> |
+| should still reject listen mixed with port | ✅ | <code>listen http 9080</code><br><code>port 9081</code> |
 | should stream the existing log lines and then the new ones as server-sent events | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should tunnel an https request through an https proxy | ✅ | <code>listen https 127.0.0.1 0 {</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>&nbsp;&nbsp;respond 200 "secure good"</code><br><code>&nbsp;&nbsp;respond 200 "plain good"</code> |
 | should use the curl engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass curl</code> |
