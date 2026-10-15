@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **176** · ✅ pasan: **176** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -80,6 +80,7 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | route can be limited by method | ✅ | <code>route https?://pass.test/ {</code><br><code>&nbsp;&nbsp;proxy_pass "http://127.0.0.1:&lt;port&gt;"</code><br><code>}</code><br><code>route http://fixed.test/ {</code><br><code>&nbsp;&nbsp;proxy_pass "http://127.0.0.1:&lt;port&gt;/fixed"</code><br><code>}</code><br><code>route http://curl.test/ {</code><br><code>&nbsp;&nbsp;command_pass curl "--connect-to" "curl.test:80:127.0.0.1:&lt;port&gt;"</code><br><code>}</code><br><code>route POST http://example.com/ {</code><br><code>&nbsp;&nbsp;respond 201 "created"</code><br><code>}</code><br><code>route https?://example.com/ {</code><br><code>&nbsp;&nbsp;respond 200 "good"</code><br><code>}</code> |
 | routes without command_pass log no command | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;respond 200 "plain"</code> |
 | runs one process at a time by default | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |
+| should accept an http request through an https proxy | ✅ | <code>listen true</code><br><code>respond 200 "secure good"</code><br><code>respond 200 "plain good"</code> |
 | should accept namespaces as an alias of namespace | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
 | should accept the IPv4-mapped IPv6 notation ::ffff:127.0.0.1 | ✅ | <code>host "::ffff:127.0.0.1"</code> |
 | should accept the IPv6 notation ::0001 | ✅ | <code>host "::0001"</code> |
@@ -139,6 +140,7 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned" "$(touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned)"</code> |
 | should pass the port subdirective of ssh_pass as -p | ✅ | <code>port 2222</code><br><code>port 2200</code> |
 | should pass the user subdirective of ssh_pass as -l | ✅ | <code>port 2222</code><br><code>user jon</code><br><code>port 2200</code><br><code>user jon</code> |
+| should proxy_pass through an https proxy | ✅ | <code>listen true</code><br><code>proxy_pass http://127.0.0.1:&lt;port&gt;/</code> |
 | should put no_warnings after the arguments of the line and the extra_args | ✅ | <code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings true</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings false</code><br><code>}</code><br><code>command_pass node "--max-old-space-size=64" {</code><br><code>&nbsp;&nbsp;extra_args --no-deprecation</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node</code> |
 | should put the arguments after the host of ssh_pass before the host as ssh options | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned" "$(touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned)"</code><br><code>}</code> |
@@ -146,6 +148,7 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should put the selectors of command_pass kubectl after the options given as arguments | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace prod</code> |
 | should read the concurrency and the options of the nested command_pass in ssh_pass | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>&nbsp;&nbsp;extra_args --foo tar</code><br><code>}</code> |
 | should read the port from the manifest | ✅ | <code>port 3000</code> |
+| should refuse a plain http connection to an https proxy | ✅ | <code>listen true</code> |
 | should reject a context of command_pass kubectl that is not a name | ✅ | <code>context ""</code> |
 | should reject a context that is not a name | ✅ | <code>context 5</code> |
 | should reject a max_time that is not a positive number | ✅ | <code>max_time 0</code> |
@@ -153,6 +156,7 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject a namespace that is not a name | ✅ | <code>namespace 5</code> |
 | should reject a nested command_pass that is not curl, wget or node | ✅ | <code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass ssh</code><br><code>}</code> |
 | should reject a no_warnings that is not true or false | ✅ | <code>no_warnings maybe</code> |
+| should reject a non-boolean ssl.listen | ✅ | <code>listen "yes"</code> |
 | should reject a pass that is empty or not a text | ✅ | <code>pass ""</code> |
 | should reject a port that is not between 1 and 65535 | ✅ | <code>port 0</code> |
 | should reject a retry that is not a non-negative integer | ✅ | <code>retry -1</code> |
@@ -171,6 +175,7 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should send the namespace to kubectl exec when namespace is defined | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
 | should serve the log viewer page on the ui port | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should stream the existing log lines and then the new ones as server-sent events | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| should tunnel an https request through an https proxy | ✅ | <code>listen true</code><br><code>respond 200 "secure good"</code><br><code>respond 200 "plain good"</code> |
 | should use the curl engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass curl</code> |
 | should use the first argument of ssh_pass as the host, so ~/.ssh/config applies | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should use the node engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass node</code> |

@@ -33,7 +33,7 @@ export interface Route {
 export interface ProxyConfig {
   host: string;
   port: number;
-  ssl: { cert: string; key: string };
+  ssl: { cert: string; key: string; /** Serve the proxy listener itself over TLS. */ listen: boolean };
   routes: Route[];
   /** Absolute path of the `.ndjson` transaction log, if configured. */
   logFile?: string;
@@ -151,6 +151,8 @@ export const loadConfig = async (
   const child = (name: string, parent = proxy) => parent?.children.find((c) => c.name === name);
   const resolve = (p: string) => fileURLToPath(new URL(p, url));
   const ssl = child("ssl");
+  const sslListen = child("listen", ssl)?.args[0] ?? false;
+  if (typeof sslListen !== "boolean") throw new Error(`ssl.listen debe ser true o false, no "${sslListen}"`);
   const logFile = child("log_file")?.args[0];
   if (logFile !== undefined && !String(logFile).endsWith(".ndjson")) {
     throw new Error(`log_file ${logFile}: solo se soporta la extensión .ndjson`);
@@ -162,6 +164,7 @@ export const loadConfig = async (
     ssl: {
       cert: resolve(String(child("cert", ssl)?.args[0] ?? "./certs/cert.pem")),
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),
+      listen: sslListen,
     },
     logFile: logFile === undefined ? undefined : resolve(String(logFile)),
     routes: (proxy?.children ?? [])
@@ -511,7 +514,9 @@ export const createProxyServer = ({
     res.writeHead(reply.status, reply.headers);
     res.end(reply.body);
   };
-  const server = http.createServer(handle);
+  // With `ssl.listen` the proxy itself speaks TLS (`curl --proxy https://...`).
+  const server: http.Server = ssl.listen ? https.createServer(tlsOptions, handle) : http.createServer(handle);
+  if (ssl.listen) server.on("tlsClientError", () => {});
 
   // CONNECT tunnels are piped into this loopback HTTPS server instead of wrapping the socket in a
   // `tls.TLSSocket`: Bun 1.3.x never completes the handshake on a wrapped socket.
