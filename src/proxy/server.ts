@@ -252,6 +252,9 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
             `route ${name}: se requiere exactamente uno de \`respond\`, \`proxy_pass\`, \`command_pass\`, \`kubectl_pass\` o \`ssh_pass\``,
           );
         }
+        if (route.args.length > 2) {
+          throw new Error(`route ${name}: route recibe un patrón o un método y un patrón, hay ${route.args.length} argumentos`);
+        }
         const method = route.args.length > 1 ? String(route.args[0]).toUpperCase() : null;
         // `route { … }` without arguments matches every request.
         let pattern: RoutePattern;

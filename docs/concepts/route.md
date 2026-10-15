@@ -23,6 +23,9 @@ Una ruta coincide cuando se cumplen ambas condiciones:
 | Método (opcional) | `GET`, `POST`, etc. Sin método aplica a cualquier método. |
 | Patrón | Expresión regular de JavaScript probada contra la URL completa. **No está anclada**: usa `^` y `$` si lo necesitas, y recuerda que `.` coincide con cualquier carácter. |
 
+`route` recibe **uno o dos** argumentos: con uno (`route <patrón>`) solo se valida la URL; con dos
+(`route <MÉTODO> <patrón>`), el método y la URL. Con más de dos el arranque falla.
+
 ### Patrón `urlpattern:`
 
 Un patrón que empieza por `urlpattern:` se evalúa como un [`URLPattern`](https://developer.mozilla.org/docs/Web/API/URLPattern)

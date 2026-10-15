@@ -120,3 +120,18 @@ testFeature(`proxy {\n  tls {\n  }\n  route {\n    respond 200\n  }\n}\n`, ["/pr
   expect(new TextDecoder().decode(value)).toContain("proxy listening on 127.0.0.1:");
   expect(await new Response(child.stderr).text()).toContain("directiva desconocida `tls` en proxy");
 });
+
+testFeature(`proxy {\n  route a {\n    respond 200\n  }\n  route GET b {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should accept a route with one or two arguments", (payload) => {
+  expect(messages(payload, "error")).toEqual([]);
+});
+
+testFeature(`proxy {\n  route GET POST a {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should report an error when a route has more than two arguments", (payload) => {
+  expect(messages(payload, "error")).toEqual(["route GET POST a: route recibe un patrón o un método y un patrón, hay 3 argumentos"]);
+});
+
+testFeature(`proxy {\n  route 5 a {\n    respond 200\n  }\n  route GET 7 {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should report an error when the method or the pattern is not a text", (payload) => {
+  expect(messages(payload, "error").sort()).toEqual([
+    'route 5 a: el método debe ser un nombre como GET o POST, no "5"',
+    'route GET 7: el patrón debe ser un texto, no "7"',
+  ]);
+});

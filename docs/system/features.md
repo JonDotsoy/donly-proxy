@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **257** · ✅ pasan: **257** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **263** · ✅ pasan: **263** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -15,6 +15,8 @@ Specs: **257** · ✅ pasan: **257** · 🔴 fallan: **0** · ⏳ sin resultado:
 | a GET becomes a fixed wget command line with quoted values | ✅ | <code>engine wget</code> |
 | a later fetch without proxy still adds nothing to the log | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | a pattern without the urlpattern prefix is still a regular expression | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
+| a route with one argument validates only the URL | ✅ | <code>route POST http://method.test/ {</code><br><code>&nbsp;&nbsp;respond 201 "post only"</code><br><code>}</code><br><code>route http://any.test/ {</code><br><code>&nbsp;&nbsp;respond 200 "any method"</code><br><code>}</code> |
+| a route with two arguments validates the method and the URL | ✅ | <code>route POST http://method.test/ {</code><br><code>&nbsp;&nbsp;respond 201 "post only"</code><br><code>}</code><br><code>route http://any.test/ {</code><br><code>&nbsp;&nbsp;respond 200 "any method"</code><br><code>}</code> |
 | a route without arguments matches every request | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 202 "catch-all"</code><br><code>}</code> |
 | a urlpattern supports wildcards in the host and path | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
 | a urlpattern with a scheme restricts the protocol | ✅ | <code>respond 200 "host only"</code><br><code>respond 200 "host and port"</code><br><code>respond 200 "wildcard"</code><br><code>respond 200 "host and path"</code><br><code>respond 200 "https only"</code><br><code>respond 200 "both schemes"</code><br><code>respond 200 "regex"</code> |
@@ -87,6 +89,7 @@ Specs: **257** · ✅ pasan: **257** · 🔴 fallan: **0** · ⏳ sin resultado:
 | routes without command_pass log no command | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;respond 200 "plain"</code> |
 | runs one process at a time by default | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |
 | should abort the start with a non-zero exit code when the lint has errors | ✅ | <code>port 70000</code> |
+| should accept a route with one or two arguments | ✅ | <code>route a {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code><br><code>route GET b {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code> |
 | should accept an http request through an https proxy | ✅ | <code>listen https 127.0.0.1 0 {</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>&nbsp;&nbsp;respond 200 "secure good"</code><br><code>&nbsp;&nbsp;respond 200 "plain good"</code> |
 | should accept namespaces as an alias of namespace | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
 | should accept several port aliases | ✅ | <code>port 9080</code><br><code>port https 9081</code> |
@@ -211,6 +214,7 @@ Specs: **257** · ✅ pasan: **257** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject a port that is not between 1 and 65535 | ✅ | <code>port 0</code> |
 | should reject a retry that is not a non-negative integer | ✅ | <code>retry -1</code> |
 | should reject a route that combines ssh_pass with another action | ✅ | <code>route / {</code><br><code>&nbsp;&nbsp;respond 200 "x"</code><br><code>&nbsp;&nbsp;ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;command_pass curl</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should reject a route with more than two arguments | ✅ | <code>route GET POST http://x.test/ {</code><br><code>&nbsp;&nbsp;respond 200 "x"</code><br><code>}</code> |
 | should reject a socks4 BIND request | ✅ | <code>listen socks4 127.0.0.1 0</code> |
 | should reject a socks5 client that does not offer no-auth | ✅ | <code>listen socks5 127.0.0.1 0</code> |
 | should reject a socks5 UDP ASSOCIATE request | ✅ | <code>listen socks5 127.0.0.1 0</code> |
@@ -228,6 +232,7 @@ Specs: **257** · ✅ pasan: **257** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject the same host and port in two proxy blocks | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 9090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 9090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should reject two listen on the same host and port | ✅ | <code>listen http 127.0.0.1 9090</code><br><code>listen https 127.0.0.1 9090</code> |
 | should replay only the last lines of a long log and survive a truncation | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| should report an error when a route has more than two arguments | ✅ | <code>route GET POST a {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code> |
 | should report an error when a route has not exactly one action | ✅ | <code>route a {</code><br><code>}</code><br><code>route b {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;proxy_pass "http://x/"</code><br><code>}</code> |
 | should report an error when a route mixes two passes | ✅ | <code>kubectl_pass {}</code><br><code>proxy_pass {}</code> |
 | should report an error when log_file is not .ndjson | ✅ | <code>log_file "./proxy.log"</code> |
@@ -235,6 +240,7 @@ Specs: **257** · ✅ pasan: **257** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should report an error when ssl cert or key is not a string | ✅ | <code>ssl {</code><br><code>&nbsp;&nbsp;cert 1</code><br><code>&nbsp;&nbsp;key 2</code><br><code>}</code> |
 | should report an error when the host is not a string | ✅ | <code>host 127</code> |
 | should report an error when the manifest has no proxy block | ✅ |  |
+| should report an error when the method or the pattern is not a text | ✅ | <code>route 5 a {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code><br><code>route GET 7 {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code> |
 | should report an error when the port is not a number | ✅ | <code>port "8080"</code> |
 | should report an error when the port is out of range | ✅ | <code>port 70000</code> |
 | should report errors for an invalid respond status or body | ✅ | <code>respond 700 "x"</code><br><code>respond 200 5</code> |
