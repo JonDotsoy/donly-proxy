@@ -189,8 +189,13 @@ export const loadConfig = async (
           const command = kubectlPass ? "kubectl" : "ssh";
           const inner = child("command_pass", pass);
           const innerCommand = inner?.args[0];
-          if (pass.args.length < 1) {
-            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre" : "usuario@host"})`);
+          // kubectl_pass may name the pod with `pod_name <target>` instead of the last argument of the line.
+          const podName = kubectlPass ? child("pod_name", pass)?.args[0] : undefined;
+          if (kubectlPass && child("pod_name", pass) && (typeof podName !== "string" || podName === "")) {
+            throw new Error(`route ${name}: pod_name debe ser un nombre, no "${podName}"`);
+          }
+          if (pass.args.length < 1 && podName === undefined) {
+            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre, o la subdirectiva pod_name" : "usuario@host"})`);
           }
           if (!inner || (innerCommand !== "curl" && innerCommand !== "wget" && innerCommand !== "node")) {
             throw new Error(`route ${name}: ${directive} requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
@@ -219,7 +224,9 @@ export const loadConfig = async (
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
               // The options of the line, the context / namespace selectors (kubectl), then the target (always last).
-              args: sshArgs?.args ?? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))],
+              args: sshArgs?.args ?? (podName === undefined
+                ? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))]
+                : [...pass.args.map(String), ...selectorArgs(name, pass), String(podName)]),
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
               ...(sshArgs?.password === undefined ? {} : { password: sshArgs.password }),
             },

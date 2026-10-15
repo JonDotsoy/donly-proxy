@@ -437,6 +437,22 @@ route https?://api.internal/ {
 
 - Los argumentos de `kubectl_pass` son los de `command_pass kubectl`: opciones de
   `kubectl exec` seguidas del destino (último). Sin destino, el arranque falla.
+- `pod_name <nombre>` indica el pod (o `tipo/nombre`) como subdirectiva, así que el bloque puede ir
+  sin argumento posicional. Con `pod_name`, los argumentos de la línea son solo opciones de
+  `kubectl exec` y el destino es siempre el valor de `pod_name`. La forma anterior (destino como
+  último argumento) sigue funcionando. El valor debe ser un nombre (texto no vacío); con otro
+  (`pod_name ""`, `pod_name 5`) el arranque falla con `pod_name debe ser un nombre`.
+
+  ```
+  route https?://api.internal/ {
+    kubectl_pass {
+      pod_name "my-pod-12345"
+      context local-my-context
+      namespace the-namespace
+      command_pass node
+    }
+  }
+  ```
 - `context <nombre>` y `namespace <nombre>` (alias `namespaces`) son subdirectivas que seleccionan el cluster y el
   namespace; equivalen a `"--context" "<nombre>" "--namespace" "<nombre>"` y se añaden después de
   las opciones de la línea y antes del destino:

@@ -55,6 +55,14 @@ const manifestPayload = (port: number) =>
       command_pass curl "--max-time" "5"
     }
   }
+  route http://127.0.0.1:${port}/podname/ {
+    kubectl_pass {
+      pod_name "my-pod-12345"
+      context local-my-context
+      namespace the-namespace
+      command_pass curl
+    }
+  }
   route http://127.0.0.1:${port}/default/ {
     command_pass kubectl "pod/api-0"
   }`);
@@ -170,6 +178,23 @@ testFeature(payload, ["/proxy/route/kubectl_pass"], "kubectl_pass with a nested 
   expect(args.slice(args.indexOf("--") + 1, args.indexOf("--") + 3)).toEqual(["sh", "-c"]);
   expect(args.at(-1)).toContain("curl -K");
   expect(args.at(-1)).toContain("'--max-time' '5'");
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_name"], "kubectl_pass without a positional argument takes the pod from pod_name", async () => {
+  const res = await fetch(`http://127.0.0.1:${port}/podname/path`, { proxy });
+  expect(res.status).toBe(200);
+  const args = kubectlArgs();
+  expect(args.slice(0, args.indexOf("--"))).toEqual(["exec", "-i", "-q", "--context", "local-my-context", "--namespace", "the-namespace", "my-pod-12345"]);
+});
+
+testFeature(manifest(`  route / {\n kubectl_pass {\n command_pass curl\n }\n }`), ["/proxy/route/kubectl_pass/pod_name"], "manifest validation for pod_name", async () => {
+  const load = (route: string) => {
+    const file = join(dir, `v-${Math.random()}.donly`);
+    writeFileSync(file, manifest(route));
+    return loadConfig(file);
+  };
+  await expect(load(`route / {\n kubectl_pass {\n pod_name ""\n command_pass curl\n }\n }`)).rejects.toThrow("pod_name debe ser un nombre");
+  await expect(load(`route / {\n kubectl_pass {\n pod_name 5\n command_pass curl\n }\n }`)).rejects.toThrow("pod_name debe ser un nombre");
 });
 
 testFeature(manifest(`  route / {\n kubectl_pass {\n command_pass curl\n }\n }`), ["/proxy/route/kubectl_pass"], "manifest validation for kubectl_pass", async () => {
