@@ -56,6 +56,41 @@
   .detail .bar { display: flex; justify-content: flex-end; margin-bottom: .25rem; }
   .detail pre { margin: 0; padding: .6rem; max-height: 26rem; max-width: 100%; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: .78rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 
+  .views { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .views button { border: 0; border-radius: 0; background: transparent; }
+  .views button + button { border-left: 1px solid var(--line); }
+  .views button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+  body.timeline-view #kind-wrap, body.timeline-view #toggle { display: none; }
+  body:not(.timeline-view) #timeline { display: none; }
+  body.timeline-view #rows { display: none; }
+
+  /* Timeline: one card per transaction, one lane per span, bars positioned by time. */
+  #timeline { display: grid; gap: .75rem; padding-top: .5rem; min-width: 0; }
+  .tx { --tx: var(--line); background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--tx); border-radius: 6px; padding: .5rem .75rem .6rem; min-width: 0; }
+  .tx[hidden] { display: none; }
+  .tx-head { display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: baseline; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 0; }
+  .tx-head .title { font-weight: 600; flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+  .tx-head .meta { color: var(--muted); }
+  .tx-head .code { font-weight: 600; }
+  .tx.bad .tx-head .code { color: var(--bad); }
+  .lane, .ruler { display: grid; grid-template-columns: minmax(7rem, 15rem) minmax(0, 1fr); gap: .15rem .75rem; align-items: center; min-width: 0; }
+  .ruler { margin-top: .5rem; font: .7rem ui-monospace, monospace; color: var(--muted); }
+  .ruler .ticks { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: .15rem; }
+  .lane { padding: .15rem 0; cursor: pointer; }
+  .lane:hover { background: var(--hover); }
+  .lane .name { display: flex; justify-content: space-between; gap: .5rem; min-width: 0; font: .75rem ui-monospace, SFMono-Regular, Menlo, monospace; padding-left: calc(var(--depth, 0) * .9rem); }
+  .lane .name span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lane .name .dur { color: var(--muted); flex: none; }
+  .track { position: relative; height: 1rem; min-width: 0; background: linear-gradient(to right, var(--line) 1px, transparent 1px) 0 0 / 25% 100%; border-right: 1px solid var(--line); }
+  .bar { position: absolute; top: .15rem; bottom: .15rem; min-width: 3px; border-radius: 3px; background: var(--k, var(--note)); }
+  .bar.open { background: repeating-linear-gradient(45deg, var(--k), var(--k) 4px, transparent 4px, transparent 8px); border: 1px solid var(--k); }
+  .bar.fail { outline: 2px solid var(--bad); }
+  .mark { position: absolute; top: .27rem; width: .45rem; height: .45rem; margin-left: -.22rem; background: var(--text); transform: rotate(45deg); }
+  .k-request { --k: var(--request); } .k-proxy_pass { --k: var(--proxy); } .k-command { --k: var(--process); } .k-script { --k: var(--listening); }
+  .lane-detail { grid-column: 1 / -1; min-width: 0; }
+  .lane-detail pre { margin: .2rem 0 .4rem; padding: .6rem; max-height: 20rem; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .event { color: var(--muted); font: .75rem ui-monospace, monospace; padding: 0 .25rem; overflow-wrap: anywhere; }
+
   /* Narrow screens: the line wraps into two rows (time, type, status; then the summary). */
   @media (max-width: 640px) {
     header { padding: .5rem .75rem; }
@@ -65,6 +100,9 @@
     .head { grid-template-columns: auto minmax(0, 1fr) auto; }
     .what { grid-column: 1 / -1; }
     .detail { padding: .25rem .4rem .5rem; }
+    .lane, .ruler { grid-template-columns: minmax(0, 1fr); }
+    .ruler > span:first-child { display: none; }
+    .tx { padding: .5rem; }
   }
 </style>
 </head>
@@ -73,7 +111,11 @@
   <h1>donly-proxy · logs</h1>
   <div class="tools">
     <input id="search" type="search" placeholder="Buscar en los logs…" aria-label="Buscar en los logs">
-    <select id="kind" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option></select>
+    <span class="views" role="group" aria-label="Vista">
+      <button id="view-list" type="button" aria-pressed="true">Lista</button>
+      <button id="view-timeline" type="button" aria-pressed="false">Línea de tiempo</button>
+    </span>
+    <span id="kind-wrap"><select id="kind" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option></select></span>
     <label><input id="follow" type="checkbox" checked> seguir</label>
     <button id="toggle" type="button">Expandir todo</button>
     <button id="clear" type="button">Limpiar</button>
@@ -82,6 +124,7 @@
 </header>
 <main>
   <div id="rows"></div>
+  <div id="timeline"></div>
   <div id="empty" hidden>No hay líneas que coincidan.</div>
 </main>
 <script>
@@ -183,6 +226,7 @@
 
     row.append(head, detail);
     rows.append(row);
+    addToTimeline(entry, line);
     total++;
     if (!kinds.has(type)) {
       kinds.add(type);
@@ -193,8 +237,9 @@
     if (follow.checked && !row.hidden) row.scrollIntoView({ block: "end" });
   };
 
-  search.oninput = kind.onchange = refresh;
-  document.getElementById("clear").onclick = () => { rows.textContent = ""; depths.clear(); total = 0; refresh(); };
+  const refreshTimeline = () => { for (const tx of txs.values()) tx.card.hidden = !txVisible(tx); };
+  search.oninput = kind.onchange = () => { refresh(); refreshTimeline(); };
+  document.getElementById("clear").onclick = () => { rows.textContent = ""; timeline.textContent = ""; txs.clear(); depths.clear(); total = 0; refresh(); };
   toggle.onclick = () => {
     const expand = toggle.textContent === "Expandir todo";
     for (const row of rows.children) {
@@ -205,9 +250,150 @@
     toggle.textContent = expand ? "Contraer todo" : "Expandir todo";
   };
 
+  // ---- Timeline view ----
+  const timeline = document.getElementById("timeline");
+  const txs = new Map(); // transaction_id -> { entries, card, open: Set<span_id> }
+  const timeOf = (e) => e.performance_timestamp ?? Date.parse(e.timestamp);
+  const fmt = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms < 10 ? ms.toFixed(1) : Math.round(ms)} ms`);
+
+  const buildSpans = (entries) => {
+    const spans = new Map();
+    const scripts = new Map(); // process span -> script span
+    const open = (e, kind, label, id = e.span_id) => {
+      spans.set(id, { id, kind, label, parent: e.parent_span_id, start: timeOf(e), end: null, marks: [], entries: [e] });
+    };
+    for (const e of entries) {
+      const span = spans.get(e.span_id);
+      switch (e.type) {
+        case "request": open(e, "request", `${e.method} ${e.url}`); break;
+        case "proxy_pass_request": open(e, "proxy_pass", `proxy_pass ${e.method} ${e.target}`); break;
+        case "command_start": open(e, "command", [e.program, ...(e.args ?? [])].join(" ")); break;
+        case "script_start": open(e, "script", `${e.program} script`); scripts.set(e.parent_span_id, e.span_id); break;
+        case "request_annotation":
+        case "annotation": span?.marks.push({ t: timeOf(e), text: JSON.stringify(e.annotation) }); span?.entries.push(e); break;
+        case "script_end": {
+          const script = spans.get(scripts.get(e.span_id));
+          if (script) { script.end = timeOf(e); script.entries.push(e); }
+          break;
+        }
+        case "response":
+        case "proxy_pass_response":
+        case "command_end":
+          if (span) {
+            span.end = timeOf(e);
+            span.entries.push(e);
+            span.code = e.status ?? e.statusCode ?? span.code;
+            if (e.type === "command_end") span.exit = e.exit_code;
+          }
+          break;
+      }
+    }
+    return spans;
+  };
+
+  const renderTx = (tx) => {
+    const spans = buildSpans(tx.entries);
+    const times = tx.entries.map(timeOf).filter(Number.isFinite);
+    const t0 = Math.min(...times);
+    const t1 = Math.max(...times);
+    const total = Math.max(t1 - t0, 1);
+    const root = [...spans.values()].find((s) => !s.parent);
+    const done = root?.end != null;
+    const code = root?.code;
+    const depth = (s) => (s.parent && spans.get(s.parent) ? depth(spans.get(s.parent)) + 1 : 0);
+
+    const head = el("div", "tx-head");
+    head.append(
+      el("span", "title", root?.label ?? "(sin request)"),
+      el("span", "code", code ?? (done ? "" : "en curso")),
+      el("span", "meta", `${fmt(total)} · ${spans.size} spans`),
+      el("span", "meta", new Date(tx.entries[0].timestamp).toLocaleTimeString()),
+    );
+
+    const ruler = el("div", "ruler");
+    const ticks = el("div", "ticks");
+    for (const f of [0, 0.25, 0.5, 0.75, 1]) ticks.append(el("span", "", fmt(total * f)));
+    ruler.append(el("span"), ticks);
+
+    const nodes = [head, ruler];
+    for (const span of spans.values()) {
+      const end = span.end ?? t1;
+      const lane = el("div", "lane");
+      lane.dataset.span = span.id;
+      lane.tabIndex = 0;
+      lane.setAttribute("role", "button");
+      const name = el("div", "name");
+      name.style.setProperty("--depth", depth(span));
+      name.append(el("span", "", span.label), el("span", "dur", span.end == null ? "…" : fmt(end - span.start)));
+      name.title = `${span.kind}: ${span.label}`;
+      const track = el("div", "track");
+      const bar = el("div", `bar k-${span.kind}${span.end == null ? " open" : ""}${span.exit ? " fail" : ""}`);
+      bar.style.left = `${((span.start - t0) / total) * 100}%`;
+      bar.style.width = `${Math.max(((end - span.start) / total) * 100, 0)}%`;
+      bar.title = `${span.label}\n${fmt(span.start - t0)} → ${fmt(end - t0)}`;
+      track.append(bar);
+      for (const m of span.marks) {
+        const mark = el("div", "mark");
+        mark.style.left = `${((m.t - t0) / total) * 100}%`;
+        mark.title = m.text;
+        track.append(mark);
+      }
+      lane.append(name, track);
+      const toggleDetail = () => {
+        tx.open.has(span.id) ? tx.open.delete(span.id) : tx.open.add(span.id);
+        renderTx(tx);
+      };
+      lane.onclick = toggleDetail;
+      lane.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleDetail(); } };
+      nodes.push(lane);
+      if (tx.open.has(span.id)) {
+        const detail = el("div", "lane-detail");
+        detail.append(el("pre", "", JSON.stringify(span.entries, null, 2)));
+        nodes.push(detail);
+      }
+    }
+    tx.card.replaceChildren(...nodes);
+    tx.card.classList.toggle("bad", code >= 400 || [...spans.values()].some((s) => s.exit));
+    tx.card.hidden = !txVisible(tx);
+  };
+
+  const txVisible = (tx) => !search.value || tx.entries.some((e) => e.__text.includes(search.value.toLowerCase()));
+
+  const addToTimeline = (entry, line) => {
+    if (!entry.transaction_id) {
+      if (entry.type === "listening" || entry.type === "raw") {
+        timeline.append(el("div", "event", `${entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() + " · " : ""}${summary(entry)}`));
+      }
+      return;
+    }
+    let tx = txs.get(entry.transaction_id);
+    if (!tx) {
+      const card = el("div", "tx");
+      card.style.setProperty("--tx", `hsl(${hue(entry.transaction_id)} 60% 50%)`);
+      tx = { entries: [], card, open: new Set() };
+      txs.set(entry.transaction_id, tx);
+      timeline.append(card);
+    }
+    Object.defineProperty(entry, "__text", { value: line.toLowerCase(), enumerable: false });
+    tx.entries.push(entry);
+    renderTx(tx);
+    if (follow.checked && document.body.classList.contains("timeline-view")) tx.card.scrollIntoView({ block: "end" });
+  };
+
+  const setView = (name) => {
+    const isTimeline = name === "timeline";
+    document.body.classList.toggle("timeline-view", isTimeline);
+    document.getElementById("view-list").setAttribute("aria-pressed", String(!isTimeline));
+    document.getElementById("view-timeline").setAttribute("aria-pressed", String(isTimeline));
+    try { localStorage.setItem("donly-ui-view", name); } catch {}
+  };
+  document.getElementById("view-list").onclick = () => setView("list");
+  document.getElementById("view-timeline").onclick = () => setView("timeline");
+  try { setView(new URLSearchParams(location.search).get("view") ?? localStorage.getItem("donly-ui-view") ?? "list"); } catch { setView("list"); }
+
   const source = new EventSource("/events");
   source.onopen = () => {
-    rows.textContent = ""; depths.clear(); total = 0; // the server replays the history on every (re)connection
+    rows.textContent = ""; timeline.textContent = ""; txs.clear(); depths.clear(); total = 0; // the server replays the history on every (re)connection
     status.textContent = "en vivo";
     status.className = "live";
   };
