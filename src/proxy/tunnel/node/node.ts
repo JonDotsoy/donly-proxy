@@ -37,15 +37,18 @@ export const parseNodeResult = ({ code, stdout, stderr }: RunResult, label = "no
  * `http.request` / `https.request` (see `node-request.mjs`).
  * `args` are extra node options, placed before the script.
  */
-export const nodeRequest = async (request: CurlRequest) =>
-  parseNodeResult(
+export const nodeRequest = async (request: CurlRequest) => {
+  const stdin = nodeStdin(request);
+  request.onScript?.(stdin);
+  return parseNodeResult(
     await run(
       "node",
       [...request.args, "--input-type=module", "-"],
-      nodeStdin(request),
+      stdin,
       request.onCommand,
       undefined,
       request.onExit,
       request.onConsole,
     ),
   );
+};

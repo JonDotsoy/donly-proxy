@@ -369,6 +369,8 @@ const commandPass = async (
     // Every command that ran ends with an exit code and a `console_log` (empty when it wrote nothing).
     if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code, console_log: consoleLog });
     emit({ type: "command_exit", program: executed?.[0], exit_code: code, console_log: consoleLog });
+    // A script (the `node` engine) also ends with its own line, right after the command's.
+    if (script !== undefined) emit({ type: "script_exit", program: "node", exit_code: code, console_log: consoleLog });
   };
   try {
     const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit, onConsole };

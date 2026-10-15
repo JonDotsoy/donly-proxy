@@ -21,11 +21,12 @@ Las líneas de una transacción añaden `transaction_id` (UUID compartido por to
 | `listening` | Al arrancar. | `host`, `port` (el real si `port` es `0`). |
 | `request` | Petición recibida. | `headers`, `payload`, y `payload_encoding: "base64"` si no es UTF-8. |
 | `command` | Antes de ejecutar un programa de una ruta `command_pass`, `kubectl_pass` o `ssh_pass`. | `program`, `command` (programa y argumentos). Con `kubectl` hay dos: `kubectl exec …` y el del motor remoto. |
-| `script` | Motor `node` remoto (`kubectl_pass` / `ssh_pass`). | `program: "node"`, `script` (lo que se envía por stdin). |
+| `script` | Motor `node` (local o remoto), justo después de `command`. | `program: "node"`, `script` (lo que se envía por stdin). |
+| `script_exit` | Al terminar un script (motor `node`), justo después de su `command_exit`. | `program: "node"`, `exit_code`, `console_log` (los del proceso que lo ejecutó). |
 | `command_exit` | **Siempre** al terminar cada comando o script ejecutado. | `program`, `exit_code`, `console_log`. |
 | `response` | Respuesta enviada al cliente. | `status`, `headers`, `payload`, `payload_encoding`, y `command` en rutas con comando. |
 
-Orden de una transacción con comando: `request` → `command` (→ `script`) → `command_exit` → `response`.
+Orden de una transacción con comando: `request` → `command` (→ `script`) → `command_exit` (→ `script_exit`) → `response`.
 
 ## `command_exit`: `exit_code` y `console_log`
 

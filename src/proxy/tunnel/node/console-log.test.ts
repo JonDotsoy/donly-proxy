@@ -75,6 +75,9 @@ testFeature(
     const stdout = log.filter((entry) => entry.type === "stdout").map((entry) => entry.message).join("");
     expect(JSON.parse(stdout)).toMatchObject({ status: 200, body: Buffer.from("from upstream").toString("base64") });
     expect(log.filter((entry) => entry.type === "stderr").map((entry) => entry.message).join("")).toContain("wrapper warning");
+    const script = lines.find((line) => line.type === "script_exit");
+    expect(script).toMatchObject({ program: "node", exit_code: 0 });
+    expect(script.console_log).toEqual(exit.console_log);
     // The response line does not carry the console.
     expect(lines.find((line) => line.type === "response")).not.toHaveProperty("console_log");
   },
