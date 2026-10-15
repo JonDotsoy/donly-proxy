@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **196** · ✅ pasan: **196** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **198** · ✅ pasan: **198** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -192,6 +192,8 @@ Specs: **196** · ✅ pasan: **196** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should replay only the last lines of a long log and survive a truncation | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should run the request over ssh with the curl of the nested command_pass | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
 | should send the namespace to kubectl exec when namespace is defined | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
+| should serve http on the IPv6 loopback with listen http ::1 0 | ✅ | <code>listen http ::1 0</code> |
+| should serve https on the IPv6 loopback with listen https ::1 0 | ✅ | <code>listen https ::1 0</code> |
 | should serve https with a self-signed certificate generated next to the manifest | ✅ | <code>listen https 127.0.0.1 0</code> |
 | should serve the log viewer page on the ui port | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should stream the existing log lines and then the new ones as server-sent events | ✅ | <code>log_file "./proxy.ndjson"</code> |

@@ -157,3 +157,30 @@ testFeature(`proxy {\n  listen https 127.0.0.1 0\n}\n`, ["/proxy/listen"], "shou
     s.close();
   }
 });
+
+// IPv6 needs a host with IPv6 support: run these with DONLY_TEST_IPV6=1 (same switch as host.test.ts).
+const ipv6 = process.env.DONLY_TEST_IPV6 ? testFeature : testFeature.skip;
+
+for (const scheme of ["http", "https"]) {
+  ipv6(
+    `proxy {\n  listen ${scheme} ::1 0\n  route http://example.com/ {\n    respond 200 "plain good"\n  }\n}\n`,
+    ["/proxy/listen"],
+    `should serve ${scheme} on the IPv6 loopback with listen ${scheme} ::1 0`,
+    async (payload) => {
+      const file = join(dir, `ipv6-${scheme}.donly`);
+      writeFileSync(file, payload);
+      const config = await loadConfig(file);
+      const s = createProxyServer(config);
+      await new Promise<void>((resolve) => s.listen(config.port, config.host, resolve));
+      try {
+        const { address, family, port } = s.address() as AddressInfo;
+        expect(address).toBe("::1");
+        expect(family).toBe("IPv6");
+        const res = await curl("-g", "--proxy", `${scheme}://[::1]:${port}`, "http://example.com/");
+        expect(res.out).toBe("plain good");
+      } finally {
+        s.close();
+      }
+    },
+  );
+}
