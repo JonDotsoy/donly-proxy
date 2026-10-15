@@ -30,7 +30,7 @@ const manifestPayload = `proxy {
 }
 `;
 
-let server: http.Server;
+let server: ReturnType<typeof createProxyServer>;
 let proxy: string;
 let logFile: string;
 const saved = { NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };

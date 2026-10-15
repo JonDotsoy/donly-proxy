@@ -56,7 +56,7 @@ const manifestPayload = (httpPort: number, httpsPort: number) => `proxy {
 const payload = manifestPayload(8080, 8443);
 
 const saved = { PATH: process.env.PATH, NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy, TLS: process.env.NODE_TLS_REJECT_UNAUTHORIZED };
-let server: http.Server;
+let server: ReturnType<typeof createProxyServer>;
 let proxy: string;
 let httpPort: number;
 let httpsPort: number;

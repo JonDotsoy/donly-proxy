@@ -28,7 +28,7 @@ const manifestPayload = `proxy {
 `;
 writeFileSync(manifest, manifestPayload);
 
-let server: http.Server;
+let server: ReturnType<typeof createProxyServer>;
 let proxy: string;
 
 beforeAll(async () => {

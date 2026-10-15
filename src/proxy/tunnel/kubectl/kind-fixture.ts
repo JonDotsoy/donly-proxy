@@ -149,7 +149,7 @@ export const httpbinManifest = `proxy {
  * Call it at the top level of a test file.
  */
 export const useKind = (engine: KindEngine, manifest = manifestFor(engine)) => {
-  let server: http.Server;
+  let server: ReturnType<typeof createProxyServer>;
   let logFile: string;
   let proxy: string;
   const saved = { NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };

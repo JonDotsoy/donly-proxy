@@ -15,6 +15,7 @@ import type { Engine } from "./tunnel/remote";
 import { sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
 import type { ConsoleEntry } from "./tunnel/types";
+import { socksHandshake, targetName } from "./socks";
 import { createLogger_experimental, type CommandTransaction, type RequestTransaction } from "./logger";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
@@ -36,6 +37,8 @@ export interface ListenerConfig {
   port: number;
   /** Set when this listener itself speaks TLS (`listen https`). */
   https?: { cert: string; key: string };
+  /** Set by `listen socks4` / `listen socks5`: the listener speaks that SOCKS version instead of HTTP. */
+  socks?: 4 | 5;
 }
 
 export interface ProxyConfig {
@@ -175,11 +178,11 @@ export const loadConfig = async (
   const listeners = (endpoints.length > 0 ? endpoints : [undefined]).map((endpoint): ListenerConfig => {
     const name = listenDirectives.length > 0 ? "listen" : "port";
     const endpointArgs = [...(endpoint?.args ?? [])];
-    const scheme = typeof endpointArgs[0] === "string" && ["http", "https"].includes(endpointArgs[0]) ? String(endpointArgs.shift()) : "http";
+    const scheme = typeof endpointArgs[0] === "string" && ["http", "https", "socks4", "socks5"].includes(endpointArgs[0]) ? String(endpointArgs.shift()) : "http";
     const portValue = endpointArgs.pop() ?? 0;
     if (typeof portValue !== "number") throw new Error(`${name}: el puerto debe ser un número, no "${portValue}"`);
     const listenHost = endpointArgs.shift();
-    if (endpointArgs.length > 0) throw new Error(`${name}: se esperaba [http|https] [host] puerto`);
+    if (endpointArgs.length > 0) throw new Error(`${name}: se esperaba [http|https|socks4|socks5] [host] puerto`);
     const listenSsl = endpoint && child("ssl", endpoint);
     return {
       host: String(listenHost ?? defaultHost),
@@ -191,6 +194,7 @@ export const loadConfig = async (
               key: resolve(String(child("key", listenSsl)?.args[0] ?? "./certs/key.pem")),
             }
           : undefined,
+      socks: scheme === "socks4" ? 4 : scheme === "socks5" ? 5 : undefined,
     };
   });
   const seen = new Set<string>();
@@ -589,21 +593,74 @@ export const createProxyServers = ({
     socket.pipe(inner).pipe(socket);
   };
 
-  return listeners.map(({ https: https_ }) => {
+  // `listen socks4|socks5`: the client speaks SOCKS and, once the handshake is done, its bytes are piped
+  // into a loopback server, the same way as a CONNECT tunnel: TLS (first byte 0x16) goes to the TLS
+  // server and anything else to a plain HTTP one, so the routes apply to the decrypted requests.
+  const plainServer = http.createServer(handle);
+  if (listeners.some((l) => l.socks)) {
+    plainServer.listen(0, "127.0.0.1");
+    plainServer.unref();
+  }
+  const onSocks = (socket: net.Socket, socks: 4 | 5) => {
+    socket.on("error", () => {});
+    void (async () => {
+      const { target, rest } = await socksHandshake(socket, socks);
+      const first =
+        rest.length > 0
+          ? rest
+          : await new Promise<Buffer>((resolve) => {
+              socket.once("data", (chunk: Buffer) => {
+                socket.pause();
+                resolve(chunk);
+              });
+              socket.once("close", () => resolve(Buffer.alloc(0)));
+              socket.resume();
+            });
+      if (first.length === 0 || socket.destroyed) return socket.destroy();
+      const encrypted = first[0] === 0x16;
+      const loopback = (encrypted ? (tlsServer.address() as AddressInfo) : (plainServer.address() as AddressInfo)).port;
+      let port: number | undefined;
+      const inner = net.connect(loopback, "127.0.0.1", () => {
+        port = inner.localPort!;
+        if (encrypted) tunnels.set(port, targetName(target));
+        inner.write(first);
+        socket.pipe(inner).pipe(socket);
+      });
+      inner.on("error", () => socket.destroy());
+      inner.on("close", () => {
+        if (port) tunnels.delete(port);
+        socket.destroy();
+      });
+      socket.on("close", () => inner.destroy());
+    })().catch(() => socket.destroy());
+  };
+
+  return listeners.map(({ https: https_, socks }): net.Server => {
+    const onClose = () => {
+      if (--open === 0) {
+        tlsServer.close();
+        plainServer.close();
+      }
+    };
+    const onListening = (server: net.Server) => () => {
+      // `port 0` is assigned by the system: log the real one.
+      const { address, port } = server.address() as AddressInfo;
+      Logger.listening(address, port);
+    };
+    if (socks) {
+      const server = net.createServer((socket) => onSocks(socket, socks));
+      server.on("close", onClose);
+      server.on("listening", onListening(server));
+      return server;
+    }
     // With `listen https` the proxy itself speaks TLS (`curl --proxy https://...`).
     const server: http.Server = https_
       ? https.createServer({ key: readFileSync(https_.key), cert: readFileSync(https_.cert) }, handle)
       : http.createServer(handle);
     if (https_) server.on("tlsClientError", () => {});
-    server.on("close", () => {
-      if (--open === 0) tlsServer.close();
-    });
+    server.on("close", onClose);
     server.on("connect", onConnect);
-    server.on("listening", () => {
-      // `port 0` is assigned by the system: log the real one.
-      const { address, port } = server.address() as AddressInfo;
-      Logger.listening(address, port);
-    });
+    server.on("listening", onListening(server));
     return server;
   });
 };
