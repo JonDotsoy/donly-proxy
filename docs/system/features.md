@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **213** · ✅ pasan: **213** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **214** · ✅ pasan: **214** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -106,7 +106,7 @@ Specs: **213** · ✅ pasan: **213** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should keep the options-then-destination form of ssh_pass | ✅ | <code>ssh_pass "-p" "22" "user@remote.test" {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should keep the port declared in the manifest | ✅ | <code>port 3456</code> |
 | should keep the target of command_pass kubectl last with extra_args and selectors | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>extra_args --request-timeout 5s</code><br><code>namespace prod</code> |
-| should lint a valid manifest without issues | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 8080</code><br><code>&nbsp;&nbsp;log_file "./logs/proxy.ndjson"</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route https?://example.com/ {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "good"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 404</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should lint a valid manifest without issues | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;log_file "./logs/proxy.ndjson"</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route https?://example.com/ {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "good"</code><br><code>&nbsp;&nbsp;}</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 404</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should listen on 127.0.0.1 when the manifest has no host | ✅ |  |
 | should listen on a random free port when the manifest has none | ✅ |  |
 | should listen on the IPv6 host :: | ✅ | <code>host "::"</code> |
@@ -217,6 +217,7 @@ Specs: **213** · ✅ pasan: **213** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should use the node engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass node</code> |
 | should use the wget engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass wget</code> |
 | should warn about routes declared after a route without arguments | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 404</code><br><code>}</code> |
+| should warn that host and port are deprecated | ✅ | <code>host "127.0.0.1"</code><br><code>port 8080</code> |
 | ssh failures are reported as a bad gateway | ✅ | <code>command_pass ssh "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass ssh "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>}</code><br><code>command_pass ssh "user@remote.test"</code> |
 | the status and headers are read from the last response printed by -S | ✅ | <code>engine wget</code> |
 | waiting requests are served in arrival order | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |

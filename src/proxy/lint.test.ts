@@ -12,8 +12,6 @@ const messages = (payload: string, severity?: string) =>
     .map((issue) => issue.message);
 
 const valid = `proxy {
-  host "127.0.0.1"
-  port 8080
   log_file "./logs/proxy.ndjson"
   ssl {
     cert "./certs/cert.pem"
@@ -88,6 +86,14 @@ testFeature(`proxy {\n  route {\n    kubectl_pass {}\n    proxy_pass {}\n  }\n}\
   expect(messages(payload, "error")).toContain(
     "route: se requiere exactamente una acción (respond, proxy_pass, command_pass, kubectl_pass, ssh_pass), hay 2 (kubectl_pass, proxy_pass)",
   );
+});
+
+testFeature(`proxy {\n  host "127.0.0.1"\n  port 8080\n}\n`, ["/proxy/host", "/proxy/port"], "should warn that host and port are deprecated", (payload) => {
+  expect(messages(payload, "error")).toEqual([]);
+  expect(messages(payload, "warning")).toEqual([
+    "`host` está deprecada y se eliminará en una versión futura",
+    "`port` está deprecada y se eliminará en una versión futura",
+  ]);
 });
 
 const run = (payload: string) => {

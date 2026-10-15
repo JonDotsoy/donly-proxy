@@ -16,6 +16,10 @@ const unknownChildren = (known: string[], where: string) => (directive: Directiv
       message: `directiva desconocida \`${child.name}\` en ${where}`
     }));
 
+const deprecated = (name: string) => (): LintIssue[] => [
+  { severity: "warning", message: `\`${name}\` está deprecada y se eliminará en una versión futura` },
+];
+
 // A `route` with no arguments matches everything: whatever follows it is unreachable.
 const unreachableRoutes = (directive: Directive): LintIssue[] => {
   const routes = directive.children.filter((child) => child.name === "route");
@@ -46,7 +50,9 @@ export const manifestRules: LintRuleDocument = {
     message: "el manifiesto requiere un bloque `proxy`",
     evaluation: (directive) => [...unknownChildren(proxyDirectives, "proxy")(directive), ...unreachableRoutes(directive)],
   },
+  "/proxy/host": { evaluation: deprecated("host") },
   "/proxy/host[1]": { type: "string", message: "host debe ser un texto" },
+  "/proxy/port": { evaluation: deprecated("port") },
   "/proxy/port[1]": {
     type: "number",
     gte: 0,

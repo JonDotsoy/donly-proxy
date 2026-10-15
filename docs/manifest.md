@@ -215,6 +215,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `route` sin exactamente una acción (`respond`, `proxy_pass`, `command_pass`, `kubectl_pass` o `ssh_pass`): cero o dos o más, p. ej. `kubectl_pass` junto a `proxy_pass` | error |
 | `respond` con estado fuera de 100–599 o cuerpo que no es un string | error |
 | `proxy_pass` que no es una URL `http(s)://` | error |
+| `host` o `port` (deprecadas) | advertencia |
 | Directiva desconocida dentro de `proxy`, `ssl` o `route` | advertencia |
 | `respond` con argumentos de más | advertencia |
 | `route` declarada después de una `route` sin argumentos (inalcanzable) | advertencia |
