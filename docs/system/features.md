@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **250** · ✅ pasan: **250** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -14,6 +14,7 @@ Specs: **249** · ✅ pasan: **249** · 🔴 fallan: **0** · ⏳ sin resultado:
 | a failing process frees its place for the next request | ✅ | <code>command_pass curl</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 2</code><br><code>}</code> |
 | a GET becomes a fixed wget command line with quoted values | ✅ | <code>engine wget</code> |
 | a later fetch without proxy still adds nothing to the log | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| a proxy without routes forwards the request unchanged to its own URL | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 0</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | a route without arguments matches every request | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 202 "catch-all"</code><br><code>}</code> |
 | command_pass curl ends with command_end carrying exit_code and console_log | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass curl</code> |
 | command_pass curl hands the request to curl | ✅ | <code>command_pass curl "--connect-to" "curl.test:80:127.0.0.1:&lt;port&gt;"</code> |

@@ -240,6 +240,7 @@ route {                      # sin argumentos: todas las peticiones
   después de ella nunca se alcanzan.
 - **Orden**: gana la **primera** ruta que coincida; pon las más específicas arriba.
 - **Sin coincidencia**: el proxy responde `200 ok`.
+- **Sin ningún `route`**: el proxy reenvía cada petición, sin modificarla, a su propia URL (como si no hubiera proxy).
 - Cada `route` debe tener **exactamente una** de estas acciones; con ninguna o con más de una,
   el arranque falla:
 

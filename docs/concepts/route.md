@@ -16,6 +16,9 @@ route [MÉTODO] <patrón> {
 2. Recorre las rutas **en el orden del manifiesto** y gana la **primera** que coincida.
 3. Si ninguna coincide, responde `200 ok`.
 
+Si el bloque `proxy` no declara **ningún** `route`, no hay nada que evaluar: el proxy reenvía la
+petición sin modificarla a su URL original.
+
 Una ruta coincide cuando se cumplen ambas condiciones:
 
 | Parte | Regla |
