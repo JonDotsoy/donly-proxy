@@ -27,7 +27,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; password?: string };
+    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; podMatch?: { glob: string; selectors: string[] }; password?: string };
 }
 
 export interface ProxyConfig {
@@ -194,8 +194,16 @@ export const loadConfig = async (
           if (kubectlPass && child("pod_name", pass) && (typeof podName !== "string" || podName === "")) {
             throw new Error(`route ${name}: pod_name debe ser un nombre, no "${podName}"`);
           }
-          if (pass.args.length < 1 && podName === undefined) {
-            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre, o la subdirectiva pod_name" : "usuario@host"})`);
+          const podMatchDirective = kubectlPass ? child("pod_match", pass) : undefined;
+          const podMatch = podMatchDirective?.args[0];
+          if (podMatchDirective && (typeof podMatch !== "string" || podMatch === "")) {
+            throw new Error(`route ${name}: pod_match debe ser un patrón, no "${podMatch}"`);
+          }
+          if (podMatchDirective && podName !== undefined) {
+            throw new Error(`route ${name}: pod_name y pod_match no se pueden combinar`);
+          }
+          if (pass.args.length < 1 && podName === undefined && podMatch === undefined) {
+            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre, o las subdirectivas pod_name / pod_match" : "usuario@host"})`);
           }
           if (!inner || (innerCommand !== "curl" && innerCommand !== "wget" && innerCommand !== "node")) {
             throw new Error(`route ${name}: ${directive} requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
@@ -224,7 +232,10 @@ export const loadConfig = async (
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
               // The options of the line, the context / namespace selectors (kubectl), then the target (always last).
-              args: sshArgs?.args ?? (podName === undefined
+              ...(typeof podMatch === "string" ? { podMatch: { glob: podMatch, selectors: selectorArgs(name, pass) } } : {}),
+              args: sshArgs?.args ?? (typeof podMatch === "string"
+                ? [...pass.args.map(String), ...selectorArgs(name, pass)]
+                : podName === undefined
                 ? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))]
                 : [...pass.args.map(String), ...selectorArgs(name, pass), String(podName)]),
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
@@ -350,6 +361,7 @@ const commandPass = async (
   engine: Engine | undefined,
   args: string[],
   engineArgs: string[] | undefined,
+  podMatch: { glob: string; selectors: string[] } | undefined,
   password: string | undefined,
   logger: RequestTransaction,
 ): Promise<Reply> => {
@@ -392,7 +404,7 @@ const commandPass = async (
     for (const process of [...processes].reverse()) process.end(code, consoleLog);
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit, onConsole };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, password, onCommand, onScript, onExit, onConsole };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -456,7 +468,7 @@ export const createProxyServer = ({
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password, logger);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.podMatch, action.password, logger);
         } finally {
           release();
         }

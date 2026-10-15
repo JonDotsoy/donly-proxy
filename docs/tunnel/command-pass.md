@@ -453,6 +453,25 @@ route https?://api.internal/ {
     }
   }
   ```
+- `pod_match <patrón>` elige el pod en cada petición: el proxy ejecuta
+  `kubectl get pods [--context …] [--namespace …] --field-selector=status.phase=Running -o name` y usa el
+  **primero** (en el orden que lista kubectl) cuyo nombre coincida con el patrón, donde `*` es cualquier
+  secuencia y `?` un carácter (el patrón abarca el nombre completo). Con `pod_match`, los argumentos de
+  la línea son solo opciones de `kubectl exec`; no se combina con `pod_name`
+  (`pod_name y pod_match no se pueden combinar`). Un valor vacío falla con
+  `pod_match debe ser un patrón`. Si `kubectl get pods` falla o ningún pod coincide, el cliente recibe
+  `502` (`no running pod matches pod_match …`).
+
+  ```
+  route https?://api.internal/ {
+    kubectl_pass {
+      pod_match my-pod-*
+      context local-my-context
+      namespace the-namespace
+      command_pass node
+    }
+  }
+  ```
 - `context <nombre>` y `namespace <nombre>` (alias `namespaces`) son subdirectivas que seleccionan el cluster y el
   namespace; equivalen a `"--context" "<nombre>" "--namespace" "<nombre>"` y se añaden después de
   las opciones de la línea y antes del destino:

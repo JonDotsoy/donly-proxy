@@ -10,6 +10,7 @@ import { testFeature } from "../../../utils/test_utils/test-feature/test-feature
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-kubectl-"));
 const bin = join(dir, "bin");
 const argsFile = join(dir, "kubectl.args");
+const getFile = join(dir, "kubectl.get");
 const evilFile = join(dir, "pwned");
 
 // A fake `kubectl`: records its arguments and runs what follows `--` locally, as
@@ -18,6 +19,12 @@ mkdirSync(bin);
 writeFileSync(
   join(bin, "kubectl"),
   `#!/bin/sh
+if [ "$1" = "get" ]; then
+  printf '%s\\0' "$@" > "${getFile}"
+  [ -n "$FAKE_PODS_FAIL" ] && { echo "boom" >&2; exit 1; }
+  printf 'pod/other-1\\npod/my-pod-12345\\npod/my-pod-99\\n'
+  exit 0
+fi
 printf '%s\\0' "$@" > "${argsFile}"
 while [ "$1" != "--" ]; do shift; done
 shift
@@ -58,6 +65,14 @@ const manifestPayload = (port: number) =>
   route http://127.0.0.1:${port}/podname/ {
     kubectl_pass {
       pod_name "my-pod-12345"
+      context local-my-context
+      namespace the-namespace
+      command_pass curl
+    }
+  }
+  route http://127.0.0.1:${port}/podmatch/ {
+    kubectl_pass {
+      pod_match my-pod-*
       context local-my-context
       namespace the-namespace
       command_pass curl
@@ -185,6 +200,36 @@ testFeature(payload, ["/proxy/route/kubectl_pass/pod_name"], "kubectl_pass witho
   expect(res.status).toBe(200);
   const args = kubectlArgs();
   expect(args.slice(0, args.indexOf("--"))).toEqual(["exec", "-i", "-q", "--context", "local-my-context", "--namespace", "the-namespace", "my-pod-12345"]);
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "kubectl_pass with pod_match lists the pods and runs in the first one that matches", async () => {
+  const res = await fetch(`http://127.0.0.1:${port}/podmatch/path`, { proxy });
+  expect(res.status).toBe(200);
+  const get = readFileSync(getFile, "utf8").split("\0").slice(0, -1);
+  expect(get).toEqual(["get", "pods", "--context", "local-my-context", "--namespace", "the-namespace", "--field-selector=status.phase=Running", "-o", "name"]);
+  const args = kubectlArgs();
+  expect(args.slice(0, args.indexOf("--"))).toEqual(["exec", "-i", "-q", "--context", "local-my-context", "--namespace", "the-namespace", "pod/my-pod-12345"]);
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "kubectl_pass with pod_match answers 502 when kubectl get pods fails", async () => {
+  process.env.FAKE_PODS_FAIL = "1";
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/podmatch/path`, { proxy });
+    expect(res.status).toBe(502);
+    expect(await res.text()).toContain("kubectl get pods exited with 1");
+  } finally {
+    delete process.env.FAKE_PODS_FAIL;
+  }
+});
+
+testFeature(manifest(`  route / {\n kubectl_pass {\n pod_match ""\n command_pass curl\n }\n }`), ["/proxy/route/kubectl_pass/pod_match"], "manifest validation for pod_match", async () => {
+  const load = (route: string) => {
+    const file = join(dir, `v-${Math.random()}.donly`);
+    writeFileSync(file, manifest(route));
+    return loadConfig(file);
+  };
+  await expect(load(`route / {\n kubectl_pass {\n pod_match ""\n command_pass curl\n }\n }`)).rejects.toThrow("pod_match debe ser un patrón");
+  await expect(load(`route / {\n kubectl_pass {\n pod_name x\n pod_match "x*"\n command_pass curl\n }\n }`)).rejects.toThrow("no se pueden combinar");
 });
 
 testFeature(manifest(`  route / {\n kubectl_pass {\n command_pass curl\n }\n }`), ["/proxy/route/kubectl_pass/pod_name"], "manifest validation for pod_name", async () => {
