@@ -27,17 +27,17 @@ chmodSync(join(bin, "curl"), 0o755);
 const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
-  route http://retry.test/ {
+  route http://retry.test/* {
     command_pass curl {
       retry 5
     }
   }
-  route http://zero.test/ {
+  route http://zero.test/* {
     command_pass curl {
       retry 0
     }
   }
-  route http://plain.test/ {
+  route http://plain.test/* {
     command_pass curl
   }
 }

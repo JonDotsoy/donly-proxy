@@ -23,7 +23,7 @@ const manifestPayload = (port: number) => `proxy {
   host "127.0.0.1"
   port 0
   log_file "./proxy.ndjson"
-  route http://pass.test/ {
+  route http://pass.test/* {
     proxy_pass "http://127.0.0.1:${port}"
   }
 }

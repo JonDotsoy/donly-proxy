@@ -32,30 +32,30 @@ const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
   log_file "./proxy.ndjson"
-  route http://alias.test/ {
+  route http://alias.test/* {
     ssh_pass myserver {
       command_pass curl
     }
   }
-  route http://port.test/ {
+  route http://port.test/* {
     ssh_pass myserver {
       port 2222
       command_pass curl
     }
   }
-  route http://user.test/ {
+  route http://user.test/* {
     ssh_pass myserver {
       user jon
       port 2200
       command_pass curl
     }
   }
-  route http://options.test/ {
+  route http://options.test/* {
     ssh_pass myserver "-v" {
       command_pass curl
     }
   }
-  route http://password.test/ {
+  route http://password.test/* {
     ssh_pass myserver {
       user jon
       pass "s3cr3t pa$$"

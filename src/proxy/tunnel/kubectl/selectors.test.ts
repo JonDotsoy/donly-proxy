@@ -27,68 +27,68 @@ chmodSync(join(bin, "kubectl"), 0o755);
 const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
-  route http://both.test/ {
+  route http://both.test/* {
     kubectl_pass "deploy/api" {
       context dev
       namespace prod
       command_pass curl
     }
   }
-  route http://namespace.test/ {
+  route http://namespace.test/* {
     kubectl_pass "pod/api-0" {
       namespace staging
       command_pass curl
     }
   }
-  route http://options.test/ {
+  route http://options.test/* {
     kubectl_pass "--kubeconfig" "/tmp/kube" "deploy/api" {
       context dev
       command_pass curl
     }
   }
-  route http://alias.test/ {
+  route http://alias.test/* {
     kubectl_pass "pod/api-0" {
       namespaces the-namespace
       command_pass curl
     }
   }
-  route http://podname.test/ {
+  route http://podname.test/* {
     kubectl_pass "pod/api-0" {
       namespace the-namespace
       command_pass curl
     }
   }
-  route http://ctxns.test/ {
+  route http://ctxns.test/* {
     kubectl_pass "pod/api-0" {
       context the-context
       namespace the-namespace
       command_pass curl
     }
   }
-  route http://plain.test/ {
+  route http://plain.test/* {
     kubectl_pass "deploy/api" {
       command_pass curl
     }
   }
-  route http://cp-both.test/ {
+  route http://cp-both.test/* {
     command_pass kubectl "deploy/api" {
       context dev
       namespace prod
     }
   }
-  route http://cp-options.test/ {
+  route http://cp-options.test/* {
     command_pass kubectl "--kubeconfig" "/tmp/kube" "deploy/api" {
       namespace staging
       engine curl
     }
   }
-  route http://cp-extra.test/ {
+  route http://cp-extra.test/* {
     command_pass kubectl "deploy/api" {
       extra_args --request-timeout 5s
       namespace prod
     }
   }
-  route http://cp-plain.test/ {
+  route http://cp-plain.test/* {
     command_pass kubectl "-n" "prod" "deploy/api"
   }
 }

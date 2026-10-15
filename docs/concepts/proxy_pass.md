@@ -4,7 +4,7 @@ Acción de [`route`](route.md) que **reenvía la petición a otro servidor** des
 del proxy y devuelve su respuesta al cliente.
 
 ```
-route https?://api.example.com/ {
+route http{s}?://api.example.com/* {
   proxy_pass "http://localhost:3000"
 }
 ```

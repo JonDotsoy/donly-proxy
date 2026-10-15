@@ -16,10 +16,10 @@ const manifestPayload = `proxy {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
   }
-  route POST http://method.test/ {
+  route POST http://method.test/* {
     respond 201 "post only"
   }
-  route http://any.test/ {
+  route http://any.test/* {
     respond 200 "any method"
   }
 }

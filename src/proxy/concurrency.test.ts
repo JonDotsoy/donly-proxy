@@ -34,10 +34,10 @@ const manifest = join(dir, "manifest.donly");
 const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
-  route http://conc.test/default/ {
+  route http://conc.test/default/* {
     command_pass curl
   }
-  route http://conc.test/two/ {
+  route http://conc.test/two/* {
     command_pass curl {
       concurrency 2
     }

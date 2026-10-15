@@ -27,7 +27,7 @@ chmodSync(join(bin, "ssh"), 0o755);
 const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
-  route http://ssh-pass.test/ {
+  route http://ssh-pass.test/* {
     ssh_pass "-p" "2222" "user@remote.test" {
       command_pass curl "--max-time" "5"
     }

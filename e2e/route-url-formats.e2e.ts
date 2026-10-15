@@ -12,25 +12,25 @@ writeFileSync(
   manifestFile,
   `proxy {
   listen http 127.0.0.1 0
-  route "urlpattern:only.test" {
+  route "only.test" {
     respond 200 "host only"
   }
-  route "urlpattern:port.test:8080" {
+  route "port.test:8080" {
     respond 200 "host and port"
   }
-  route "urlpattern:*.wild.test" {
+  route "*.wild.test" {
     respond 200 "wildcard"
   }
-  route "urlpattern:path.test/api/*" {
+  route "path.test/api/*" {
     respond 200 "host and path"
   }
-  route "urlpattern:https://secure.test/*" {
+  route "https://secure.test/*" {
     respond 200 "https only"
   }
-  route "urlpattern:http://plain.test/*" {
+  route "http://plain.test/*" {
     respond 200 "http only"
   }
-  route https?://regex.test/ {
+  route http{s}?://regex.test/ {
     respond 200 "regex"
   }
   route {
@@ -63,20 +63,20 @@ beforeAll(async () => {
 });
 afterAll(() => child?.kill());
 
-test("a host-only urlpattern matches any scheme, path and query", async () => {
+test("a host-only pattern matches any scheme, path and query", async () => {
   expect(await get("http://only.test/")).toBe("host only");
   expect(await get("http://only.test/a/b?x=1")).toBe("host only");
   expect(await get("https://only.test/a")).toBe("host only");
   expect(await get("http://sub.only.test/")).toBe("fallback");
 });
 
-test("a host with port urlpattern matches only that port", async () => {
+test("a host with port pattern matches only that port", async () => {
   expect(await get("http://port.test:8080/x")).toBe("host and port");
   expect(await get("http://port.test:9090/x")).toBe("fallback");
   expect(await get("http://port.test/x")).toBe("fallback");
 });
 
-test("a urlpattern with wildcards matches subdomains and paths", async () => {
+test("a pattern with wildcards matches subdomains and paths", async () => {
   expect(await get("http://a.wild.test/")).toBe("wildcard");
   expect(await get("http://a.b.wild.test/")).toBe("wildcard");
   expect(await get("http://wild.test/")).toBe("fallback");
@@ -84,14 +84,14 @@ test("a urlpattern with wildcards matches subdomains and paths", async () => {
   expect(await get("http://path.test/other")).toBe("fallback");
 });
 
-test("a urlpattern with a scheme only matches that protocol", async () => {
+test("a pattern with a scheme only matches that protocol", async () => {
   expect(await get("https://secure.test/a")).toBe("https only");
   expect(await get("http://secure.test/a")).toBe("fallback");
   expect(await get("http://plain.test/a")).toBe("http only");
   expect(await get("https://plain.test/a")).toBe("fallback");
 });
 
-test("a pattern without the prefix keeps working as a regular expression", async () => {
+test("a scheme pattern with an optional s matches both http and https", async () => {
   expect(await get("http://regex.test/")).toBe("regex");
   expect(await get("https://regex.test/")).toBe("regex");
 });

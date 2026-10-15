@@ -15,22 +15,22 @@ const upstream = http.createServer((_req, res) => res.end("from upstream"));
 const manifestPayload = (version: 4 | 5, port: number) => `proxy {
   listen socks${version} 127.0.0.1 0
   log_file "./socks${version}.ndjson"
-  route http://upstream.test/ {
+  route http://upstream.test/* {
     proxy_pass http://127.0.0.1:${port}/
   }
-  route http://192.0.2.1/ {
+  route http://192.0.2.1/* {
     proxy_pass http://127.0.0.1:${port}/
   }
-  route https://secure.test/ {
+  route https://secure.test/* {
     respond 200 "secure good"
   }
-  route https://192.0.2.1/ {
+  route https://192.0.2.1/* {
     respond 200 "secure ip good"
   }
-  route https://192.0.2.1:8443/ {
+  route https://192.0.2.1:8443/* {
     respond 200 "secure port good"
   }
-  route https://.2001:db8::1./ {
+  route "https://[2001\\:db8\\:\\:1]/*" {
     respond 200 "secure ipv6 good"
   }
 }
@@ -159,7 +159,7 @@ for (const [body, expected] of [
 const mixedPayload = `proxy {
   listen http 127.0.0.1 0
   listen socks5 127.0.0.1 0
-  route http://mixed.test/ {
+  route http://mixed.test/* {
     respond 200 "mixed good"
   }
 }

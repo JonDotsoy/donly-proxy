@@ -27,7 +27,7 @@ const payload = `proxy {
   host "127.0.0.1"
   port 0
   log_file "./proxy.ndjson"
-  route http://console.test/ {
+  route http://console.test/* {
     command_pass curl
   }
 }

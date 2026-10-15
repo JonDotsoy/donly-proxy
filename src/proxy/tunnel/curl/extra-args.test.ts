@@ -28,18 +28,18 @@ chmodSync(join(bin, "curl"), 0o755);
 const manifestPayload = `proxy {
   host "127.0.0.1"
   port 0
-  route http://extra.test/ {
+  route http://extra.test/* {
     command_pass curl {
       extra_args --foo tar --biz lol
     }
   }
-  route http://ordered.test/ {
+  route http://ordered.test/* {
     command_pass curl "--insecure" {
       extra_args --retry 3
       max_time 5
     }
   }
-  route http://quoted.test/ {
+  route http://quoted.test/* {
     command_pass curl {
       extra_args "--header" "x-evil: a b; touch ${evilFile}" "$(touch ${evilFile})"
     }

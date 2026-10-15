@@ -17,7 +17,7 @@ const valid = `proxy {
     cert "./certs/cert.pem"
     key "./certs/key.pem"
   }
-  route https?://example.com/ {
+  route http{s}?://example.com/* {
     respond 200 "good"
   }
   route {

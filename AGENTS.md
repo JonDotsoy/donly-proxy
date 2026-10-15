@@ -52,8 +52,9 @@ route [MÉTODO] <patrón> {
 }
 ```
 
-- El patrón es una **regex de JavaScript sin anclar** contra la URL completa (`https://host/ruta?x=1`);
-  usa `^` y `$` si hace falta. El método es opcional.
+- El patrón es un **`URLPattern`** (WHATWG) contra la URL completa (`https://host/ruta?x=1`); sin
+  esquema es un atajo por host (`example.com` = `*://example.com/*`) y la ruta debe coincidir
+  completa (`/api/*` para prefijos). El método es opcional.
 - Se evalúan **en orden y gana la primera** que coincida. Sin coincidencia, responde `200 ok`.
 - `route { … }` sin argumentos coincide con todo: va **al final**; lo declarado después es inalcanzable.
 - Cada ruta lleva **exactamente una acción**: `respond`, `proxy_pass`, `command_pass`, `kubectl_pass`

@@ -47,22 +47,22 @@ let port: number;
 const manifest = (route: string) => `proxy {\n  host "127.0.0.1"\n  port 0\n${route}\n}\n`;
 
 const manifestPayload = (port: number) =>
-  manifest(`  route http://127.0.0.1:${port}/curl/ {
+  manifest(`  route http://127.0.0.1:${port}/curl/* {
     command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {
       engine curl
     }
   }
-  route http://127.0.0.1:${port}/node/ {
+  route http://127.0.0.1:${port}/node/* {
     command_pass kubectl "pod/api-0" {
       engine node
     }
   }
-  route http://127.0.0.1:${port}/pass/ {
+  route http://127.0.0.1:${port}/pass/* {
     kubectl_pass "-n" "prod" "deploy/api" {
       command_pass curl "--max-time" "5"
     }
   }
-  route http://127.0.0.1:${port}/podname/ {
+  route http://127.0.0.1:${port}/podname/* {
     kubectl_pass {
       pod_name "my-pod-12345"
       context local-my-context
@@ -70,7 +70,7 @@ const manifestPayload = (port: number) =>
       command_pass curl
     }
   }
-  route http://127.0.0.1:${port}/podmatch/ {
+  route http://127.0.0.1:${port}/podmatch/* {
     kubectl_pass {
       pod_match my-pod-*
       context local-my-context
@@ -78,7 +78,7 @@ const manifestPayload = (port: number) =>
       command_pass curl
     }
   }
-  route http://127.0.0.1:${port}/default/ {
+  route http://127.0.0.1:${port}/default/* {
     command_pass kubectl "pod/api-0"
   }`);
 
@@ -215,7 +215,7 @@ const podMatchLogPayload = (port: number) => `proxy {
   host "127.0.0.1"
   port 0
   log_file "./podmatch.ndjson"
-  route http://127.0.0.1:${port}/ {
+  route http://127.0.0.1:${port}/* {
     kubectl_pass {
       pod_match my-pod-*
       context local-my-context
@@ -296,7 +296,7 @@ const consolePayload = (port: number) => `proxy {
   host "127.0.0.1"
   port 0
   log_file "./console.ndjson"
-  route http://127.0.0.1:${port}/ {
+  route http://127.0.0.1:${port}/* {
     command_pass kubectl "pod/api-0"
   }
 }

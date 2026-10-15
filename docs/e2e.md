@@ -13,7 +13,7 @@
 
 `e2e/multi-proxy.e2e.ts` levanta el binario con dos bloques `proxy` (`listen http` y `listen https`) y comprueba con `curl --proxy` que cada uno responde su propio `respond` (`ok http` / `ok https`).
 
-`e2e/route-url-formats.e2e.ts` levanta el binario con rutas `urlpattern:` y comprueba con `curl --proxy` cómo coincide `route` con solo host, host con puerto, host con ruta, comodines y esquema `http`/`https` (además de que las regex siguen funcionando).
+`e2e/route-url-formats.e2e.ts` levanta el binario con rutas `URLPattern` y comprueba con `curl --proxy` cómo coincide `route` con solo host, host con puerto, host con ruta, comodines y esquema `http`/`https`.
 
 Todos los puertos son dinámicos (`0`) y no hay dependencias externas: el upstream, el `kubectl` y el `node` son locales.
 
