@@ -5,84 +5,213 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>donly-proxy · logs</title>
 <style>
-  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-  body { margin: 0; }
-  header { position: sticky; top: 0; display: flex; gap: 1rem; align-items: center; padding: .5rem 1rem; background: Canvas; border-bottom: 1px solid #8884; }
-  header h1 { font-size: 1rem; margin: 0; flex: 1; }
-  #status { font-size: .8rem; }
-  table { width: 100%; border-collapse: collapse; font: .8rem ui-monospace, monospace; }
-  td { padding: .2rem .6rem; border-bottom: 1px solid #8882; vertical-align: top; white-space: pre-wrap; word-break: break-all; }
-  td.type { font-weight: 600; }
-  .request .type { color: #0a7; } .response .type { color: #37f; } .listening .type { color: #a70; }
-  .proxy_pass_request .type, .proxy_pass_response .type { color: #09c; } .command_start .type, .command_end .type, .script_start .type, .script_end .type { color: #a3a; } .request_annotation .type, .annotation .type { color: #888; }
-  .bad .status { color: #d33; }
-  tr:hover { background: #8881; cursor: pointer; }
-  pre { margin: 0; }
+  :root {
+    color-scheme: light dark;
+    --bg: #fafafa; --panel: #fff; --text: #1b1f24; --muted: #6a737d; --line: #d8dde3; --hover: #0000000d;
+    --request: #0a7a55; --response: #2457e6; --listening: #a86a00; --proxy: #0a84a8; --process: #9b3a9b; --note: #6a737d; --bad: #d1242f;
+    font-family: system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --panel: #151b23; --text: #e6edf3; --muted: #8b949e; --line: #2d333b; --hover: #ffffff0f;
+      --request: #3fb985; --response: #6c9cff; --listening: #d9a441; --proxy: #4cc3e6; --process: #d58ad5; --note: #8b949e; --bad: #ff7b72;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { min-height: 100vh; overflow-x: hidden; }
+
+  header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center; padding: .6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 1rem; margin: 0; flex: 1 1 10rem; min-width: 0; }
+  header .tools { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; flex: 999 1 auto; justify-content: flex-end; min-width: 0; }
+  input[type="search"], select, button { font: inherit; font-size: .85rem; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .55rem; }
+  input[type="search"] { flex: 1 1 10rem; min-width: 0; max-width: 20rem; }
+  select { max-width: 100%; }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover); }
+  label { display: inline-flex; gap: .3rem; align-items: center; font-size: .85rem; white-space: nowrap; }
+  #status { display: inline-flex; gap: .35rem; align-items: center; font-size: .8rem; color: var(--muted); white-space: nowrap; }
+  #status::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: var(--listening); }
+  #status.live::before { background: var(--request); }
+
+  main { padding: .5rem 1rem 2rem; max-width: 100%; }
+  #empty { color: var(--muted); text-align: center; padding: 3rem 1rem; }
+
+  .row { --tx: var(--line); border-left: 3px solid var(--tx); border-bottom: 1px solid var(--line); background: var(--panel); min-width: 0; }
+  .row[hidden] { display: none; }
+  .head { display: grid; grid-template-columns: 5.5rem 11rem 3rem minmax(0, 1fr); gap: .25rem .75rem; align-items: baseline; padding: .35rem .6rem; font: .8rem ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; min-width: 0; }
+  .head:hover { background: var(--hover); }
+  .head > * { min-width: 0; overflow-wrap: anywhere; }
+  .time { color: var(--muted); }
+  .type { font-weight: 600; }
+  .what { padding-left: calc(var(--depth, 0) * 1.2rem); }
+  .status { font-weight: 600; }
+  .request .type { color: var(--request); } .response .type { color: var(--response); } .listening .type { color: var(--listening); }
+  .proxy_pass_request .type, .proxy_pass_response .type { color: var(--proxy); }
+  .command_start .type, .command_end .type, .script_start .type, .script_end .type { color: var(--process); }
+  .request_annotation .type, .annotation .type, .raw .type { color: var(--note); }
+  .bad .status { color: var(--bad); }
+
+  .detail { padding: .25rem .6rem .6rem; min-width: 0; }
+  .detail .bar { display: flex; justify-content: flex-end; margin-bottom: .25rem; }
+  .detail pre { margin: 0; padding: .6rem; max-height: 26rem; max-width: 100%; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font: .78rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+
+  /* Narrow screens: the line wraps into two rows (time, type, status; then the summary). */
+  @media (max-width: 640px) {
+    header { padding: .5rem .75rem; }
+    header .tools { justify-content: flex-start; flex-basis: 100%; }
+    input[type="search"] { max-width: none; flex-basis: 100%; }
+    main { padding: .25rem .5rem 2rem; }
+    .head { grid-template-columns: auto minmax(0, 1fr) auto; }
+    .what { grid-column: 1 / -1; }
+    .detail { padding: .25rem .4rem .5rem; }
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>donly-proxy · logs</h1>
-  <label><input id="follow" type="checkbox" checked> seguir</label>
-  <button id="clear">Limpiar</button>
-  <span id="status">conectando…</span>
+  <div class="tools">
+    <input id="search" type="search" placeholder="Buscar en los logs…" aria-label="Buscar en los logs">
+    <select id="kind" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option></select>
+    <label><input id="follow" type="checkbox" checked> seguir</label>
+    <button id="toggle" type="button">Expandir todo</button>
+    <button id="clear" type="button">Limpiar</button>
+    <span id="status">conectando…</span>
+  </div>
 </header>
-<table><tbody id="rows"></tbody></table>
+<main>
+  <div id="rows"></div>
+  <div id="empty" hidden>No hay líneas que coincidan.</div>
+</main>
 <script>
   const rows = document.getElementById("rows");
+  const empty = document.getElementById("empty");
   const status = document.getElementById("status");
   const follow = document.getElementById("follow");
-  document.getElementById("clear").onclick = () => (rows.textContent = "");
+  const search = document.getElementById("search");
+  const kind = document.getElementById("kind");
+  const toggle = document.getElementById("toggle");
 
-  const cell = (text, className) => {
-    const td = document.createElement("td");
-    td.textContent = text;
-    if (className) td.className = className;
-    return td;
+  const depths = new Map(); // span_id -> depth
+  const kinds = new Set();
+  let total = 0;
+
+  // One stable color per transaction, so the lines of a request read as a group.
+  const hue = (id) => [...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+
+  const summary = (entry) => {
+    switch (entry.type) {
+      case "listening": return `${entry.host}:${entry.port}`;
+      case "command_start": return [entry.program, ...(entry.args ?? [])].join(" ");
+      case "command_end":
+      case "script_end": return `${entry.program} exit ${entry.exit_code}`;
+      case "script_start": return `${entry.program} script`;
+      case "proxy_pass_request":
+      case "proxy_pass_response": return `${entry.method} ${entry.target}`;
+      case "request_annotation":
+      case "annotation": return JSON.stringify(entry.annotation);
+      default: return [entry.method, entry.url ?? entry.raw].filter(Boolean).join(" ");
+    }
   };
 
-  const parents = new Map(); // span_id -> depth
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  const visible = (row) =>
+    (!kind.value || row.dataset.type === kind.value) &&
+    (!search.value || row.dataset.text.includes(search.value.toLowerCase()));
+
+  const refresh = () => {
+    let shown = 0;
+    for (const row of rows.children) {
+      row.hidden = !visible(row);
+      if (!row.hidden) shown++;
+    }
+    empty.hidden = shown > 0 || total === 0;
+  };
+
   const add = (line) => {
     let entry;
     try { entry = JSON.parse(line); } catch { entry = { type: "raw", raw: line }; }
-    const tr = document.createElement("tr");
-    // Nested transactions (a process, a proxy_pass) are indented under the request that opened them.
-    const depth = !entry.parent_span_id ? 0 : (parents.get(entry.parent_span_id) ?? 0) + 1;
-    if (entry.span_id) parents.set(entry.span_id, depth);
+    const type = entry.type ?? "raw";
+    const depth = !entry.parent_span_id ? 0 : (depths.get(entry.parent_span_id) ?? 0) + 1;
+    if (entry.span_id) depths.set(entry.span_id, depth);
     const code = entry.status ?? entry.statusCode;
-    tr.className = `${entry.type} ${code >= 400 ? "bad" : ""}`;
-    const what = entry.type === "listening" ? `${entry.host}:${entry.port}`
-      : entry.type === "command_start" ? [entry.program, ...(entry.args ?? [])].join(" ")
-      : entry.type === "command_end" || entry.type === "script_end" ? `${entry.program} exit ${entry.exit_code}`
-      : entry.type === "proxy_pass_request" || entry.type === "proxy_pass_response" ? `${entry.method} ${entry.target}`
-      : [entry.method, entry.url ?? entry.raw].filter(Boolean).join(" ");
-    tr.append(
-      cell(entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ""),
-      cell(entry.type ?? "", "type"),
-      cell(code ?? "", "status"),
-      cell(what),
+
+    const row = el("div", `row ${type}${code >= 400 ? " bad" : ""}`);
+    row.dataset.type = type;
+    row.dataset.text = line.toLowerCase();
+    if (entry.transaction_id) row.style.setProperty("--tx", `hsl(${hue(entry.transaction_id)} 60% 50%)`);
+
+    const head = el("div", "head");
+    head.tabIndex = 0;
+    head.setAttribute("role", "button");
+    head.setAttribute("aria-expanded", "false");
+    const what = el("span", "what", summary(entry));
+    what.style.setProperty("--depth", depth);
+    head.append(
+      el("span", "time", entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ""),
+      el("span", "type", type),
+      el("span", "status", code ?? ""),
+      what,
     );
-    tr.lastElementChild.style.paddingLeft = `${0.6 + depth * 1.2}rem`;
-    const detail = document.createElement("pre");
+
+    const detail = el("div", "detail");
     detail.hidden = true;
-    detail.textContent = JSON.stringify(entry, null, 2);
-    const full = document.createElement("td");
-    full.colSpan = 4;
-    full.hidden = true;
-    full.append(detail);
-    const extra = document.createElement("tr");
-    extra.append(full);
-    tr.onclick = () => { full.hidden = detail.hidden = !detail.hidden; };
-    rows.append(tr, extra);
-    if (follow.checked) tr.scrollIntoView({ block: "end" });
+    const copy = el("button", "", "Copiar JSON");
+    copy.type = "button";
+    const json = JSON.stringify(entry, null, 2);
+    copy.onclick = (event) => {
+      event.stopPropagation();
+      navigator.clipboard?.writeText(json).then(() => { copy.textContent = "Copiado"; setTimeout(() => (copy.textContent = "Copiar JSON"), 1200); });
+    };
+    const bar = el("div", "bar");
+    bar.append(copy);
+    detail.append(bar, el("pre", "", json));
+
+    const open = () => {
+      detail.hidden = !detail.hidden;
+      head.setAttribute("aria-expanded", String(!detail.hidden));
+    };
+    head.onclick = open;
+    head.onkeydown = (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } };
+
+    row.append(head, detail);
+    rows.append(row);
+    total++;
+    if (!kinds.has(type)) {
+      kinds.add(type);
+      kind.append(new Option(type, type));
+    }
+    row.hidden = !visible(row);
+    empty.hidden = true;
+    if (follow.checked && !row.hidden) row.scrollIntoView({ block: "end" });
+  };
+
+  search.oninput = kind.onchange = refresh;
+  document.getElementById("clear").onclick = () => { rows.textContent = ""; depths.clear(); total = 0; refresh(); };
+  toggle.onclick = () => {
+    const expand = toggle.textContent === "Expandir todo";
+    for (const row of rows.children) {
+      if (row.hidden) continue;
+      row.querySelector(".detail").hidden = !expand;
+      row.querySelector(".head").setAttribute("aria-expanded", String(expand));
+    }
+    toggle.textContent = expand ? "Contraer todo" : "Expandir todo";
   };
 
   const source = new EventSource("/events");
   source.onopen = () => {
-    rows.textContent = ""; parents.clear(); // the server replays the history on every (re)connection
+    rows.textContent = ""; depths.clear(); total = 0; // the server replays the history on every (re)connection
     status.textContent = "en vivo";
+    status.className = "live";
   };
-  source.onerror = () => (status.textContent = "reconectando…");
+  source.onerror = () => { status.textContent = "reconectando…"; status.className = ""; };
   source.onmessage = (event) => add(event.data);
 </script>
 </body>

@@ -30,7 +30,13 @@ curl -k -x http://127.0.0.1:8080 https://example.com/        # -> ok
 `--ui` levanta, además del proxy, un servidor HTTP con una página que muestra el
 [`log_file`](manifest.md#log_file) en tiempo real: al abrirla muestra las últimas 200 líneas y luego
 las nuevas, que llegan por Server-Sent Events (`GET /events`). Pulsa una fila para ver el JSON
-completo.
+completo (con botón para copiarlo).
+
+- Cada petición tiene su color en el borde izquierdo y sus transacciones hijas (procesos, `proxy_pass`)
+  van con sangría bajo la que las abrió.
+- Un buscador y un selector de tipo filtran las líneas; "Expandir todo" abre o cierra todos los detalles.
+- Es responsive: en pantallas estrechas cada línea pasa a dos filas y el detalle expandido se ajusta
+  al ancho de la ventana (el texto largo se parte, nunca se desborda).
 
 - Escucha **solo en `127.0.0.1`** (el log incluye cabeceras y cuerpos) y en el puerto `8081`, o el de
   `--ui-port <n>` (`0` = el que asigne el sistema). Es distinto del puerto del proxy.
@@ -38,13 +44,15 @@ completo.
   `--ui requiere log_file en el manifiesto para poder mostrar los logs`.
 - No añade dependencias: la página va embebida como texto, también en el bundle de `dist/`.
 
-Capturas (tema claro, tema oscuro y una fila expandida con su JSON):
+Capturas (tema claro, tema oscuro, una fila expandida con su JSON y la vista en un móvil):
 
 ![Vista de logs en vivo, tema claro](ui/logs-light.png)
 
 ![Vista de logs en vivo, tema oscuro](ui/logs-dark.png)
 
 ![Fila expandida con el JSON completo](ui/logs-detail.png)
+
+![Vista de logs en un móvil](ui/logs-mobile.png)
 
 ## Cómo funciona
 
