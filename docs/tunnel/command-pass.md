@@ -437,6 +437,42 @@ route https?://api.internal/ {
 
 - Los argumentos de `kubectl_pass` son los de `command_pass kubectl`: opciones de
   `kubectl exec` seguidas del destino (último). Sin destino, el arranque falla.
+- `pod_name <nombre>` indica el pod (o `tipo/nombre`) como subdirectiva, así que el bloque puede ir
+  sin argumento posicional. Con `pod_name`, los argumentos de la línea son solo opciones de
+  `kubectl exec` y el destino es siempre el valor de `pod_name`. La forma anterior (destino como
+  último argumento) sigue funcionando. El valor debe ser un nombre (texto no vacío); con otro
+  (`pod_name ""`, `pod_name 5`) el arranque falla con `pod_name debe ser un nombre`.
+
+  ```
+  route https?://api.internal/ {
+    kubectl_pass {
+      pod_name "my-pod-12345"
+      context local-my-context
+      namespace the-namespace
+      command_pass node
+    }
+  }
+  ```
+- `pod_match <patrón>` elige el pod en cada petición: el proxy ejecuta
+  `kubectl get pods [--context …] [--namespace …] --field-selector=status.phase=Running -o name` y usa el
+  **primero** (en el orden que lista kubectl) cuyo nombre coincida con el patrón, donde `*` es cualquier
+  secuencia y `?` un carácter (el patrón abarca el nombre completo). Con `pod_match`, los argumentos de
+  la línea son solo opciones de `kubectl exec`; no se combina con `pod_name`
+  (`pod_name y pod_match no se pueden combinar`). Un valor vacío falla con
+  `pod_match debe ser un patrón`. El `kubectl get pods` queda en el `log_file` como su propio
+  `command_start` / `command_end` (con su `console_log`), antes del `kubectl exec`. Si `kubectl get pods` falla o ningún pod coincide, el cliente recibe
+  `502` (`no running pod matches pod_match …`).
+
+  ```
+  route https?://api.internal/ {
+    kubectl_pass {
+      pod_match my-pod-*
+      context local-my-context
+      namespace the-namespace
+      command_pass node
+    }
+  }
+  ```
 - `context <nombre>` y `namespace <nombre>` (alias `namespaces`) son subdirectivas que seleccionan el cluster y el
   namespace; equivalen a `"--context" "<nombre>" "--namespace" "<nombre>"` y se añaden después de
   las opciones de la línea y antes del destino:

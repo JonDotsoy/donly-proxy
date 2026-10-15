@@ -40,7 +40,7 @@ Cada petición es una **transacción** y todo lo que hace por debajo (cada proce
 | `request_annotation` | Datos propios que se adjuntan a la petición. | `span_id`, `annotation`. |
 | `proxy_pass_request` | Antes de enviar la petición al destino de una ruta `proxy_pass`. | `span_id`, `parent_span_id`, `target` (URL del destino), `headers`, `payload`. |
 | `proxy_pass_response` | Cuando el destino responde (o falla: `502`). | `span_id`, `parent_span_id`, `target`, `status`, `headers`, `payload`. |
-| `command_start` | Cuando arranca un proceso de una ruta `command_pass`, `kubectl_pass` o `ssh_pass`. | `span_id`, `parent_span_id`, `program`, `args`, `command` (programa y argumentos). Con `kubectl` hay dos: `kubectl exec …` y, hijo suyo, el del motor remoto. |
+| `command_start` | Cuando arranca un proceso de una ruta `command_pass`, `kubectl_pass` o `ssh_pass`. | `span_id`, `parent_span_id`, `program`, `args`, `command` (programa y argumentos). Con `kubectl` hay dos: `kubectl exec …` y, hijo suyo, el del motor remoto. Con `pod_match` hay además un `kubectl get pods …` previo, hermano del `exec`. |
 | `annotation` | Datos propios que se adjuntan a un proceso. | `span_id`, `parent_span_id`, `annotation`. |
 | `script_start` | Motor `node` (local o remoto), justo después de `command_start`. | `parent_span_id` (el proceso `node`), `program: "node"`, `script` (lo que se envía por stdin). |
 | `command_end` | **Siempre** al terminar cada proceso. | `span_id`, `parent_span_id`, `program`, `exit_code`, `console_log`. |

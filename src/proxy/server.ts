@@ -27,7 +27,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; password?: string };
+    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; podMatch?: { glob: string; selectors: string[] }; password?: string };
 }
 
 export interface ProxyConfig {
@@ -189,8 +189,21 @@ export const loadConfig = async (
           const command = kubectlPass ? "kubectl" : "ssh";
           const inner = child("command_pass", pass);
           const innerCommand = inner?.args[0];
-          if (pass.args.length < 1) {
-            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre" : "usuario@host"})`);
+          // kubectl_pass may name the pod with `pod_name <target>` instead of the last argument of the line.
+          const podName = kubectlPass ? child("pod_name", pass)?.args[0] : undefined;
+          if (kubectlPass && child("pod_name", pass) && (typeof podName !== "string" || podName === "")) {
+            throw new Error(`route ${name}: pod_name debe ser un nombre, no "${podName}"`);
+          }
+          const podMatchDirective = kubectlPass ? child("pod_match", pass) : undefined;
+          const podMatch = podMatchDirective?.args[0];
+          if (podMatchDirective && (typeof podMatch !== "string" || podMatch === "")) {
+            throw new Error(`route ${name}: pod_match debe ser un patrón, no "${podMatch}"`);
+          }
+          if (podMatchDirective && podName !== undefined) {
+            throw new Error(`route ${name}: pod_name y pod_match no se pueden combinar`);
+          }
+          if (pass.args.length < 1 && podName === undefined && podMatch === undefined) {
+            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre, o las subdirectivas pod_name / pod_match" : "usuario@host"})`);
           }
           if (!inner || (innerCommand !== "curl" && innerCommand !== "wget" && innerCommand !== "node")) {
             throw new Error(`route ${name}: ${directive} requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
@@ -219,7 +232,12 @@ export const loadConfig = async (
               engine: innerCommand,
               concurrency: Number(innerConcurrency ?? 1),
               // The options of the line, the context / namespace selectors (kubectl), then the target (always last).
-              args: sshArgs?.args ?? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))],
+              ...(typeof podMatch === "string" ? { podMatch: { glob: podMatch, selectors: selectorArgs(name, pass) } } : {}),
+              args: sshArgs?.args ?? (typeof podMatch === "string"
+                ? [...pass.args.map(String), ...selectorArgs(name, pass)]
+                : podName === undefined
+                ? [...pass.args.slice(0, -1).map(String), ...selectorArgs(name, pass), String(pass.args.at(-1))]
+                : [...pass.args.map(String), ...selectorArgs(name, pass), String(podName)]),
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
               ...(sshArgs?.password === undefined ? {} : { password: sshArgs.password }),
             },
@@ -343,6 +361,7 @@ const commandPass = async (
   engine: Engine | undefined,
   args: string[],
   engineArgs: string[] | undefined,
+  podMatch: { glob: string; selectors: string[] } | undefined,
   password: string | undefined,
   logger: RequestTransaction,
 ): Promise<Reply> => {
@@ -371,6 +390,18 @@ const commandPass = async (
     // `node` reads its script from stdin: the command alone does not say what it runs.
     if (script !== undefined) inner.script.openTransaction({ script, program: "node" });
   };
+  // The `kubectl get pods` of `pod_match` is a process of its own, a sibling of the `kubectl exec`.
+  const lookupLog: ConsoleEntry[] = [];
+  let lookup: CommandTransaction | undefined;
+  const onLookup = {
+    onCommand: (c: string[]) => {
+      lookup = logger.command.openTransaction({ program: c[0]!, args: c.slice(1) });
+    },
+    onConsole: (entry: ConsoleEntry) => {
+      lookupLog.push(entry);
+    },
+    onExit: (code: number | null) => lookup?.end(code, lookupLog),
+  };
   const onScript = (s: string) => {
     script = s;
   };
@@ -385,7 +416,7 @@ const commandPass = async (
     for (const process of [...processes].reverse()) process.end(code, consoleLog);
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit, onConsole };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onScript, onExit, onConsole };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"
@@ -449,7 +480,7 @@ export const createProxyServer = ({
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.password, logger);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.podMatch, action.password, logger);
         } finally {
           release();
         }
