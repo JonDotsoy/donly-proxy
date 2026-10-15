@@ -138,6 +138,28 @@ route https?://example.com/ {
 }
 ```
 
+## Lint del manifiesto
+
+Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/lint`](https://don.jon.soy/)
+(`src/proxy/lint.ts`) e imprime el informe por stderr (`línea:columna severidad mensaje`).
+
+- Los **errores** abortan el arranque con código de salida `1`.
+- Las **advertencias** se imprimen y el proxy arranca igual.
+
+| Regla | Severidad |
+| --- | --- |
+| Falta el bloque `proxy` (o hay más de uno) | error |
+| `host` no es un string | error |
+| `port` no es un número entre 0 y 65535 | error |
+| `log_file` no es un string que termine en `.ndjson` | error |
+| `ssl.cert` / `ssl.key` no son strings | error |
+| `route` sin exactamente una acción | error |
+| `respond` con estado fuera de 100–599 o cuerpo que no es un string | error |
+| `proxy_pass` que no es una URL `http(s)://` | error |
+| Directiva desconocida dentro de `proxy`, `ssl` o `route` | advertencia |
+| `respond` con argumentos de más | advertencia |
+| `route` declarada después de una `route` sin argumentos (inalcanzable) | advertencia |
+
 ## Errores de arranque
 
 | Causa | Mensaje |
