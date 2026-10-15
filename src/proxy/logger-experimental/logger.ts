@@ -1,0 +1,159 @@
+import { randomUUID } from "node:crypto";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+
+/** One piece of console traffic of a command, with the moment it happened. */
+export interface ConsoleLogEntry {
+  type: "stdout" | "stderr" | "stdin";
+  timestamp: string;
+  message: string;
+}
+
+export interface RequestInfo {
+  method: string;
+  url: string;
+  httpVersion: string;
+  headers: Record<string, string | string[] | undefined>;
+  body: Buffer;
+}
+
+export interface CommandInfo {
+  program: string;
+  args: string[];
+}
+
+export interface ResponseInfo {
+  status: number;
+  headers: Record<string, string | string[]>;
+  body: Buffer;
+  /** Command line executed to produce the reply (`command_pass` only). */
+  command?: string[];
+}
+
+export interface ScriptInfo {
+  script: string;
+}
+
+type Entry = Record<string, unknown>;
+
+/** Opens the line of a nested transaction and returns it. */
+interface Spans {
+  readonly command: { openTransaction(info: CommandInfo): CommandTransaction };
+}
+
+export interface CommandTransaction extends Spans {
+  readonly transactionId: string;
+  readonly spanId: string;
+  annotation(data: Record<string, unknown>): void;
+  readonly script: { openTransaction(info: ScriptInfo): void };
+  /** Closes the command: `command_end` (plus `script_exit` when it ran a script). Only the first call writes. */
+  end(exitCode: number | null, logs: ConsoleLogEntry[]): void;
+}
+
+export interface RequestTransaction extends Spans {
+  readonly transactionId: string;
+  readonly spanId: string;
+  annotation(data: Record<string, unknown>): void;
+  /** Writes `response`; commands still open are closed first, with a `null` exit code. */
+  response(reply: ResponseInfo): void;
+}
+
+/** Payload as utf8 when lossless, base64 otherwise. */
+const encodePayload = (body: Buffer) => {
+  const utf8 = body.toString("utf8");
+  return Buffer.from(utf8).equals(body)
+    ? { payload: utf8 }
+    : { payload: body.toString("base64"), payload_encoding: "base64" };
+};
+
+/**
+ * Experimental logger with nested transactions (see docs/plans/logger-transacciones.md).
+ * Not wired to the proxy yet. Without a `logFile` every call is a no-op.
+ *
+ * `transaction_id` is the id of the request and is shared by the whole tree; `span_id` is the id of
+ * each open transaction and `parent_span_id` the one that opened it.
+ */
+export class Logger_experimental {
+  constructor(private readonly logFile?: string) {
+    if (logFile) mkdirSync(dirname(logFile), { recursive: true });
+  }
+
+  private write(entry: Entry) {
+    // `timestamp` is the wall clock (ms); `performance_timestamp` is the exact moment from the Performance API.
+    if (this.logFile) {
+      appendFileSync(
+        this.logFile,
+        JSON.stringify({ timestamp: new Date().toISOString(), performance_timestamp: performance.timeOrigin + performance.now(), ...entry }) + "\n",
+      );
+    }
+  }
+
+  listening(host: string, port: number) {
+    this.write({ type: "listening", host, port });
+  }
+
+  readonly request = {
+    openTransaction: (request: RequestInfo): RequestTransaction => {
+      const transaction = {
+        transaction_id: randomUUID(),
+        http_version: `HTTP/${request.httpVersion}`,
+        method: request.method,
+        url: request.url,
+      };
+      const spanId = randomUUID();
+      this.write({ ...transaction, type: "request", span_id: spanId, headers: request.headers, ...encodePayload(request.body) });
+      const open = new Set<CommandTransaction>();
+      const root: RequestTransaction = {
+        transactionId: transaction.transaction_id,
+        spanId,
+        annotation: (annotation) => this.write({ ...transaction, type: "request_annotation", span_id: spanId, annotation }),
+        command: { openTransaction: (info) => this.openCommand(transaction, spanId, info, open) },
+        response: (reply) => {
+          for (const command of [...open].reverse()) command.end(null, []);
+          this.write({
+            ...transaction,
+            type: "response",
+            span_id: spanId,
+            status: reply.status,
+            ...(reply.command && { command: reply.command }),
+            headers: reply.headers,
+            ...encodePayload(reply.body),
+          });
+        },
+      };
+      return root;
+    },
+  };
+
+  private openCommand(transaction: Entry, parentSpanId: string, info: CommandInfo, open: Set<CommandTransaction>): CommandTransaction {
+    const spanId = randomUUID();
+    const common = { ...transaction, span_id: spanId, parent_span_id: parentSpanId };
+    this.write({ ...common, type: "command_start", program: info.program, args: info.args, command: [info.program, ...info.args] });
+    const children = new Set<CommandTransaction>();
+    let ranScript = false;
+    let ended = false;
+    const command: CommandTransaction = {
+      transactionId: transaction.transaction_id as string,
+      spanId,
+      annotation: (annotation) => this.write({ ...common, type: "annotation", annotation }),
+      command: { openTransaction: (child) => this.openCommand(transaction, spanId, child, children) },
+      script: {
+        openTransaction: ({ script }) => {
+          ranScript = true;
+          this.write({ ...transaction, type: "script", span_id: randomUUID(), parent_span_id: spanId, program: info.program, script });
+        },
+      },
+      end: (exitCode, logs) => {
+        if (ended) return;
+        ended = true;
+        // A child never outlives its parent.
+        for (const child of [...children].reverse()) child.end(null, []);
+        open.delete(command);
+        this.write({ ...common, type: "command_end", program: info.program, exit_code: exitCode, console_log: logs });
+        if (ranScript) this.write({ ...common, type: "script_exit", program: info.program, exit_code: exitCode, console_log: logs });
+      },
+    };
+    open.add(command);
+    return command;
+  }
+}
