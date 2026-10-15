@@ -37,7 +37,7 @@ export interface ProxyConfig {
   routes: Route[];
   /** Absolute path of the `.ndjson` transaction log, if configured. */
   logFile?: string;
-  /** `log verbose`: print request, matched route and executed commands to stderr. */
+  /** `log verbose`: print the transaction log lines and the matched route to stderr. */
   verbose?: boolean;
 }
 

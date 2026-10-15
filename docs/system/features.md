@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **175** · ✅ pasan: **175** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -139,6 +139,8 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should pass the extra_args values to curl as separate arguments | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned" "$(touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned)"</code> |
 | should pass the port subdirective of ssh_pass as -p | ✅ | <code>port 2222</code><br><code>port 2200</code> |
 | should pass the user subdirective of ssh_pass as -l | ✅ | <code>port 2222</code><br><code>user jon</code><br><code>port 2200</code><br><code>user jon</code> |
+| should print the transaction log lines and the matched route to stderr when log verbose is set | ✅ | <code>log verbose</code><br><code>&nbsp;&nbsp;respond 200 "hi"</code> |
+| should print verbose logs when the CLI runs with --verbose | ✅ | <code>respond 200 "hi"</code> |
 | should put no_warnings after the arguments of the line and the extra_args | ✅ | <code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings true</code><br><code>}</code><br><code>command_pass node {</code><br><code>&nbsp;&nbsp;no_warnings false</code><br><code>}</code><br><code>command_pass node "--max-old-space-size=64" {</code><br><code>&nbsp;&nbsp;extra_args --no-deprecation</code><br><code>&nbsp;&nbsp;no_warnings</code><br><code>}</code><br><code>command_pass node</code> |
 | should put the arguments after the host of ssh_pass before the host as ssh options | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should put the extra_args after the arguments of the line and before max_time | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args --foo tar --biz lol</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;extra_args --retry 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl {</code><br><code>&nbsp;&nbsp;extra_args "--header" "x-evil: a b; touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned" "$(touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned)"</code><br><code>}</code> |
@@ -148,6 +150,7 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should read the port from the manifest | ✅ | <code>port 3000</code> |
 | should reject a context of command_pass kubectl that is not a name | ✅ | <code>context ""</code> |
 | should reject a context that is not a name | ✅ | <code>context 5</code> |
+| should reject a log value other than verbose | ✅ | <code>log loud</code> |
 | should reject a max_time that is not a positive number | ✅ | <code>max_time 0</code> |
 | should reject a namespace of command_pass kubectl that is not a name | ✅ | <code>namespace 5</code> |
 | should reject a namespace that is not a name | ✅ | <code>namespace 5</code> |
@@ -170,6 +173,7 @@ Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should run the request over ssh with the curl of the nested command_pass | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
 | should send the namespace to kubectl exec when namespace is defined | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
 | should serve the log viewer page on the ui port | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| should stay silent without log verbose | ✅ | <code>port 0</code> |
 | should stream the existing log lines and then the new ones as server-sent events | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should use the curl engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass curl</code> |
 | should use the first argument of ssh_pass as the host, so ~/.ssh/config applies | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
