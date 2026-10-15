@@ -211,6 +211,43 @@ testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "kubectl_pass with
   expect(args.slice(0, args.indexOf("--"))).toEqual(["exec", "-i", "-q", "--context", "local-my-context", "--namespace", "the-namespace", "pod/my-pod-12345"]);
 });
 
+const podMatchLogPayload = (port: number) => `proxy {
+  host "127.0.0.1"
+  port 0
+  log_file "./podmatch.ndjson"
+  route http://127.0.0.1:${port}/ {
+    kubectl_pass {
+      pod_match my-pod-*
+      context local-my-context
+      namespace the-namespace
+      command_pass curl
+    }
+  }
+}
+`;
+
+testFeature(podMatchLogPayload(8080), ["/proxy/log_file", "/proxy/route/kubectl_pass/pod_match"], "kubectl_pass with pod_match logs the kubectl get pods command before the kubectl exec", async () => {
+  writeFileSync(join(dir, "podmatch.donly"), podMatchLogPayload(port));
+  const logging = createProxyServer(await loadConfig(join(dir, "podmatch.donly")));
+  await new Promise<void>((resolve) => logging.listen(0, "127.0.0.1", resolve));
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/x`, { proxy: `http://127.0.0.1:${(logging.address() as AddressInfo).port}` });
+    expect(res.status).toBe(200);
+    const lines = readFileSync(join(dir, "podmatch.ndjson"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const starts = lines.filter((l) => l.type === "command_start");
+    const lookup = starts.find((l) => l.args[0] === "get");
+    expect(lookup.program).toBe("kubectl");
+    expect(lookup.command).toEqual(["kubectl", "get", "pods", "--context", "local-my-context", "--namespace", "the-namespace", "--field-selector=status.phase=Running", "-o", "name"]);
+    // It runs before the exec and is closed with the listing it printed.
+    expect(starts.indexOf(lookup)).toBeLessThan(starts.findIndex((l) => l.args[0] === "exec"));
+    const end = lines.find((l) => l.type === "command_end" && l.span_id === lookup.span_id);
+    expect(end.exit_code).toBe(0);
+    expect(end.console_log.some((e: { type: string; message: string }) => e.type === "stdout" && e.message.includes("pod/my-pod-12345"))).toBe(true);
+  } finally {
+    logging.close();
+  }
+});
+
 testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "kubectl_pass with pod_match answers 502 when kubectl get pods fails", async () => {
   process.env.FAKE_PODS_FAIL = "1";
   try {

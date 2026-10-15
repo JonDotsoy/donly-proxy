@@ -17,6 +17,8 @@ export interface CurlRequest {
   engineArgs?: string[];
   /** `kubectl_pass … { pod_match <glob> }`: the pod is the first running one whose name matches; `selectors` are its `--context` / `--namespace`. */
   podMatch?: { glob: string; selectors: string[] };
+  /** Callbacks for the `kubectl get pods` that `podMatch` runs first (same meaning as `onCommand`, `onConsole` and `onExit`). */
+  onLookup?: Pick<CurlRequest, "onCommand" | "onConsole" | "onExit">;
   /** Password for `ssh` (`ssh_pass … { pass … }`): handed over through an askpass program, not `argv`. */
   password?: string;
   /** Called with the full command line (program and arguments) right before it runs. */

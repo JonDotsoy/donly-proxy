@@ -459,7 +459,8 @@ route https?://api.internal/ {
   secuencia y `?` un carácter (el patrón abarca el nombre completo). Con `pod_match`, los argumentos de
   la línea son solo opciones de `kubectl exec`; no se combina con `pod_name`
   (`pod_name y pod_match no se pueden combinar`). Un valor vacío falla con
-  `pod_match debe ser un patrón`. Si `kubectl get pods` falla o ningún pod coincide, el cliente recibe
+  `pod_match debe ser un patrón`. El `kubectl get pods` queda en el `log_file` como su propio
+  `command_start` / `command_end` (con su `console_log`), antes del `kubectl exec`. Si `kubectl get pods` falla o ningún pod coincide, el cliente recibe
   `502` (`no running pod matches pod_match …`).
 
   ```

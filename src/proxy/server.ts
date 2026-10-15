@@ -390,6 +390,18 @@ const commandPass = async (
     // `node` reads its script from stdin: the command alone does not say what it runs.
     if (script !== undefined) inner.script.openTransaction({ script, program: "node" });
   };
+  // The `kubectl get pods` of `pod_match` is a process of its own, a sibling of the `kubectl exec`.
+  const lookupLog: ConsoleEntry[] = [];
+  let lookup: CommandTransaction | undefined;
+  const onLookup = {
+    onCommand: (c: string[]) => {
+      lookup = logger.command.openTransaction({ program: c[0]!, args: c.slice(1) });
+    },
+    onConsole: (entry: ConsoleEntry) => {
+      lookupLog.push(entry);
+    },
+    onExit: (code: number | null) => lookup?.end(code, lookupLog),
+  };
   const onScript = (s: string) => {
     script = s;
   };
@@ -404,7 +416,7 @@ const commandPass = async (
     for (const process of [...processes].reverse()) process.end(code, consoleLog);
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, password, onCommand, onScript, onExit, onConsole };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onScript, onExit, onConsole };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"

@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **170** · ✅ pasan: **170** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **171** · ✅ pasan: **171** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -49,6 +49,7 @@ Specs: **170** · ✅ pasan: **170** · 🔴 fallan: **0** · ⏳ sin resultado:
 | kubectl_pass with a nested command_pass curl runs the request inside the pod with the curl options | ✅ | <code>kubectl_pass "-n" "prod" "deploy/api" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code><br><code>kubectl_pass {</code><br><code>&nbsp;&nbsp;pod_name "my-pod-12345"</code><br><code>&nbsp;&nbsp;context local-my-context</code><br><code>&nbsp;&nbsp;namespace the-namespace</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass {</code><br><code>&nbsp;&nbsp;pod_match my-pod-*</code><br><code>&nbsp;&nbsp;context local-my-context</code><br><code>&nbsp;&nbsp;namespace the-namespace</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | kubectl_pass with pod_match answers 502 when kubectl get pods fails | ✅ | <code>pod_match my-pod-*</code> |
 | kubectl_pass with pod_match lists the pods and runs in the first one that matches | ✅ | <code>pod_match my-pod-*</code> |
+| kubectl_pass with pod_match logs the kubectl get pods command before the kubectl exec | ✅ | <code>log_file "./podmatch.ndjson"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;pod_match my-pod-*</code> |
 | kubectl_pass without a positional argument takes the pod from pod_name | ✅ | <code>pod_name "my-pod-12345"</code> |
 | loadConfig reads concurrency, defaulting to 1 | ✅ | <code>concurrency 2</code> |
 | log_file and ssl are resolved relative to the manifest, not the cwd | ✅ | <code>log_file "../out/rel.ndjson"</code><br><code>ssl {</code><br><code>&nbsp;&nbsp;cert "../ssl/cert.pem"</code><br><code>&nbsp;&nbsp;key "../ssl/key.pem"</code><br><code>}</code> |
