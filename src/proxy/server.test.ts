@@ -153,6 +153,9 @@ const relativePayload = `proxy {
     cert "../ssl/cert.pem"
     key "../ssl/key.pem"
   }
+  route {
+    respond 200 "ok"
+  }
 }
 `;
 

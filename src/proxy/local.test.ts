@@ -61,7 +61,7 @@ testFeature(manifestPayload, ["/proxy/log_file"], "fetch without proxy reaches t
 testFeature(manifestPayload, ["/proxy/log_file"], "fetch through the proxy goes through it and is logged", async () => {
   const res = await fetch(target, { proxy });
   expect(res.status).toBe(200);
-  expect(await res.text()).toBe("ok"); // no route: the proxy answers by itself
+  expect(await res.text()).toBe("hello from 3001"); // no route: the request is forwarded as-is
 
   const [listening, request, response] = readLog();
   expect(readLog()).toHaveLength(3);
