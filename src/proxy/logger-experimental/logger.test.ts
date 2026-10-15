@@ -68,6 +68,19 @@ test("nested commands link each child to its parent and end with their own span"
   expect(new Set(all.map((line) => line.transaction_id)).size).toBe(1);
 });
 
+test("proxyPass writes request_proxy_pass and response_proxy_pass as a child of the request", async () => {
+  const { lines, transaction } = setup();
+  const upstream = transaction.proxyPass.openTransaction({ method: "POST", target: "http://up.test/a?b=1", headers: { "x-custom": "1" }, body: Buffer.from("ping") });
+  upstream.end({ status: 201, headers: { "content-type": "text/plain" }, body: Buffer.from("created") });
+  upstream.end({ status: 500, headers: {}, body: Buffer.alloc(0) });
+  transaction.response(reply);
+  const all = await lines();
+  expect(all.map((line) => line.type)).toEqual(["request", "request_proxy_pass", "response_proxy_pass", "response"]);
+  const [, start, end] = all;
+  expect(start).toMatchObject({ span_id: upstream.spanId, parent_span_id: transaction.spanId, target: "http://up.test/a?b=1", headers: { "x-custom": "1" }, payload: "ping" });
+  expect(end).toMatchObject({ span_id: upstream.spanId, parent_span_id: transaction.spanId, status: 201, payload: "created" });
+});
+
 test("end writes only once", async () => {
   const { lines, transaction } = setup();
   const command = transaction.command.openTransaction({ program: "curl", args: [] });

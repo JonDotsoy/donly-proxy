@@ -62,7 +62,14 @@ export interface Transaction {
 }
 
 export interface RequestTransaction extends Omit<Transaction, "end"> {
+  readonly proxyPass: { openTransaction(info: { method: string; target: string; headers: Record<string, string>; body: Buffer }): ProxyPassTransaction };
   response(reply: { status: number; headers: …; body: Buffer; command?: string[] }): void;
+}
+
+/** La petición que el proxy envía al destino de un `proxy_pass` y lo que este responde. */
+export interface ProxyPassTransaction {
+  readonly spanId: string;
+  end(reply: { status: number; headers: Record<string, string | string[]>; body: Buffer }): void;
 }
 
 export interface CommandTransaction extends Transaction {
@@ -95,6 +102,8 @@ Campos comunes de siempre: `timestamp`, `performance_timestamp`, `type`. Campos 
 | `.command.openTransaction({program,args})` | `{ …comunes, type: "command_start", span_id, parent_span_id, program, args, command: [program, ...args] }` |
 | `.script.openTransaction({script})` | `{ …comunes, type: "script", span_id, parent_span_id, program: "node", script }` (`parent_span_id` = span del comando `node`) |
 | `.end(code, logs)` en un comando | `{ …comunes, type: "command_end", span_id, parent_span_id, program, exit_code, console_log }` |
+| `.proxyPass.openTransaction({method,target,headers,body})` | `{ …comunes, type: "request_proxy_pass", span_id, parent_span_id, target, headers, payload, payload_encoding? }` (lo que se envía al destino) |
+| `.end(reply)` en un `proxy_pass` | `{ …comunes, type: "response_proxy_pass", span_id, parent_span_id, target, status, headers, payload, payload_encoding? }` (mismo `span_id` que su `request_proxy_pass`) |
 | `.response(reply)` | `{ …comunes, type: "response", span_id, status, headers, payload, command? }` (igual que hoy) |
 
 - `annotation` en un comando lleva el mismo `type: "request_annotation"` en la raíz; en hijos se propone `type: "annotation"` con el mismo cuerpo. Ver duda D4.
@@ -138,6 +147,7 @@ Los túneles **no** cambian de interfaz: `run.ts` y los motores siguen exponiend
 | `onScript` guarda el script y `onCommand` emite `script` | `onScript` llama `nodeLogger.script.openTransaction(...)` (en la transacción del `node`) |
 | `onConsole` acumula `consoleLog` | igual, pero `run.ts` añade `timestamp` a cada `ConsoleEntry` |
 | `onExit` emite `command_exit` (×2 en kubectl) y `script_exit` | `onExit` llama `end(code, consoleLog)` en el hijo y luego en el padre |
+| `fetch` de `forward()` sin registro | `proxyPass.openTransaction(...)` antes del `fetch` y `end(reply)` al recibir la respuesta (o el 502) |
 | `log({ type: "response", … })` | `logger.response(reply)` |
 | `log({ type: "listening", … })` | `logger.listening(host, port)` |
 
@@ -147,7 +157,8 @@ Casos por motor:
 - **node local**: `command_start(node)` + `script` → `command_end`.
 - **ssh**: `command_start(ssh …)` (el comando remoto va dentro de `args`, como hoy). Sin hijo, salvo que se decida modelar el motor remoto (D2).
 - **kubectl**: padre `kubectl exec`, hijo con el motor (`curl`/`node`); el hijo lleva el `script` si es `node`.
-- **proxy_pass / respond**: solo `request` (+ anotaciones) y `response`.
+- **proxy_pass**: `request` → `request_proxy_pass` → `response_proxy_pass` → `response`. `forward()` abre la transacción con la petición que arma (método, URL destino con las reglas de ruta y query, cabeceras sin las hop-by-hop) y la cierra con lo que responde el destino; si el destino falla (502), se cierra con ese 502. El `response` al cliente se escribe después.
+- **respond**: solo `request` (+ anotaciones) y `response`.
 
 Anotaciones iniciales sugeridas (opcionales, no se emiten hoy): ruta que coincidió (`route`, patrón) y espera por el semáforo de `concurrency` (`queued_ms`). Se incluyen solo si se acepta D5.
 
@@ -175,6 +186,7 @@ Cada comportamiento nuevo entra con `testFeature(payload, paths, "should …", f
 
 1. **Unit de `createLogger`** (hecho; stream en memoria, sin servidor): `request.openTransaction` escribe `request` con `span_id`; `annotation` genera `request_annotation`; `command.openTransaction` anida `parent_span_id`; `script` cuelga del comando; `end` es idempotente; cerrar un padre cierra los hijos abiertos; un stream que falla no lanza.
 2. **Servidor** (extender `log-command.test.ts`, `log-script.test.ts`): líneas con `span_id`/`parent_span_id` correctos para curl, node, ssh y kubectl falso (script al inicio del `PATH`); un `command_start` y un `command_end` por proceso; `console_log` con `timestamp`.
+   Ya está declarado el caso de `proxy_pass` en `src/proxy/log-proxy-pass-transactions.test.ts` (request → request proxy_pass → response proxy_pass → response), también con snapshot y `testFeature.skip`.
    Ya está declarado el caso de punta a punta en `src/proxy/log-transactions.test.ts` (request → kubectl → node → end node → end kubectl → response) con snapshot de todas las líneas, hoy con `testFeature.skip`: el paso 2 de implementación lo activa.
 3. **No regresión**: los tests y snapshots actuales (`log-*.test.ts`, `console-log.test.ts`, `kubectl.test.ts`, `two-pods`) pasan sin tocar, salvo los que buscan los tipos `command`/`command_exit` o cuentan los dos `command_exit` de kubectl (ahora `command_end`).
 4. **UI**: test de que el HTML contiene el manejo de `request_annotation`; sin Playwright.

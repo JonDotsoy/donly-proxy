@@ -32,6 +32,21 @@ export interface ScriptInfo {
   script: string;
 }
 
+/** The request the proxy sends upstream (`proxy_pass`). */
+export interface ProxyPassInfo {
+  method: string;
+  /** Upstream URL, after the path and query rules of `proxy_pass`. */
+  target: string;
+  headers: Record<string, string>;
+  body: Buffer;
+}
+
+export interface ProxyPassTransaction {
+  readonly spanId: string;
+  /** Writes `response_proxy_pass` with what the upstream answered. Only the first call writes. */
+  end(reply: Omit<ResponseInfo, "command">): void;
+}
+
 type Entry = Record<string, unknown>;
 
 export interface Logger {
@@ -59,6 +74,7 @@ export interface RequestTransaction extends Spans {
   readonly transactionId: string;
   readonly spanId: string;
   annotation(data: Record<string, unknown>): void;
+  readonly proxyPass: { openTransaction(info: ProxyPassInfo): ProxyPassTransaction };
   /** Writes `response`; commands still open are closed first, with a `null` exit code. */
   response(reply: ResponseInfo): void;
 }
@@ -144,6 +160,22 @@ export const createLogger = (writable: WritableStream<Uint8Array>): Logger => {
           spanId,
           annotation: (annotation) => write({ ...transaction, type: "request_annotation", span_id: spanId, annotation }),
           command: { openTransaction: (info) => openCommand(transaction, spanId, info, open) },
+          proxyPass: {
+            openTransaction: (info) => {
+              const proxyPassSpanId = randomUUID();
+              const common = { ...transaction, span_id: proxyPassSpanId, parent_span_id: spanId, target: info.target };
+              write({ ...common, type: "request_proxy_pass", headers: info.headers, ...encodePayload(info.body) });
+              let ended = false;
+              return {
+                spanId: proxyPassSpanId,
+                end: (reply) => {
+                  if (ended) return;
+                  ended = true;
+                  write({ ...common, type: "response_proxy_pass", status: reply.status, headers: reply.headers, ...encodePayload(reply.body) });
+                },
+              };
+            },
+          },
           response: (reply) => {
             for (const command of [...open].reverse()) command.end(null, []);
             write({
