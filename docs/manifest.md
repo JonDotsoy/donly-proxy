@@ -32,6 +32,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 | `port` | número | `0` | Puerto. Si se omite o es `0`, el sistema asigna uno libre. |
 | `ssl` | bloque | ver abajo | Certificado usado para terminar el TLS de los túneles `CONNECT`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |
+| `log` | `verbose` | sin log detallado | `log verbose` imprime en stderr las líneas de log de cada transacción y la ruta que coincidió. |
 | `route` | bloque | sin rutas | Regla por petición. Se pueden declarar varias. |
 
 ### `ssl`
@@ -94,6 +95,27 @@ respuestas `ok` por defecto y los `502`. Las rutas `command_pass` añaden ademá
 respuesta es el cuerpo ya descomprimido. El `CONNECT` en sí no se registra, solo las
 peticiones descifradas que viajan por el túnel.
 
+### `log verbose`
+
+```
+log verbose
+```
+
+Activa logs detallados en **stderr** (independientes de `log_file`). Imprime con prefijo
+`[verbose]` las mismas líneas JSON de las transacciones que se escriben en el `.ndjson` (`request`,
+`command`, `script`, `command_exit` y `response`, ver [`log_file`](#log_file)) y, entre la
+`request` y la `response`, una línea con la ruta que coincidió (o que ninguna lo hizo):
+
+```
+[verbose] {"timestamp":"…","transaction_id":"…","method":"GET","url":"http://example.com/","type":"request",…}
+[verbose] route /example\.com/ -> command_pass
+[verbose] {"timestamp":"…","transaction_id":"…","type":"command","program":"curl","command":["curl",…]}
+[verbose] {"timestamp":"…","transaction_id":"…","type":"response","status":200,…}
+```
+
+Equivale a arrancar el CLI con el flag `--verbose`; si cualquiera de los dos está activo, hay
+logs detallados. Cualquier otro valor tras `log` falla al arrancar.
+
 ### `route`
 
 ```
@@ -153,6 +175,7 @@ route https?://example.com/ {
 | `--ui` (CLI) con un manifest sin `log_file` | `--ui requiere log_file en el manifiesto para poder mostrar los logs` |
 | `--ui` (CLI) con el puerto ocupado | `no se pudo levantar la ui en 127.0.0.1:<puerto>: EADDRINUSE` |
 | `log_file` sin extensión `.ndjson` | `log_file …: solo se soporta la extensión .ndjson` |
+| `log` con un valor distinto de `verbose` | `log …: solo se soporta "log verbose"` |
 | `route` sin acción o con varias | `route …: se requiere exactamente uno de respond, proxy_pass, command_pass, kubectl_pass o ssh_pass` |
 | `command_pass` con un comando distinto de `curl`, `node`, `ssh` o `kubectl` | `route …: command_pass solo soporta "curl", "node", "ssh" y "kubectl"` |
 | `command_pass ssh` / `kubectl` sin destino | `route …: command_pass ssh requiere el destino (usuario@host)` / `… kubectl requiere el destino (pod o tipo/nombre)` |

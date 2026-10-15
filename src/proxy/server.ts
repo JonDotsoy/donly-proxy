@@ -37,6 +37,8 @@ export interface ProxyConfig {
   routes: Route[];
   /** Absolute path of the `.ndjson` transaction log, if configured. */
   logFile?: string;
+  /** `log verbose`: print the transaction log lines and the matched route to stderr. */
+  verbose?: boolean;
 }
 
 /** `no_warnings` inside a `command_pass node` (or `no_warnings true`): it becomes `--no-warnings`. */
@@ -156,6 +158,11 @@ export const loadConfig = async (
     throw new Error(`log_file ${logFile}: solo se soporta la extensión .ndjson`);
   }
 
+  const log = child("log");
+  if (log && log.args[0] !== "verbose") {
+    throw new Error(`log ${log.args.join(" ")}: solo se soporta "log verbose"`);
+  }
+
   return {
     host: String(child("host")?.args[0] ?? "127.0.0.1"),
     port: Number(child("port")?.args[0] ?? 0),
@@ -164,6 +171,7 @@ export const loadConfig = async (
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),
     },
     logFile: logFile === undefined ? undefined : resolve(String(logFile)),
+    verbose: log !== undefined,
     routes: (proxy?.children ?? [])
       .filter((c) => c.name === "route")
       .map((route): Route => {
@@ -452,15 +460,25 @@ export const createProxyServer = ({
   ssl,
   routes,
   logFile,
-}: Pick<ProxyConfig, "ssl" | "routes"> & { logFile?: string }) => {
+  verbose,
+}: Pick<ProxyConfig, "ssl" | "routes" | "logFile" | "verbose">) => {
   ensureCerts(ssl);
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
   if (logFile) mkdirSync(dirname(logFile), { recursive: true });
 
   // The logger writes `.ndjson` lines to this stream; without `log_file` they are dropped.
   const Logger = createLogger_experimental(
-    new WritableStream<Uint8Array>({ write: (chunk) => void (logFile && appendFileSync(logFile, chunk)) }),
+    new WritableStream<Uint8Array>({
+      write: (chunk) => {
+        if (logFile) appendFileSync(logFile, chunk);
+        if (verbose) console.error(`[verbose] ${Buffer.from(chunk).toString().trimEnd()}`);
+      },
+    }),
   );
+
+  const debug = (message: string) => {
+    if (verbose) console.error(`[verbose] ${message}`);
+  };
 
   // One semaphore per command_pass route: `concurrency` processes at a time, the rest queue up.
   const limits = new Map<Route, Semaphore>();
@@ -505,6 +523,7 @@ export const createProxyServer = ({
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
+    debug(route ? `route ${route.pattern} -> ${route.action.kind}` : "no route matched, answering 200 ok");
     const reply = await answer(route, req, body, url, logger);
 
     logger.response(reply);
