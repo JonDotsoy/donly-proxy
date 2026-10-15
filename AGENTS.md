@@ -15,6 +15,7 @@ manifiesto [DON](https://don.jon.soy/) (`manifest.donly`). Corre sobre [Bun](htt
 | `src/utils/test_utils/test-feature/` | `testFeature`: registra cada test como una *spec* de feature. |
 | `src/utils/test_utils/lint-features/` | Convierte el payload + paths de un test en el "lint" que se ve en la tabla. |
 | `docs/` | Referencia: `manifest.md`, `overview.md`, `concepts/` (`route`, `proxy_pass`, `command_pass`, `kubectl_pass`, `ssh_pass`), `tunnel/`. |
+| `e2e/ui.e2e.ts` | Prueba end-to-end de `--ui` con Playwright (`bun run e2e`, ver `docs/e2e.md`). No la corre `bun test`. |
 | `docs/system/features.md` | Tabla de features **generada**. No se edita a mano. |
 | `scripts/features.ts` | Genera/verifica `docs/system/features.md`. |
 | `scripts/release-notes.ts` | Arma las notas de cada release (ver [Títulos de PR](#títulos-de-pr)). |
@@ -34,6 +35,7 @@ bun test src/proxy/server.test.ts   # un archivo
 bun run features               # corre bun test y REESCRIBE docs/system/features.md
 bun run features:check         # igual, pero falla si features.md está desactualizado
 bun run build                  # dist/donly-proxy.js (bundle para Bun)
+bun run e2e                    # build + prueba end-to-end de la UI en Chromium (docs/e2e.md)
 ```
 
 CI (`test.yml`, en cada PR) ejecuta `bun test` y `bun run features:check`. Antes de abrir o

@@ -7,10 +7,12 @@
     "build": "bun build src/cli/main.ts --outfile dist/donly-proxy.js --target bun",
     "test": "bun test",
     "features": "bun scripts/features.ts",
-    "features:check": "bun scripts/features.ts --check"
+    "features:check": "bun scripts/features.ts --check",
+    "e2e": "bun run build && bun test --timeout 60000 ./e2e/ui.e2e.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "playwright-core": "1.56.1"
   },
   "dependencies": {
     "@jondotsoy/flags": "^3.2.1",
