@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProxyServer, loadConfig } from "./server";
@@ -14,8 +14,7 @@ const manifest = join(dir, "manifest.donly");
 const upstream = http.createServer((_req, res) => res.end("from upstream"));
 
 const manifestPayload = (port: number) => `proxy {
-  host "127.0.0.1"
-  port https 0 {
+  listen https 127.0.0.1 0 {
     ssl {
       cert "./certs/cert.pem"
       key "./certs/key.pem"
@@ -60,44 +59,99 @@ const curl = async (...args: string[]) => {
   return { out, err, code: await proc.exited };
 };
 
-testFeature(manifestPayload(0), ["/proxy/port", "/proxy/route/respond"], "should accept an http request through an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/listen", "/proxy/route/respond"], "should accept an http request through an https proxy", async () => {
   const res = await curl("--proxy", `https://127.0.0.1:${proxyPort}`, "http://example.com/");
   expect(res.out).toBe("plain good");
 });
 
-testFeature(manifestPayload(0), ["/proxy/port", "/proxy/route/respond"], "should tunnel an https request through an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/listen", "/proxy/route/respond"], "should tunnel an https request through an https proxy", async () => {
   const res = await curl("--proxy", `https://127.0.0.1:${proxyPort}`, "https://example.com/");
   expect(res.out).toBe("secure good");
 });
 
-testFeature(manifestPayload(0), ["/proxy/port", "/proxy/route/proxy_pass"], "should proxy_pass through an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/listen", "/proxy/route/proxy_pass"], "should proxy_pass through an https proxy", async () => {
   const res = await curl("--proxy", `https://127.0.0.1:${proxyPort}`, "http://upstream.test/");
   expect(res.out).toBe("from upstream");
 });
 
-testFeature(manifestPayload(0), ["/proxy/port"], "should refuse a plain http connection to an https proxy", async () => {
+testFeature(manifestPayload(0), ["/proxy/listen"], "should refuse a plain http connection to an https proxy", async () => {
   const res = await curl("--proxy", `http://127.0.0.1:${proxyPort}`, "http://example.com/");
   expect(res.out).not.toBe("plain good");
 });
 
-testFeature(`proxy {\n  port ftp 0\n}\n`, ["/proxy/port"], "should reject an unknown port protocol", async (payload) => {
-  const bad = join(dir, "bad.donly");
+const parse = async (name: string, body: string) => {
+  const file = join(dir, `${name}.donly`);
+  writeFileSync(file, `proxy {\n${body}\n}\n`);
+  return loadConfig(file);
+};
+
+const syntaxes: { title: string; body: string; paths: string[]; host: string; port: number; https: boolean; certs?: [string, string] }[] = [
+  { title: "listen 0", body: "  listen 0", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: false },
+  { title: "listen 8080", body: "  listen 8080", paths: ["/proxy/listen"], host: "127.0.0.1", port: 8080, https: false },
+  { title: "listen http 0", body: "  listen http 0", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: false },
+  { title: "listen https 0 (self-signed)", body: "  listen https 0", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: true, certs: ["certs/cert.pem", "certs/key.pem"] },
+  { title: "listen http 127.0.0.1 0", body: "  listen http 127.0.0.1 0", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: false },
+  { title: "listen http ::1 0", body: "  listen http ::1 0", paths: ["/proxy/listen"], host: "::1", port: 0, https: false },
+  { title: "listen https 127.0.0.1 0", body: "  listen https 127.0.0.1 0", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: true, certs: ["certs/cert.pem", "certs/key.pem"] },
+  {
+    title: "listen https 127.0.0.1 0 with ssl",
+    body: '  listen https 127.0.0.1 0 {\n    ssl {\n      cert "./my/c.pem"\n      key "./my/k.pem"\n    }\n  }',
+    paths: ["/proxy/listen", "/proxy/listen/ssl"],
+    host: "127.0.0.1",
+    port: 0,
+    https: true,
+    certs: ["my/c.pem", "my/k.pem"],
+  },
+  { title: "listen https 0 with ssl", body: '  listen https 0 {\n    ssl {\n      cert "./my/c.pem"\n      key "./my/k.pem"\n    }\n  }', paths: ["/proxy/listen", "/proxy/listen/ssl"], host: "127.0.0.1", port: 0, https: true, certs: ["my/c.pem", "my/k.pem"] },
+  { title: "port 8080 (alias of listen http)", body: "  port 8080", paths: ["/proxy/port"], host: "127.0.0.1", port: 8080, https: false },
+  { title: "port 0 (alias of listen http)", body: "  port 0", paths: ["/proxy/port"], host: "127.0.0.1", port: 0, https: false },
+  { title: "port http 0", body: "  port http 0", paths: ["/proxy/port"], host: "127.0.0.1", port: 0, https: false },
+  { title: "port https 0 with ssl", body: '  port https 0 {\n    ssl {\n      cert "./my/c.pem"\n      key "./my/k.pem"\n    }\n  }', paths: ["/proxy/port", "/proxy/port/ssl"], host: "127.0.0.1", port: 0, https: true, certs: ["my/c.pem", "my/k.pem"] },
+  { title: "host directive + port keeps the host", body: '  host "::1"\n  port 0', paths: ["/proxy/host", "/proxy/port"], host: "::1", port: 0, https: false },
+  { title: "listen host overrides the host directive", body: '  host "::1"\n  listen http 127.0.0.1 0', paths: ["/proxy/host", "/proxy/listen"], host: "127.0.0.1", port: 0, https: false },
+];
+
+for (const [i, syntax] of syntaxes.entries()) {
+  testFeature(`proxy {\n${syntax.body}\n}\n`, syntax.paths, `should parse the syntax: ${syntax.title}`, async (payload) => {
+    const config = await parse(`syntax-${i}`, payload.replace(/^proxy \{\n|\n\}\n$/g, ""));
+    expect(config.host).toBe(syntax.host);
+    expect(config.port).toBe(syntax.port);
+    expect(config.https !== undefined).toBe(syntax.https);
+    if (syntax.certs) {
+      expect(config.https?.cert).toBe(join(dir, syntax.certs[0]));
+      expect(config.https?.key).toBe(join(dir, syntax.certs[1]));
+    }
+  });
+}
+
+testFeature(`proxy {\n  listen 0\n  port 0\n}\n`, ["/proxy/listen", "/proxy/port"], "should reject listen and port declared together", async (payload) => {
+  const bad = join(dir, "both.donly");
   writeFileSync(bad, payload);
-  expect(loadConfig(bad)).rejects.toThrow('port: protocolo debe ser http o https, no "ftp"');
+  expect(loadConfig(bad)).rejects.toThrow("listen y port no se pueden declarar a la vez");
 });
 
-testFeature(`proxy {\n  port http 0\n}\n`, ["/proxy/port"], "should accept an explicit http protocol on port", async (payload) => {
-  const explicit = join(dir, "explicit-http.donly");
-  writeFileSync(explicit, payload);
-  const config = await loadConfig(explicit);
-  expect(config.port).toBe(0);
-  expect(config.https).toBeUndefined();
+testFeature(`proxy {\n  listen https 127.0.0.1\n}\n`, ["/proxy/listen"], "should reject a listen without a numeric port", async (payload) => {
+  const bad = join(dir, "no-port.donly");
+  writeFileSync(bad, payload);
+  expect(loadConfig(bad)).rejects.toThrow('listen: el puerto debe ser un número, no "127.0.0.1"');
 });
 
-testFeature(`proxy {\n  port 8080\n}\n`, ["/proxy/port"], "should keep plain port as http", async (payload) => {
-  const plain = join(dir, "plain-port.donly");
-  writeFileSync(plain, payload);
-  const config = await loadConfig(plain);
-  expect(config.port).toBe(8080);
-  expect(config.https).toBeUndefined();
+testFeature(`proxy {\n  listen http a b 0\n}\n`, ["/proxy/listen"], "should reject a listen with too many arguments", async (payload) => {
+  const bad = join(dir, "too-many.donly");
+  writeFileSync(bad, payload);
+  expect(loadConfig(bad)).rejects.toThrow("listen: se esperaba [http|https] [host] puerto");
+});
+
+const selfSigned = join(dir, "selfsigned.donly");
+testFeature(`proxy {\n  listen https 127.0.0.1 0\n}\n`, ["/proxy/listen"], "should serve https with a self-signed certificate generated next to the manifest", async (payload) => {
+  writeFileSync(selfSigned, payload);
+  const s = createProxyServer(await loadConfig(selfSigned));
+  await new Promise<void>((resolve) => s.listen(0, "127.0.0.1", resolve));
+  try {
+    const res = await curl("--proxy", `https://127.0.0.1:${(s.address() as AddressInfo).port}`, "http://example.com/");
+    expect(res.code).toBe(0);
+    expect(existsSync(join(dir, "certs/cert.pem"))).toBe(true);
+  } finally {
+    s.close();
+  }
 });
