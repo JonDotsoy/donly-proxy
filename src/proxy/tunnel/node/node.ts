@@ -39,5 +39,13 @@ export const parseNodeResult = ({ code, stdout, stderr }: RunResult, label = "no
  */
 export const nodeRequest = async (request: CurlRequest) =>
   parseNodeResult(
-    await run("node", [...request.args, "--input-type=module", "-"], nodeStdin(request), request.onCommand),
+    await run(
+      "node",
+      [...request.args, "--input-type=module", "-"],
+      nodeStdin(request),
+      request.onCommand,
+      undefined,
+      request.onExit,
+      request.onConsole,
+    ),
   );

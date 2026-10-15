@@ -360,14 +360,15 @@ const commandPass = async (
   const onScript = (s: string) => {
     script = s;
   };
-  // Added only to the `command_exit` line of the program that ran locally (the response to the client is untouched).
+  // Goes only to the log (the response to the client is untouched).
   const consoleLog: ConsoleEntry[] = [];
   const onConsole = (entry: ConsoleEntry) => {
     consoleLog.push(entry);
   };
   const onExit = (code: number | null) => {
-    if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code });
-    emit({ type: "command_exit", program: executed?.[0], exit_code: code, ...(consoleLog.length > 0 && { console_log: consoleLog }) });
+    // Every command that ran ends with an exit code and a `console_log` (empty when it wrote nothing).
+    if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code, console_log: consoleLog });
+    emit({ type: "command_exit", program: executed?.[0], exit_code: code, console_log: consoleLog });
   };
   try {
     const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit, onConsole };
