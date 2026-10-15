@@ -264,6 +264,24 @@ El proxy se comunica con el script mediante JSON:
   puedes usar las variables de entorno de node (`NODE_EXTRA_CA_CERTS`) en el entorno del proxy,
   o la opción `--use-openssl-ca`.
 
+### Consola en el log
+
+Con [`log_file`](../manifest.md#log_file), la línea `command_exit` de `node` incluye `exit_code` y
+`console_log`, en el orden en que ocurrió cada cosa:
+
+```json
+{"type":"command_exit","program":"node","exit_code":0,"console_log":[
+  {"type":"stdin","message":"globalThis.__donlyRequest = …"},
+  {"type":"stdout","message":"{\"status\":200,\"headers\":{…},\"body\":\"…\"}"},
+  {"type":"stderr","message":"aviso de node"}
+]}
+```
+
+- `stdin`: el script completo (prelude con la petición más el código que la ejecuta).
+- `stdout`: el JSON del resultado (`status`, `headers`, `body` en base64); puede venir en varios trozos.
+- `stderr`: lo que node escribió como error o aviso. Si no hay, no aparece la entrada.
+- La respuesta al cliente no cambia. Prueba: `src/proxy/tunnel/node/console-log.test.ts`.
+
 ### Pruebas
 
 `src/proxy/tunnel/node/node.test.ts` pone un `node` que registra sus argumentos y ejecuta el node real al inicio
@@ -444,6 +462,9 @@ route https?://api.internal/ {
 - [`concurrency`](#concurrencia) va dentro del `command_pass` hijo.
 - Un `route` no puede combinar `kubectl_pass` con otra acción.
 - El `log_file` registra el `kubectl exec …` completo, igual que con `command_pass kubectl`.
+- Cada ejecución cierra con dos líneas `command_exit` (comando remoto y `kubectl`) con el mismo
+  `exit_code` y `console_log` (`[{"type":"stdin"|"stdout"|"stderr","message":"…"}]`, `[]` si no hubo
+  salida), igual que con `command_pass kubectl`. Ver [`kubectl_pass`](../concepts/kubectl_pass.md).
 
 ### Ejemplo: dos pods (`conn-pod` y `echo-pod`)
 

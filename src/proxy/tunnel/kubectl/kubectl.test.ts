@@ -184,3 +184,51 @@ testFeature(manifest(`  route / {\n kubectl_pass {\n command_pass curl\n }\n }`)
   expect(load(`route / {\n kubectl_pass pod/x {\n command_pass curl {\n concurrency 0\n }\n }\n }`)).rejects.toThrow("entero positivo");
   expect(load(`route / {\n respond 200 "x"\n kubectl_pass pod/x {\n command_pass curl\n }\n }`)).rejects.toThrow("exactamente uno");
 });
+
+const consolePayload = (port: number) => `proxy {
+  host "127.0.0.1"
+  port 0
+  log_file "./console.ndjson"
+  route http://127.0.0.1:${port}/ {
+    command_pass kubectl "pod/api-0"
+  }
+}
+`;
+
+testFeature(consolePayload(8080), ["/proxy/log_file", "/proxy/route/command_pass"], "kubectl command_exit logs the console (stdout, stderr and stdin) without changing the response", async () => {
+  const noisy = join(dir, "noisy");
+  mkdirSync(noisy);
+  writeFileSync(join(noisy, "kubectl"), `#!/bin/sh\necho 'kubectl-warning' >&2\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n`);
+  chmodSync(join(noisy, "kubectl"), 0o755);
+  process.env.PATH = `${noisy}${delimiter}${bin}${delimiter}${saved.PATH}`;
+  writeFileSync(join(dir, "console.donly"), consolePayload(port));
+  const logging = createProxyServer(await loadConfig(join(dir, "console.donly")));
+  await new Promise<void>((resolve) => logging.listen(0, "127.0.0.1", resolve));
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/x`, {
+      proxy: `http://127.0.0.1:${(logging.address() as AddressInfo).port}`,
+      method: "POST",
+      body: "payload",
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-upstream")).toBe("yes");
+    expect(await res.json()).toMatchObject({ method: "POST", url: "/x", body: "payload" });
+
+    const lines = readFileSync(join(dir, "console.ndjson"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    const exits = lines.filter((l) => l.type === "command_exit");
+    // Both lines (the remote command and kubectl itself) carry the same list.
+    expect(exits).toHaveLength(2);
+    expect(exits[1].program).toBe("kubectl");
+    expect(exits[0].exit_code).toBe(0);
+    expect(exits[0].console_log).toEqual(exits[1].console_log);
+    const log: { type: string; message: string }[] = exits[1].console_log;
+    expect(log.some((e) => e.type === "stdin" && e.message.includes("payload"))).toBe(true);
+    expect(log.some((e) => e.type === "stderr" && e.message.includes("kubectl-warning"))).toBe(true);
+    expect(log.some((e) => e.type === "stdout" && e.message.includes('"url":"/x"'))).toBe(true);
+    // The response line the client's answer comes from carries no console_log.
+    expect(lines.find((l) => l.type === "response").console_log).toBeUndefined();
+  } finally {
+    process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
+    logging.close();
+  }
+});

@@ -1,3 +1,9 @@
+/** One piece of console traffic of a command: what was written to its stdin and what it printed. */
+export interface ConsoleEntry {
+  type: "stdout" | "stderr" | "stdin";
+  message: string;
+}
+
 export interface CurlRequest {
   method: string;
   url: string;
@@ -13,6 +19,8 @@ export interface CurlRequest {
   onCommand?: (command: string[]) => void;
   /** Called with the script that the node engine sends to a remote `node` through stdin. */
   onScript?: (script: string) => void;
+  /** Called with every stdin/stdout/stderr piece of the command, in order, as it happens. */
+  onConsole?: (entry: ConsoleEntry) => void;
   /** Called with the exit code of that command once it has finished. */
   onExit?: (code: number | null) => void;
 }

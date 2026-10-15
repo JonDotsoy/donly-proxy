@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { ConsoleEntry } from "./types";
 
 export interface RunResult {
   code: number | null;
@@ -15,16 +16,24 @@ export const run = (
   /** Extra environment variables for the process (secrets go here, never in `argv`). */
   env?: Record<string, string>,
   onExit?: (code: number | null) => void,
+  onConsole?: (entry: ConsoleEntry) => void,
 ) =>
   new Promise<RunResult>((resolve, reject) => {
     onCommand?.([command, ...argv]);
     const child = spawn(command, argv, { stdio: ["pipe", "pipe", "pipe"], env: env && { ...process.env, ...env } });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
-    child.stdout.on("data", (chunk) => out.push(chunk));
-    child.stderr.on("data", (chunk) => err.push(chunk));
+    child.stdout.on("data", (chunk) => {
+      out.push(chunk);
+      onConsole?.({ type: "stdout", message: chunk.toString() });
+    });
+    child.stderr.on("data", (chunk) => {
+      err.push(chunk);
+      onConsole?.({ type: "stderr", message: chunk.toString() });
+    });
     child.on("error", reject);
     child.stdin.on("error", () => {});
+    onConsole?.({ type: "stdin", message: input.toString() });
     child.stdin.end(input);
     child.on("close", (code) => {
       onExit?.(code);

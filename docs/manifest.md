@@ -52,6 +52,8 @@ rutas, creando las carpetas necesarias. Si ya existen, no los toca.
 Solo se admite la extensión `.ndjson`; con otra, el arranque falla. Se crean las carpetas que
 falten y cada evento se agrega como una línea JSON al final del archivo.
 
+El formato completo de todas las líneas (incluidos `exit_code` y `console_log`) está en [`log-format.md`](log-format.md).
+
 Con `donly-proxy --ui` el archivo se puede seguir en el navegador (ver [`--ui`](overview.md#--ui-logs-en-vivo)).
 
 Al empezar a escuchar, el proxy escribe una línea `listening` con el `host` y el `port` reales
@@ -76,10 +78,13 @@ Cada petición genera **dos líneas**, una `request` y una `response`, que compa
 | `http_version` | Versión HTTP de la petición, p. ej. `HTTP/1.1`. |
 | `method` | Método de la petición. |
 | `url` | URL completa, p. ej. `https://example.com/ruta?q=1` (sin `:443`). |
-| `type` | `request`, `response`, `listening` (arranque), `command`, `command_exit` o `script`. |
+| `type` | `request`, `response`, `listening` (arranque), `command`, `command_exit`, `script` o `script_exit`. |
 | `status` | Solo en `response`: código de estado devuelto al cliente. |
 | `command` | Solo en `response` de rutas `command_pass`: la línea de comandos ejecutada, como lista (programa y argumentos). |
-| `script` | Solo en líneas `type: "script"`: el script completo que el motor `node` envía por stdin al `node` remoto (`kubectl_pass` / `ssh_pass`), justo después de las líneas `command`. |
+| `script` | Solo en líneas `type: "script"`: el script completo que el motor `node` envía por stdin (local, o al `node` remoto con `kubectl_pass` / `ssh_pass`), justo después de las líneas `command`. |
+| `script_exit` | Solo en líneas `type: "script_exit"`: cierra un `script` (motor `node`) con el `exit_code` y el `console_log` del proceso que lo ejecutó, justo después de su `command_exit`. |
+| `exit_code` | Siempre presente en líneas `type: "command_exit"`: código de salida del programa (`null` si lo mató una señal). Todo comando o script ejecutado termina su log con `command_exit`. |
+| `console_log` | En **toda** línea `type: "command_exit"` (`curl`, `wget`, `node`, `ssh`, `kubectl`; con `kubectl` ambas líneas, la de `kubectl` y la del motor, llevan la misma lista): lista ordenada `{ "type": "stdout" \| "stderr" \| "stdin", "message": string }[]` con lo que se escribió por stdin y lo que el programa imprimió por stdout y stderr. Es `[]` si no hubo salida. No altera la respuesta al cliente. |
 | `headers` | Cabeceras de la petición o de la respuesta. |
 | `payload` | Cuerpo como texto UTF-8. Si no es UTF-8 válido se guarda en base64 y la línea incluye `"payload_encoding":"base64"`. |
 
