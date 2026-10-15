@@ -34,5 +34,5 @@ export const sshRequest = async (request: CurlRequest, engine: Engine): Promise<
       ? undefined
       : { SSH_ASKPASS: askpass(), SSH_ASKPASS_REQUIRE: "force", DONLY_SSH_PASSWORD: request.password };
   const argv = [...request.args.slice(0, -1), "-T", "-q", ...auth, request.args.at(-1)!, command];
-  return parseRemoteResult(await run("ssh", argv, input, request.onCommand, env), engine, "ssh");
+  return parseRemoteResult(await run("ssh", argv, input, request.onCommand, env, request.onExit, request.onConsole), engine, "ssh");
 };

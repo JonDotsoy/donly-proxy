@@ -15,6 +15,7 @@ import { nodeRequest } from "./tunnel/node/node";
 import type { Engine } from "./tunnel/remote";
 import { sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
+import type { ConsoleEntry } from "./tunnel/types";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
 
@@ -360,12 +361,20 @@ const commandPass = async (
   const onScript = (s: string) => {
     script = s;
   };
+  // Goes only to the log (the response to the client is untouched).
+  const consoleLog: ConsoleEntry[] = [];
+  const onConsole = (entry: ConsoleEntry) => {
+    consoleLog.push(entry);
+  };
   const onExit = (code: number | null) => {
-    if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code });
-    emit({ type: "command_exit", program: executed?.[0], exit_code: code });
+    // Every command that ran ends with an exit code and a `console_log` (empty when it wrote nothing).
+    if (command === "kubectl") emit({ type: "command_exit", program: executed?.[executed.indexOf("--") + 1], exit_code: code, console_log: consoleLog });
+    emit({ type: "command_exit", program: executed?.[0], exit_code: code, console_log: consoleLog });
+    // A script (the `node` engine) also ends with its own line, right after the command's.
+    if (script !== undefined) emit({ type: "script_exit", program: "node", exit_code: code, console_log: consoleLog });
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, password, onCommand, onScript, onExit, onConsole };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"

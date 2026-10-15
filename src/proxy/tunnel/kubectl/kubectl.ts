@@ -12,5 +12,5 @@ export const kubectlRequest = async (request: CurlRequest, engine: Engine): Prom
   // the fixed command line a shell inside the container.
   const exec = engine === "node" ? command.split(" ") : ["sh", "-c", command];
   const argv = ["exec", "-i", "-q", ...request.args.slice(0, -1), request.args.at(-1)!, "--", ...exec];
-  return parseRemoteResult(await run("kubectl", argv, input, request.onCommand, undefined, request.onExit), engine, "kubectl");
+  return parseRemoteResult(await run("kubectl", argv, input, request.onCommand, undefined, request.onExit, request.onConsole), engine, "kubectl");
 };
