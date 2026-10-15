@@ -82,7 +82,7 @@ testFeature.skip(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command
   expect(response.span_id).toBe(request.span_id);
   expect(new Set(lines.map((line) => line.transaction_id)).size).toBe(1);
 
-  // Mask what changes between runs: clocks, ids (kept distinguishable), the port and the script body.
+  // Mask what changes between runs: clocks (`timestamp` and `performance_timestamp`), ids (kept distinguishable), the port and the script body.
   const ids = new Map<string, string>();
   const id = (value: string | undefined, label: string) => {
     if (value === undefined) return undefined;
@@ -91,7 +91,8 @@ testFeature.skip(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command
   };
   const masked = lines.map((entry) => {
     entry.timestamp = "<timestamp>";
-    delete entry.performance_timestamp;
+    expect(entry.performance_timestamp).toBeNumber();
+    entry.performance_timestamp = "<performance_timestamp>";
     entry.transaction_id = id(entry.transaction_id, "transaction");
     entry.span_id = id(entry.span_id, "span");
     if (entry.parent_span_id) entry.parent_span_id = id(entry.parent_span_id, "span");
