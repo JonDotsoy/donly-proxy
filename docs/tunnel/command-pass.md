@@ -266,11 +266,11 @@ El proxy se comunica con el script mediante JSON:
 
 ### Consola en el log
 
-Con [`log_file`](../manifest.md#log_file), la línea `command_exit` de `node` incluye `exit_code` y
+Con [`log_file`](../manifest.md#log_file), la línea `command_end` de `node` incluye `exit_code` y
 `console_log`, en el orden en que ocurrió cada cosa:
 
 ```json
-{"type":"command_exit","program":"node","exit_code":0,"console_log":[
+{"type":"command_end","program":"node","exit_code":0,"console_log":[
   {"type":"stdin","message":"globalThis.__donlyRequest = …"},
   {"type":"stdout","message":"{\"status\":200,\"headers\":{…},\"body\":\"…\"}"},
   {"type":"stderr","message":"aviso de node"}
@@ -462,7 +462,7 @@ route https?://api.internal/ {
 - [`concurrency`](#concurrencia) va dentro del `command_pass` hijo.
 - Un `route` no puede combinar `kubectl_pass` con otra acción.
 - El `log_file` registra el `kubectl exec …` completo, igual que con `command_pass kubectl`.
-- Cada ejecución cierra con dos líneas `command_exit` (comando remoto y `kubectl`) con el mismo
+- Cada ejecución cierra con dos líneas `command_end` (comando remoto y `kubectl`) con el mismo
   `exit_code` y `console_log` (`[{"type":"stdin"|"stdout"|"stderr","message":"…"}]`, `[]` si no hubo
   salida), igual que con `command_pass kubectl`. Ver [`kubectl_pass`](../concepts/kubectl_pass.md).
 

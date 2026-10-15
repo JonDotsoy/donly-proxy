@@ -38,13 +38,13 @@ El `command_pass` hijo admite `concurrency`, `extra_args` y, según el comando, 
 - Un `route` no puede combinar `kubectl_pass` con otra acción.
 - Si `kubectl` falla, el cliente recibe `502 bad gateway: kubectl <motor> exited with …`.
 - El `log_file` registra el `kubectl exec …` completo en `command`.
-- Cada ejecución cierra con **dos** líneas `command_exit` (la del comando remoto y la de `kubectl`)
+- Cada ejecución abre **dos** transacciones anidadas (`command_start` de `kubectl` y, hijo suyo, la del comando remoto) y las cierra con **dos** líneas `command_end` (primero la del comando remoto y luego la de `kubectl`)
   que llevan el mismo `exit_code` y `console_log`: la lista ordenada de lo que pasó por la consola
   del `kubectl` local, `[]` si no hubo nada:
 
   ```json
-  {"type":"command_exit","program":"kubectl","exit_code":0,"console_log":[
-    {"type":"stdin","message":"<cuerpo o configuración enviada al pod>"},
+  {"type":"command_end","program":"kubectl","exit_code":0,"console_log":[
+    {"type":"stdin","timestamp":"…","message":"<cuerpo o configuración enviada al pod>"},
     {"type":"stdout","message":"<cuerpo de la respuesta>"},
     {"type":"stderr","message":"<cabeceras / avisos de kubectl>"}
   ]}

@@ -54,7 +54,7 @@ afterAll(() => {
   upstream.close();
 });
 
-testFeature.skip(payload, ["/proxy/log_file", "/proxy/route/proxy_pass"], "logs request, request proxy_pass, response proxy_pass and response as nested transactions", async () => {
+testFeature(payload, ["/proxy/log_file", "/proxy/route/proxy_pass"], "logs request, request proxy_pass, response proxy_pass and response as nested transactions", async () => {
   const before = readFileSync(logFile, "utf8").split("\n").filter(Boolean).length;
   await (await fetch("http://pass.test/up?a=b", { proxy, method: "POST", body: "ping", headers: { "user-agent": "test", accept: "*/*", "accept-encoding": "identity" } })).text();
   const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((line) => JSON.parse(line));
@@ -75,7 +75,7 @@ testFeature.skip(payload, ["/proxy/log_file", "/proxy/route/proxy_pass"], "logs 
   const ids = new Map<string, string>();
   const id = (value: string | undefined, label: string) => {
     if (value === undefined) return undefined;
-    if (!ids.has(value)) ids.set(value, `<${label}-${ids.size + 1}>`);
+    if (!ids.has(value)) ids.set(value, `<${label}-${[...ids.values()].filter((v) => v.startsWith(`<${label}-`)).length + 1}>`);
     return ids.get(value);
   };
   const masked = lines.map((entry) => {

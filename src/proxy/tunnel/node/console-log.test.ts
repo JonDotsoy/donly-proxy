@@ -60,14 +60,14 @@ afterAll(() => {
 testFeature(
   payload,
   ["/proxy/log_file", "/proxy/route/command_pass"],
-  "command_pass node logs its console in command_exit without changing the response",
+  "command_pass node logs its console in command_end without changing the response",
   async () => {
     const before = readFileSync(logFile, "utf8").split("\n").filter(Boolean).length;
     const res = await fetch(`http://127.0.0.1:${port}/x`, { proxy });
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("from upstream");
     const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((line) => JSON.parse(line));
-    const exit = lines.find((line) => line.type === "command_exit");
+    const exit = lines.find((line) => line.type === "command_end");
     expect(exit).toMatchObject({ program: "node", exit_code: 0 });
     const log = exit.console_log as { type: string; message: string }[];
     const stdin = log.find((entry) => entry.type === "stdin");

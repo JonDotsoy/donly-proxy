@@ -30,6 +30,8 @@ export interface ResponseInfo {
 
 export interface ScriptInfo {
   script: string;
+  /** Program that runs the script; defaults to the program of the command that carries it. */
+  program?: string;
 }
 
 /** The request the proxy sends upstream (`proxy_pass`). */
@@ -112,7 +114,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
     const common = { ...transaction, span_id: spanId, parent_span_id: parentSpanId };
     write({ ...common, type: "command_start", program: info.program, args: info.args, command: [info.program, ...info.args] });
     const children = new Set<CommandTransaction>();
-    let ranScript = false;
+    let scriptProgram: string | undefined;
     let ended = false;
     const command: CommandTransaction = {
       transactionId: transaction.transaction_id as string,
@@ -120,9 +122,9 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
       annotation: (annotation) => write({ ...common, type: "annotation", annotation }),
       command: { openTransaction: (child) => openCommand(transaction, spanId, child, children) },
       script: {
-        openTransaction: ({ script }) => {
-          ranScript = true;
-          write({ ...transaction, type: "script", span_id: randomUUID(), parent_span_id: spanId, program: info.program, script });
+        openTransaction: ({ script, program = info.program }) => {
+          scriptProgram = program;
+          write({ ...transaction, type: "script", span_id: randomUUID(), parent_span_id: spanId, program, script });
         },
       },
       end: (exitCode, logs) => {
@@ -132,7 +134,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
         for (const child of [...children].reverse()) child.end(null, []);
         open.delete(command);
         write({ ...common, type: "command_end", program: info.program, exit_code: exitCode, console_log: logs });
-        if (ranScript) write({ ...common, type: "script_exit", program: info.program, exit_code: exitCode, console_log: logs });
+        if (scriptProgram) write({ ...common, type: "script_exit", program: scriptProgram, exit_code: exitCode, console_log: logs });
       },
     };
     open.add(command);

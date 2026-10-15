@@ -62,7 +62,7 @@ afterAll(() => {
   upstream.close();
 });
 
-testFeature.skip(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command_pass"], "logs request, kubectl, node, end node, end kubectl and response as nested transactions", async () => {
+testFeature(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command_pass"], "logs request, kubectl, node, end node, end kubectl and response as nested transactions", async () => {
   const before = readFileSync(logFile, "utf8").split("\n").filter(Boolean).length;
   await (await fetch(`http://127.0.0.1:${port}/ping?x=1`, { proxy })).text();
   const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean).slice(before).map((line) => JSON.parse(line));
@@ -86,7 +86,7 @@ testFeature.skip(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/command
   const ids = new Map<string, string>();
   const id = (value: string | undefined, label: string) => {
     if (value === undefined) return undefined;
-    if (!ids.has(value)) ids.set(value, `<${label}-${ids.size + 1}>`);
+    if (!ids.has(value)) ids.set(value, `<${label}-${[...ids.values()].filter((v) => v.startsWith(`<${label}-`)).length + 1}>`);
     return ids.get(value);
   };
   const masked = lines.map((entry) => {

@@ -1,6 +1,8 @@
 # Plan: Logger con transacciones anidadas
 
-> Estado: **propuesta** (solo plan, sin cambios de código). Base: `develop` en `v0.0.12`.
+> Estado: **implementado en este PR** (el plan se conserva como registro de las decisiones). Base: `develop` en `v0.0.12`.
+>
+> Pendiente: renombrar `createLogger_experimental` a `createLogger` y las dudas D2, D3 (`script_exit`) y D5 (anotaciones automáticas), que se dejaron como en las recomendaciones sin implementar `annotation` en el servidor.
 
 ## 1. Situación actual
 

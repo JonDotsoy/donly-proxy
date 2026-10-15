@@ -60,6 +60,6 @@ testFeature(manifestPayload, ["/proxy/log_file", "/proxy/route/kubectl_pass/comm
   expect(script.script).toContain("globalThis.__donlyRequest");
   expect(script.script).toContain("http");
   // The order: the kubectl and node commands, then their script.
-  expect(types.indexOf("script")).toBe(types.lastIndexOf("command") + 1);
+  expect(types.indexOf("script")).toBe(types.lastIndexOf("command_start") + 1);
   expect(lines.find((line) => line.type === "request")).not.toHaveProperty("script");
 });
