@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **194** · ✅ pasan: **194** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **196** · ✅ pasan: **196** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -132,6 +132,8 @@ Specs: **194** · ✅ pasan: **194** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should parse the syntax: listen https 0 with ssl | ✅ | <code>listen https 0 {</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./my/c.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./my/k.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should parse the syntax: listen https 127.0.0.1 0 | ✅ | <code>listen https 127.0.0.1 0</code> |
 | should parse the syntax: listen https 127.0.0.1 0 with ssl | ✅ | <code>listen https 127.0.0.1 0 {</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./my/c.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./my/k.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should parse the syntax: listen https without port | ✅ | <code>listen https</code> |
+| should parse the syntax: listen without arguments | ✅ | <code>listen</code> |
 | should parse the syntax: port 0 (alias of listen http) | ✅ | <code>port 0</code> |
 | should parse the syntax: port 8080 (alias of listen http) | ✅ | <code>port 8080</code> |
 | should parse the syntax: port http 0 | ✅ | <code>port http 0</code> |

@@ -86,6 +86,8 @@ const parse = async (name: string, body: string) => {
 };
 
 const syntaxes: { title: string; body: string; paths: string[]; host: string; port: number; https: boolean; certs?: [string, string] }[] = [
+  { title: "listen without arguments", body: "  listen", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: false },
+  { title: "listen https without port", body: "  listen https", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: true, certs: ["certs/cert.pem", "certs/key.pem"] },
   { title: "listen 0", body: "  listen 0", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: false },
   { title: "listen 8080", body: "  listen 8080", paths: ["/proxy/listen"], host: "127.0.0.1", port: 8080, https: false },
   { title: "listen http 0", body: "  listen http 0", paths: ["/proxy/listen"], host: "127.0.0.1", port: 0, https: false },

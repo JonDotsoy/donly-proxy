@@ -28,7 +28,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 
 | Directiva | Valor | Por defecto | Descripción |
 | --- | --- | --- | --- |
-| `listen` | `[http\|https] [host] puerto [{ ssl { … } }]` | `http 127.0.0.1 0` | Protocolo, dirección y puerto del listener (ver [`listen`](#listen)). |
+| `listen` | `[http\|https] [host] [puerto] [{ ssl { … } }]` | `http 127.0.0.1 0` | Protocolo, dirección y puerto del listener (ver [`listen`](#listen)). |
 | `host` | string | `"127.0.0.1"` | Dirección en la que escucha (IPv4 o IPv6: `"::1"`, `"::"`, `"0:0:0:0:0:0:0:1"`, `"[::1]"`, `"::ffff:127.0.0.1"`). Si se omite, solo escucha en loopback. Un `host` dentro de `listen` tiene prioridad. |
 | `port` | `[http\|https] puerto [{ ssl { … } }]` | `0` | Alias de `listen` sin host: `port 8080` equivale a `listen http 8080`. |
 | `ssl` | bloque | ver abajo | **Deprecado.** Certificado usado para terminar el TLS de los túneles `CONNECT`. No sirve para que el proxy escuche por HTTPS: usa `listen https`. |
@@ -61,10 +61,11 @@ listen [http|https] [host] puerto [{ ssl { cert "…" key "…" } }]
 ```
 
 El protocolo (`http` por defecto), el `host` (por defecto el de la directiva `host`) y el
-`puerto` (`0` = lo asigna el sistema) son posicionales; solo el puerto es obligatorio.
+`puerto` (`0` = lo asigna el sistema, también si se omite) son posicionales y todos opcionales.
 
 | Sintaxis | Qué hace |
 | --- | --- |
+| `listen` | Sin argumentos: HTTP en `127.0.0.1` con un puerto aleatorio (`0`). |
 | `listen 0` | Proxy HTTP en el host por defecto. |
 | `listen http 0` | Igual que la anterior. |
 | `listen https 0` | Proxy HTTPS con certificado autofirmado generado localmente. |
