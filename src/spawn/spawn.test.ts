@@ -90,3 +90,14 @@ test("nested processes never go through a shell", async () => {
   await bashRequest.stdin!.getWriter().close();
   expect(await bash.exitCode).toBe(129);
 });
+
+test("nested processes never go through a shell, closing the bash by signal", async () => {
+  const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream() });
+  const bash = await spawn(bashRequest);
+  const system = SystemSpawn.fromResponse(bash);
+  const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
+  // The tty of the parent shell turns "\n" into "\r\n".
+  expect((await text(echo.stdout)).replaceAll("\r", "")).toBe("$(echo x)'; echo y\n");
+  bash.kill!("SIGHUP");
+  expect(await bash.exitCode).toBe(129);
+});

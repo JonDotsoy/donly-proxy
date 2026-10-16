@@ -69,6 +69,8 @@ export interface ShellResponseInit {
   stderr: ReadableStream<Uint8Array>;
   /** The input of the process, used to run nested processes (see `SystemSpawn.fromResponse`). */
   stdin?: WritableStream<Uint8Array>;
+  /** Sends a signal to the process. Absent when the system cannot signal it. */
+  kill?: (signal?: NodeJS.Signals) => void;
 }
 
 export class ShellResponse {
@@ -77,6 +79,8 @@ export class ShellResponse {
   readonly stdout: ReadableStream<Uint8Array>;
   readonly stderr: ReadableStream<Uint8Array>;
   readonly stdin?: WritableStream<Uint8Array>;
+  /** Sends a signal to the process (`SIGTERM` by default). Absent when the system cannot signal it. */
+  readonly kill?: (signal?: NodeJS.Signals) => void;
 
   constructor(init: ShellResponseInit) {
     this.pid = init.pid;
@@ -84,5 +88,6 @@ export class ShellResponse {
     this.stdout = init.stdout;
     this.stderr = init.stderr;
     this.stdin = init.stdin;
+    this.kill = init.kill;
   }
 }
