@@ -28,6 +28,8 @@ export interface AuthFailureInfo {
 export interface CommandInfo {
   program: string;
   args: string[];
+  /** Stays open after the response of its request: the caller ends it (`ssh_pass` keeps ssh open between requests). */
+  persistent?: boolean;
 }
 
 export interface ResponseInfo {
@@ -77,6 +79,7 @@ interface Spans {
 export interface CommandTransaction extends Spans {
   readonly transactionId: string;
   readonly spanId: string;
+  readonly program: string;
   annotation(data: Record<string, unknown>): void;
   readonly script: { openTransaction(info: ScriptInfo): void };
   /** Closes the command: `command_end` (plus `script_end` when it ran a script). Only the first call writes. */
@@ -88,6 +91,8 @@ export interface RequestTransaction extends Spans {
   readonly spanId: string;
   annotation(data: Record<string, unknown>): void;
   readonly proxyPass: { openTransaction(info: ProxyPassInfo): ProxyPassTransaction };
+  /** Writes `command_stdin`: this request went to the stdin of a command that was opened earlier and is still running. */
+  stdin(command: CommandTransaction, message: string, reused: boolean): void;
   /** Writes `response`; commands still open are closed first, with a `null` exit code. */
   response(reply: ResponseInfo): void;
 }
@@ -134,6 +139,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
     const command: CommandTransaction = {
       transactionId: transaction.transaction_id as string,
       spanId,
+      program: info.program,
       annotation: (annotation) => write({ ...common, type: "annotation", annotation }),
       command: { openTransaction: (child) => openCommand(transaction, spanId, child, children) },
       script: {
@@ -152,7 +158,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
         if (scriptProgram) write({ ...common, type: "script_end", program: scriptProgram, exit_code: exitCode, console_log: logs });
       },
     };
-    open.add(command);
+    if (!info.persistent) open.add(command);
     return command;
   };
 
@@ -178,6 +184,8 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
           spanId,
           annotation: (annotation) => write({ ...transaction, type: "request_annotation", span_id: spanId, annotation }),
           command: { openTransaction: (info) => openCommand(transaction, spanId, info, open) },
+          stdin: (command, message, reused) =>
+            write({ ...transaction, type: "command_stdin", span_id: randomUUID(), parent_span_id: command.spanId, program: command.program, reused, message }),
           proxyPass: {
             openTransaction: (info) => {
               const proxyPassSpanId = randomUUID();

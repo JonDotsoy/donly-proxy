@@ -36,7 +36,17 @@ llave, `ProxyJump`…). También sigue valiendo darlo como primer argumento
 | `option <opción>` | `-o <opción>` | texto no vacío; se puede repetir |
 | `extra_args <arg…>` | opciones de `ssh` tal cual | cualquier opción |
 | `pass <contraseña>` | autenticación por contraseña | texto no vacío |
+| `idle_time <segundos>` | mantiene el `ssh` abierto tras la última petición | número ≥ 0 (admite decimales), por defecto `10`; `0` lo desactiva |
 | `command_pass` hijo | `engine` | obligatorio: `curl`, `wget` o `node` |
+
+## Conexión reutilizada
+
+La primera petición abre `ssh <host> sh -s`; las siguientes llegan como stdin a ese mismo proceso,
+así que no repiten el handshake ni la autenticación. Tras `idle_time` segundos sin uso (10 por
+defecto) el `ssh` se cierra, y la siguiente petición abre uno nuevo. Una petición usa un `ssh` a la
+vez: con peticiones simultáneas se abren varios (hasta el `concurrency` de la ruta). En el
+`log_file` hay un solo `command_start` y un solo `command_end` por `ssh`, y un `command_stdin` por
+petición ([`log-format.md`](../log-format.md)). `command_pass ssh` no reutiliza la conexión.
 
 ## Autenticación
 

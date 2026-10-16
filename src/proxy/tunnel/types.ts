@@ -23,6 +23,8 @@ export interface CurlRequest {
   password?: string;
   /** Called with the full command line (program and arguments) right before it runs. */
   onCommand?: (command: string[]) => void;
+  /** `ssh_pass`: called when this request goes as stdin to the long-lived process `command` (the same array `onCommand` got when it opened). */
+  onStdin?: (command: string[], reused: boolean, input: string) => void;
   /** Called with the script that the node engine sends to a remote `node` through stdin. */
   onScript?: (script: string) => void;
   /** Called with every stdin/stdout/stderr piece of the command, in order, as it happens. */

@@ -369,6 +369,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `kubectl_pass` con `pod_name` vacío o que no es un nombre | `route …: pod_name debe ser un nombre, no "…"` |
 | `kubectl_pass` sin destino ni `pod_name` | `route …: kubectl_pass requiere el destino (pod o tipo/nombre, o las subdirectivas pod_name / pod_match)` |
 | `kubectl_pass` con `pod_match` vacío, o combinado con `pod_name` | `route …: pod_match debe ser un patrón, no "…"` / `pod_name y pod_match no se pueden combinar` |
+| `ssh_pass` con `idle_time` negativo o que no es un número | `route …: idle_time debe ser un número de segundos mayor o igual a 0, no "…"` |
 | `ssh_pass` con `host`, `port`, `user`, `identity_file`, `option` o `pass` inválidos | `route …: host debe ser un destino (…), no "…"` / `port debe ser un puerto entre 1 y 65535, no "…"` / `user debe ser un nombre, no "…"` / `identity_file debe ser una ruta, no "…"` / `option debe ser un texto no vacío, …` / `pass debe ser un texto no vacío` |
 | `context` / `namespace` fuera de `kubectl_pass` y `command_pass kubectl` | `route …: namespace solo aplica a kubectl_pass y command_pass kubectl` |
 | `retry` que no es un entero no negativo, o fuera de `command_pass curl` | `route …: retry debe ser un entero no negativo, no "…"` / `retry solo aplica a command_pass curl` |
