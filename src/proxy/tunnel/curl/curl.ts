@@ -32,10 +32,10 @@ export const parseCurlResult = ({ code, stdout, stderr }: RunResult, label = "cu
 };
 
 /** Hands a request over to the local `curl` binary and returns its response. */
-export const curl = async ({ method, url, headers, body, args, onCommand, onExit, onConsole, system }: CurlRequest) => {
+export const curl = async ({ method, url, headers, body, args, onCommand, onExit, onConsole, system, logger }: CurlRequest) => {
   const argv = [...curlFlags(method, body.length > 0)];
   if (method !== "HEAD") argv.push("--request", method);
   for (const [name, value] of Object.entries(headers)) argv.push("--header", `${name}: ${value}`);
   argv.push(...args, "--url", url);
-  return parseCurlResult(await run("curl", argv, body, onCommand, undefined, onExit, onConsole, system));
+  return parseCurlResult(await run("curl", argv, body, onCommand, undefined, onExit, onConsole, system, logger));
 };

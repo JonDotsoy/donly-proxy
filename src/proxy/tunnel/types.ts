@@ -6,7 +6,7 @@ export interface ConsoleEntry {
   message: string;
 }
 
-import type { SystemSpawn } from "../../spawn";
+import type { SpawnLogger, SystemSpawn } from "../../spawn";
 
 export interface CurlRequest {
   method: string;
@@ -20,7 +20,7 @@ export interface CurlRequest {
   /** `kubectl_pass … { pod_match <glob> }`: the pod is the first running one whose name matches; `selectors` are its `--context` / `--namespace`. */
   podMatch?: { glob: string; selectors: string[] };
   /** Callbacks for the `kubectl get pods` that `podMatch` runs first (same meaning as `onCommand`, `onConsole` and `onExit`). */
-  onLookup?: Pick<CurlRequest, "onCommand" | "onConsole" | "onExit">;
+  onLookup?: Pick<CurlRequest, "onCommand" | "onConsole" | "onExit" | "logger">;
   /** Password for `ssh` (`ssh_pass … { pass … }`): handed over through an askpass program, not `argv`. */
   password?: string;
   /** Called with the full command line (program and arguments) right before it runs. */
@@ -31,6 +31,8 @@ export interface CurlRequest {
   onConsole?: (entry: ConsoleEntry) => void;
   /** Where the commands run (a shell already running, see `SystemSpawn.fromResponse`); by default as child processes. */
   system?: SystemSpawn;
+  /** Logs each process of the request (`command_start` / `command_end`, with its console output) through the spawn API. */
+  logger?: SpawnLogger;
   /** Called with the exit code of that command once it has finished. */
   onExit?: (code: number | null) => void;
 }

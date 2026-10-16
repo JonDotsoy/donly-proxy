@@ -1,0 +1,317 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`should match the snapshot of the log lines of an ssh ShellRequest 1`] = `
+[
+  {
+    "headers": {
+      "accept": "*/*",
+      "accept-encoding": "gzip, deflate, br, zstd",
+      "connection": "keep-alive",
+      "host": "spawnlog.test",
+      "proxy-connection": "Keep-Alive",
+      "user-agent": "donly-test",
+    },
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "payload": "",
+    "performance_timestamp": "<performance_timestamp>",
+    "span_id": "<span-2>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "request",
+    "url": "http://spawnlog.test/ssh",
+  },
+  {
+    "args": [
+      "-p",
+      "2222",
+      "-T",
+      "-q",
+      "-o",
+      "BatchMode=yes",
+      "user@remote.test",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L3NzaCIKcmVxdWVzdCA9ICJHRVQiCmhlYWRlciA9ICJ1c2VyLWFnZW50OiBkb25seS10ZXN0IgpoZWFkZXIgPSAiYWNjZXB0OiAqLyoi' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "command": [
+      "ssh",
+      "-p",
+      "2222",
+      "-T",
+      "-q",
+      "-o",
+      "BatchMode=yes",
+      "user@remote.test",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L3NzaCIKcmVxdWVzdCA9ICJHRVQiCmhlYWRlciA9ICJ1c2VyLWFnZW50OiBkb25seS10ZXN0IgpoZWFkZXIgPSAiYWNjZXB0OiAqLyoi' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "parent_span_id": "<span-2>",
+    "performance_timestamp": "<performance_timestamp>",
+    "program": "ssh",
+    "span_id": "<span-3>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "command_start",
+    "url": "http://spawnlog.test/ssh",
+  },
+  {
+    "console_log": [
+      {
+        "message": 
+"200
+{"content-type":["text/plain"]}"
+,
+        "timestamp": "<timestamp>",
+        "type": "stderr",
+      },
+      {
+        "message": "<stdin>",
+        "timestamp": "<timestamp>",
+        "type": "stdin",
+      },
+      {
+        "message": "from ssh",
+        "timestamp": "<timestamp>",
+        "type": "stdout",
+      },
+    ],
+    "exit_code": 0,
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "parent_span_id": "<span-2>",
+    "performance_timestamp": "<performance_timestamp>",
+    "program": "ssh",
+    "span_id": "<span-3>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "command_end",
+    "url": "http://spawnlog.test/ssh",
+  },
+  {
+    "command": [
+      "ssh",
+      "-p",
+      "2222",
+      "-T",
+      "-q",
+      "-o",
+      "BatchMode=yes",
+      "user@remote.test",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L3NzaCIKcmVxdWVzdCA9ICJHRVQiCmhlYWRlciA9ICJ1c2VyLWFnZW50OiBkb25seS10ZXN0IgpoZWFkZXIgPSAiYWNjZXB0OiAqLyoi' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "headers": {
+      "content-type": "text/plain",
+    },
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "payload": "from ssh",
+    "performance_timestamp": "<performance_timestamp>",
+    "span_id": "<span-2>",
+    "status": 200,
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "response",
+    "url": "http://spawnlog.test/ssh",
+  },
+]
+`;
+
+exports[`should match the snapshot of the log lines of a kubectl ShellRequest 1`] = `
+[
+  {
+    "headers": {
+      "accept": "*/*",
+      "accept-encoding": "gzip, deflate, br, zstd",
+      "connection": "keep-alive",
+      "host": "spawnlog.test",
+      "proxy-connection": "Keep-Alive",
+      "user-agent": "donly-test",
+    },
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "payload": "",
+    "performance_timestamp": "<performance_timestamp>",
+    "span_id": "<span-2>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "request",
+    "url": "http://spawnlog.test/kubectl",
+  },
+  {
+    "args": [
+      "exec",
+      "-i",
+      "-q",
+      "-n",
+      "prod",
+      "deploy/api",
+      "--",
+      "sh",
+      "-c",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L2t1YmVjdGwiCnJlcXVlc3QgPSAiR0VUIgpoZWFkZXIgPSAidXNlci1hZ2VudDogZG9ubHktdGVzdCIKaGVhZGVyID0gImFjY2VwdDogKi8qIg==' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "command": [
+      "kubectl",
+      "exec",
+      "-i",
+      "-q",
+      "-n",
+      "prod",
+      "deploy/api",
+      "--",
+      "sh",
+      "-c",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L2t1YmVjdGwiCnJlcXVlc3QgPSAiR0VUIgpoZWFkZXIgPSAidXNlci1hZ2VudDogZG9ubHktdGVzdCIKaGVhZGVyID0gImFjY2VwdDogKi8qIg==' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "parent_span_id": "<span-2>",
+    "performance_timestamp": "<performance_timestamp>",
+    "program": "kubectl",
+    "span_id": "<span-3>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "command_start",
+    "url": "http://spawnlog.test/kubectl",
+  },
+  {
+    "args": [
+      "-c",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L2t1YmVjdGwiCnJlcXVlc3QgPSAiR0VUIgpoZWFkZXIgPSAidXNlci1hZ2VudDogZG9ubHktdGVzdCIKaGVhZGVyID0gImFjY2VwdDogKi8qIg==' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "command": [
+      "sh",
+      "-c",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L2t1YmVjdGwiCnJlcXVlc3QgPSAiR0VUIgpoZWFkZXIgPSAidXNlci1hZ2VudDogZG9ubHktdGVzdCIKaGVhZGVyID0gImFjY2VwdDogKi8qIg==' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "parent_span_id": "<span-3>",
+    "performance_timestamp": "<performance_timestamp>",
+    "program": "sh",
+    "span_id": "<span-4>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "command_start",
+    "url": "http://spawnlog.test/kubectl",
+  },
+  {
+    "console_log": [
+      {
+        "message": 
+"200
+{"content-type":["text/plain"]}"
+,
+        "timestamp": "<timestamp>",
+        "type": "stderr",
+      },
+      {
+        "message": "<stdin>",
+        "timestamp": "<timestamp>",
+        "type": "stdin",
+      },
+      {
+        "message": "from kubectl",
+        "timestamp": "<timestamp>",
+        "type": "stdout",
+      },
+    ],
+    "exit_code": 0,
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "parent_span_id": "<span-3>",
+    "performance_timestamp": "<performance_timestamp>",
+    "program": "sh",
+    "span_id": "<span-4>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "command_end",
+    "url": "http://spawnlog.test/kubectl",
+  },
+  {
+    "console_log": [
+      {
+        "message": 
+"200
+{"content-type":["text/plain"]}"
+,
+        "timestamp": "<timestamp>",
+        "type": "stderr",
+      },
+      {
+        "message": "<stdin>",
+        "timestamp": "<timestamp>",
+        "type": "stdin",
+      },
+      {
+        "message": "from kubectl",
+        "timestamp": "<timestamp>",
+        "type": "stdout",
+      },
+    ],
+    "exit_code": 0,
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "parent_span_id": "<span-2>",
+    "performance_timestamp": "<performance_timestamp>",
+    "program": "kubectl",
+    "span_id": "<span-3>",
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "command_end",
+    "url": "http://spawnlog.test/kubectl",
+  },
+  {
+    "command": [
+      "kubectl",
+      "exec",
+      "-i",
+      "-q",
+      "-n",
+      "prod",
+      "deploy/api",
+      "--",
+      "sh",
+      "-c",
+      
+"d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && printf %s 'dXJsID0gImh0dHA6Ly9zcGF3bmxvZy50ZXN0L2t1YmVjdGwiCnJlcXVlc3QgPSAiR0VUIgpoZWFkZXIgPSAidXNlci1hZ2VudDogZG9ubHktdGVzdCIKaGVhZGVyID0gImFjY2VwdDogKi8qIg==' | base64 -d > "$d/c" && curl -K "$d/c" '--silent' '--compressed' '--proto' '=http,https' '--write-out' '%{stderr}%{response_code}
+%{header_json}' '--header' 'Expect:' '--output' '-'"
+,
+    ],
+    "headers": {
+      "content-type": "text/plain",
+    },
+    "http_version": "HTTP/1.1",
+    "method": "GET",
+    "payload": "from kubectl",
+    "performance_timestamp": "<performance_timestamp>",
+    "span_id": "<span-2>",
+    "status": 200,
+    "timestamp": "<timestamp>",
+    "transaction_id": "<transaction-1>",
+    "type": "response",
+    "url": "http://spawnlog.test/kubectl",
+  },
+]
+`;

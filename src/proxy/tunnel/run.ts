@@ -1,4 +1,4 @@
-import { ShellRequest, spawn, type SystemSpawn } from "../../spawn";
+import { ShellRequest, spawn, type SpawnLogger, type SystemSpawn } from "../../spawn";
 import type { ConsoleEntry } from "./types";
 
 export interface RunResult {
@@ -30,6 +30,8 @@ export const run = async (
   onConsole?: (entry: ConsoleEntry) => void,
   /** Where the command runs: by default a child process of this one. */
   system?: SystemSpawn,
+  /** Writes the process to the `.ndjson` log (`command_start` / `command_end`). */
+  logger?: SpawnLogger,
 ): Promise<RunResult> => {
   onCommand?.([command, ...argv]);
   const entry = (type: ConsoleEntry["type"], message: string) =>
@@ -40,7 +42,7 @@ export const run = async (
   const writer = request.stdin!.getWriter();
   // Not awaited: the command may print before it has read all of its input.
   writer.write(typeof input === "string" ? new TextEncoder().encode(input) : input).then(() => writer.close()).catch(() => {});
-  const response = await spawn(request, { system });
+  const response = await spawn(request, { system, logger });
   const [stdout, stderr, code] = await Promise.all([
     collect(response.stdout, (chunk) => entry("stdout", chunk.toString())),
     collect(response.stderr, (chunk) => entry("stderr", chunk.toString())),
