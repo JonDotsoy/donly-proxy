@@ -73,7 +73,8 @@ const readLog = (): any[] => {
 /** Requests `url` and returns the lines of the log it produced, in order. */
 const lines = async (url: string) => {
   const before = readLog().length;
-  const res = await fetch(url, { proxy });
+  // Fixed user-agent: the runtime version must not leak into the snapshots.
+  const res = await fetch(url, { proxy, headers: { "user-agent": "donly-test" } });
   await res.text();
   return { status: res.status, entries: readLog().slice(before) };
 };
@@ -132,4 +133,40 @@ testFeature(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass/pod_match"],
   const lookupEnd = entries.find((e) => e.type === "command_end" && e.span_id === lookup.span_id);
   expect(lookupEnd).toMatchObject({ exit_code: 0 });
   expect(lookupEnd.console_log.find((c: any) => c.type === "stdout").message).toBe("pod/api-0\n");
+});
+
+/** Replaces ids, moments and the proxy port so a transaction can be compared with its snapshot. */
+const mask = (entries: any[]) => {
+  const ids = new Map<string, string>();
+  const id = (value: string, kind: string) => {
+    if (!ids.has(value)) ids.set(value, `<${kind}-${ids.size + 1}>`);
+    return ids.get(value)!;
+  };
+  const port = new URL(proxy).port;
+  return entries.map((entry) => {
+    entry = structuredClone(entry);
+    entry.timestamp = "<timestamp>";
+    entry.performance_timestamp = "<performance_timestamp>";
+    entry.transaction_id = id(entry.transaction_id, "transaction");
+    entry.span_id = id(entry.span_id, "span");
+    if (entry.parent_span_id) entry.parent_span_id = id(entry.parent_span_id, "span");
+    if (entry.headers?.date) entry.headers.date = "<date>";
+    if (entry.console_log) {
+      // stdout and stderr arrive in no fixed order between them: sort by stream.
+      entry.console_log = entry.console_log
+        .map((log: any) => ({ ...log, timestamp: "<timestamp>", message: log.type === "stdin" ? "<stdin>" : log.message }))
+        .sort((a: any, b: any) => a.type.localeCompare(b.type));
+    }
+    return JSON.parse(JSON.stringify(entry).replaceAll(port, "<port>"));
+  });
+};
+
+testFeature(payload, features, "should match the snapshot of the log lines of an ssh ShellRequest", async () => {
+  const { entries } = await lines("http://spawnlog.test/ssh");
+  expect(mask(entries)).toMatchSnapshot();
+});
+
+testFeature(payload, features, "should match the snapshot of the log lines of a kubectl ShellRequest", async () => {
+  const { entries } = await lines("http://spawnlog.test/kubectl");
+  expect(mask(entries)).toMatchSnapshot();
 });

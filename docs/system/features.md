@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **307** · ✅ pasan: **307** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **309** · ✅ pasan: **309** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -152,6 +152,8 @@ Specs: **307** · ✅ pasan: **307** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should log a listening line with the host and port when the server starts | ✅ | <code>port 0</code><br><code>log_file "./proxy.ndjson"</code> |
 | should log the requests carried by a socks tunnel with the full url | ✅ | <code>listen socks5 127.0.0.1 0</code><br><code>log_file "./socks5.ndjson"</code> |
 | should log the script sent to node through stdin right after its command | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;command_pass node</code> |
+| should match the snapshot of the log lines of a kubectl ShellRequest | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code><br><code>&nbsp;&nbsp;command_pass kubectl "deploy/broken"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code> |
+| should match the snapshot of the log lines of an ssh ShellRequest | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code><br><code>&nbsp;&nbsp;command_pass kubectl "deploy/broken"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code> |
 | should never write the password to the log and should record the user and the failures | ✅ | <code>log_file "./auth.ndjson"</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
 | should not forward proxy-authorization to the proxy_pass target | ✅ | <code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code><br><code>&nbsp;&nbsp;proxy_pass http://127.0.0.1:&lt;port&gt;/</code> |
 | should not let the extra_args values reach a shell | ✅ | <code>extra_args --foo tar --biz lol</code><br><code>extra_args --retry 3</code><br><code>extra_args "--header" "x-evil: a b; touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned" "$(touch /tmp/donly-proxy-extra-args-&lt;random&gt;/pwned)"</code> |
