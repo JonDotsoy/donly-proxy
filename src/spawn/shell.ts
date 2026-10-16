@@ -8,6 +8,8 @@ export interface ShellRequestOptions {
   stdin?: WritableStream<Uint8Array>;
   env?: Record<string, string>;
   cwd?: string;
+  /** Aborting it ends the process: with `SIGHUP` in a tty (shells ignore `SIGTERM`), with `SIGTERM` otherwise. */
+  signal?: AbortSignal;
 }
 
 /** Asserts that `val` starts with the program to run. */
@@ -24,6 +26,7 @@ export class ShellRequest {
   readonly commands: [string, ...string[]];
   readonly env?: Record<string, string>;
   readonly cwd?: string;
+  readonly signal?: AbortSignal;
   /** Writable side of the process input. Only exists when `stdin` was given, and then the process runs in a tty. */
   readonly stdin?: WritableStream<Uint8Array>;
   /** Readable side of the process input, consumed by the system that runs the request. */
@@ -40,6 +43,7 @@ export class ShellRequest {
     assertCommands(copy);
     this.commands = copy;
     this.cwd = extra?.cwd ?? source.cwd;
+    this.signal = extra?.signal ?? source.signal;
     const env = { ...source.env, ...extra?.env };
     this.env = source.env || extra?.env ? env : undefined;
 
@@ -69,8 +73,6 @@ export interface ShellResponseInit {
   stderr: ReadableStream<Uint8Array>;
   /** The input of the process, used to run nested processes (see `SystemSpawn.fromResponse`). */
   stdin?: WritableStream<Uint8Array>;
-  /** Sends a signal to the process. Absent when the system cannot signal it. */
-  kill?: (signal?: NodeJS.Signals) => void;
 }
 
 export class ShellResponse {
@@ -79,8 +81,6 @@ export class ShellResponse {
   readonly stdout: ReadableStream<Uint8Array>;
   readonly stderr: ReadableStream<Uint8Array>;
   readonly stdin?: WritableStream<Uint8Array>;
-  /** Sends a signal to the process (`SIGTERM` by default). Absent when the system cannot signal it. */
-  readonly kill?: (signal?: NodeJS.Signals) => void;
 
   constructor(init: ShellResponseInit) {
     this.pid = init.pid;
@@ -88,6 +88,5 @@ export class ShellResponse {
     this.stdout = init.stdout;
     this.stderr = init.stderr;
     this.stdin = init.stdin;
-    this.kill = init.kill;
   }
 }

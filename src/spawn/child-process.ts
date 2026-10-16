@@ -8,6 +8,12 @@ const emptyStream = () => new ReadableStream<Uint8Array>({ start: (controller) =
 const exitCodeOf = (code: number | null, signal: NodeJS.Signals | null) =>
   code ?? (signal ? 128 + (constants.signals[signal] ?? 0) : 1);
 
+const onAbort = ({ signal }: ShellRequest, kill: () => void) => {
+  if (!signal) return;
+  if (signal.aborted) kill();
+  else signal.addEventListener("abort", kill, { once: true });
+};
+
 /** Runs the request as a child process of this process. */
 export const spawnChildProcess = async (request: ShellRequest): Promise<ShellResponse> => {
   if (request.tty) return spawnWithTerminal(request);
@@ -25,6 +31,7 @@ export const spawnChildProcess = async (request: ShellRequest): Promise<ShellRes
     child.once("close", (code, signal) => resolve(exitCodeOf(code, signal))),
   );
   child.stdin.on("error", () => {});
+  onAbort(request, () => child.kill("SIGTERM"));
   if (request.input) request.input.pipeTo(Writable.toWeb(child.stdin)).catch(() => {});
   else child.stdin.end();
   return new ShellResponse({
@@ -33,7 +40,6 @@ export const spawnChildProcess = async (request: ShellRequest): Promise<ShellRes
     stdout: Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>,
     stderr: Readable.toWeb(child.stderr) as ReadableStream<Uint8Array>,
     stdin: request.stdin,
-    kill: (signal) => void child.kill(signal),
   });
 };
 
@@ -52,6 +58,7 @@ const spawnWithTerminal = async (request: ShellRequest): Promise<ShellResponse> 
         } catch {}
       } },
   } as Bun.SpawnOptions.OptionsObject<any, any, any>);
+  onAbort(request, () => child.kill("SIGHUP"));
   const terminal = (child as unknown as { terminal: { write(data: string | Uint8Array): void } }).terminal;
   const exitCode = child.exited.then((code) => {
     output.close();
@@ -68,6 +75,5 @@ const spawnWithTerminal = async (request: ShellRequest): Promise<ShellResponse> 
     .catch(() => {});
   return new ShellResponse({ pid: child.pid, exitCode, stdout, stderr: emptyStream(),
     stdin: request.stdin,
-    kill: (signal) => void child.kill(signal),
   });
 };
