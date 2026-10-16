@@ -1,0 +1,102 @@
+name: ssh-pass-e2e
+
+# Manual check of `ssh_pass` against a real SSH host: the proxy runs on the runner and sends the
+# request through the host, so the IP it answers with must be the host's, not the runner's.
+#
+# Secrets (Settings > Secrets and variables > Actions):
+#   SSH_TEST_HOST  destination for ssh_pass: `host`, `user@host` or an IP. Not printed to the logs.
+#   SSH_TEST_KEY   private key (OpenSSH format, no passphrase) that the host accepts.
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: Command that runs on the host (command_pass)
+        type: choice
+        options: [curl, wget, node]
+        default: curl
+      port:
+        description: SSH port of the host
+        type: string
+        default: "22"
+      user:
+        description: SSH user
+        type: string
+        default: root
+
+permissions:
+  contents: read
+
+jobs:
+  ssh-pass:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+
+      - name: Check inputs and secrets
+        env:
+          SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
+          SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
+          PORT: ${{ inputs.port }}
+          SSH_USER: ${{ inputs.user }}
+        run: |
+          [ -n "$SSH_TEST_HOST" ] || { echo "::error::falta el secreto SSH_TEST_HOST"; exit 1; }
+          [ -n "$SSH_TEST_KEY" ] || { echo "::error::falta el secreto SSH_TEST_KEY"; exit 1; }
+          echo "::add-mask::$SSH_TEST_HOST"
+          [[ "$PORT" =~ ^[0-9]{1,5}$ ]] || { echo "::error::port debe ser un número"; exit 1; }
+          [[ "$SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::user inválido"; exit 1; }
+
+      - name: Write key and manifest
+        env:
+          SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
+          SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
+          PORT: ${{ inputs.port }}
+          SSH_USER: ${{ inputs.user }}
+          ENGINE: ${{ inputs.engine }}
+        run: |
+          echo "::add-mask::$SSH_TEST_HOST"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s\n' "$SSH_TEST_KEY" > "$RUNNER_TEMP/keys/id_ed25519"
+          cat > "$RUNNER_TEMP/manifest.donly" <<MANIFEST
+          proxy {
+            listen 127.0.0.1 18080
+            log_file "./proxy.ndjson"
+            route {
+              ssh_pass {
+                host "$SSH_TEST_HOST"
+                port $PORT
+                user "$SSH_USER"
+                identity_file "./keys/id_ed25519"
+                option "StrictHostKeyChecking=accept-new"
+                option "IdentitiesOnly=yes"
+                command_pass $ENGINE
+              }
+            }
+          }
+          MANIFEST
+
+      - name: Start proxy
+        run: |
+          bun src/cli/main.ts "$RUNNER_TEMP/manifest.donly" > "$RUNNER_TEMP/proxy.out" 2>&1 &
+          for i in $(seq 1 20); do nc -z 127.0.0.1 18080 && break; sleep 0.5; done
+          nc -z 127.0.0.1 18080
+
+      - name: Request through ssh_pass
+        env:
+          SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
+        run: |
+          echo "::add-mask::$SSH_TEST_HOST"
+          runner_ip=$(curl -fsS https://api.ipify.org)
+          egress_ip=$(curl -fsS -m 30 -x http://127.0.0.1:18080 http://api.ipify.org)
+          echo "runner ip: $runner_ip"
+          echo "egress ip via ssh_pass (${{ inputs.engine }}): $egress_ip"
+          [ -n "$egress_ip" ] && [ "$egress_ip" != "$runner_ip" ]
+
+      - name: Cleanup
+        if: always()
+        run: rm -f "$RUNNER_TEMP/keys/id_ed25519"
