@@ -54,8 +54,8 @@ const spawnWithTerminal = async (request: ShellRequest): Promise<ShellResponse> 
     .pipeTo(
       new WritableStream<Uint8Array>({
         write: (chunk) => void terminal.write(chunk),
-        // End of transmission: what a terminal sends when its input is closed.
-        close: () => void terminal.write("\x04"),
+        // A terminal has no end of input: closing it hangs the process up, as a closed terminal would.
+        close: () => void child.kill("SIGHUP"),
       }),
     )
     .catch(() => {});

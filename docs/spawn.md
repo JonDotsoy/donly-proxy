@@ -18,7 +18,7 @@ await request.stdin.getWriter().close(); // cierra el stdin del proceso
   `new ShellRequest(request, extra)` copia una petición y comparte su `stdin` salvo que `extra.stdin` lo reemplace.
   Con `stdin` en las opciones, lo que se escribe en `request.stdin` también se escribe en ese stream.
 - `tty: true` (solo Bun) conecta el proceso a un pseudo terminal: stdout y stderr llegan mezclados por `stdout`
-  y cerrar el stdin envía EOT (Ctrl-D).
+  y cerrar el stdin envía `SIGHUP` al proceso (un terminal no tiene fin de entrada).
 - `SystemSpawn.defaultChildProcess` ejecuta como hijo de este proceso.
 - `SystemSpawn.fromResponse(response)` ejecuta dentro de un shell ya iniciado (p. ej. `bash`) que lee comandos
   por stdin. Toma posesión de `response.stdout`, ejecuta de a un proceso por vez, mezcla stderr en stdout y

@@ -56,8 +56,9 @@ test("runs a nested process inside a running bash", async () => {
   const fail = await spawn(new ShellRequest({ commands: ["sh", "-c", "exit 4"] }), { system });
   expect(await fail.exitCode).toBe(4);
 
+  // With a tty closing stdin hangs the process up (SIGHUP) instead of sending an end of input.
   await bashRequest.stdin.getWriter().close();
-  expect(await bash.exitCode).toBe(0);
+  expect(await bash.exitCode).toBe(129);
 });
 
 test("nested processes never go through a shell", async () => {
