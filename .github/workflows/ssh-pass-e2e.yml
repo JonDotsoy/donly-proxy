@@ -71,6 +71,7 @@ jobs:
                 identity_file "./keys/id_ed25519"
                 option "StrictHostKeyChecking=accept-new"
                 option "IdentitiesOnly=yes"
+                idle_time 3
                 command_pass $ENGINE
               }
             }
@@ -83,16 +84,26 @@ jobs:
           for i in $(seq 1 20); do nc -z 127.0.0.1 18080 && break; sleep 0.5; done
           nc -z 127.0.0.1 18080
 
-      - name: Request through ssh_pass
+      - name: Three requests through one ssh
         env:
           SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
         run: |
           echo "::add-mask::$SSH_TEST_HOST"
           runner_ip=$(curl -fsS https://api.ipify.org)
-          egress_ip=$(curl -fsS -m 30 -x http://127.0.0.1:18080 http://api.ipify.org)
           echo "runner ip: $runner_ip"
-          echo "egress ip via ssh_pass (${{ inputs.engine }}): $egress_ip"
-          [ -n "$egress_ip" ] && [ "$egress_ip" != "$runner_ip" ]
+          for i in 1 2 3; do
+            egress_ip=$(curl -fsS -m 30 -x http://127.0.0.1:18080 http://api.ipify.org)
+            echo "egress ip #$i via ssh_pass: $egress_ip"
+            [ -n "$egress_ip" ] && [ "$egress_ip" != "$runner_ip" ]
+          done
+          sleep 6
+          log="$RUNNER_TEMP/proxy.ndjson"
+          starts=$(jq -s '[.[] | select(.type=="command_start" and .program=="ssh")] | length' "$log")
+          stdins=$(jq -s '[.[] | select(.type=="command_stdin")] | length' "$log")
+          reused=$(jq -s '[.[] | select(.type=="command_stdin" and .reused==true)] | length' "$log")
+          ends=$(jq -s '[.[] | select(.type=="command_end" and .program=="ssh")] | length' "$log")
+          echo "ssh command_start=$starts command_stdin=$stdins (reused=$reused) command_end=$ends"
+          [ "$starts" = 1 ] && [ "$stdins" = 3 ] && [ "$reused" = 2 ] && [ "$ends" = 1 ]
 
       - name: Cleanup
         if: always()
