@@ -6,6 +6,7 @@ name: ssh-pass-e2e
 # Secrets (Settings > Secrets and variables > Actions):
 #   SSH_TEST_HOST  destination for ssh_pass: `host`, `user@host` or an IP. Not printed to the logs.
 #   SSH_TEST_KEY   private key (OpenSSH format, no passphrase) that the host accepts.
+#   SSH_TEST_PORT  SSH port of the host (optional, 22 when it is not set).
 on:
   workflow_dispatch:
     inputs:
@@ -14,10 +15,6 @@ on:
         type: choice
         options: [curl, wget, node]
         default: curl
-      port:
-        description: SSH port of the host
-        type: string
-        default: "22"
       user:
         description: SSH user
         type: string
@@ -41,20 +38,20 @@ jobs:
         env:
           SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
           SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
-          PORT: ${{ inputs.port }}
+          PORT: ${{ secrets.SSH_TEST_PORT || '22' }}
           SSH_USER: ${{ inputs.user }}
         run: |
           [ -n "$SSH_TEST_HOST" ] || { echo "::error::falta el secreto SSH_TEST_HOST"; exit 1; }
           [ -n "$SSH_TEST_KEY" ] || { echo "::error::falta el secreto SSH_TEST_KEY"; exit 1; }
           echo "::add-mask::$SSH_TEST_HOST"
-          [[ "$PORT" =~ ^[0-9]{1,5}$ ]] || { echo "::error::port debe ser un número"; exit 1; }
+          [[ "$PORT" =~ ^[0-9]{1,5}$ ]] || { echo "::error::SSH_TEST_PORT debe ser un número"; exit 1; }
           [[ "$SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "::error::user inválido"; exit 1; }
 
       - name: Write key and manifest
         env:
           SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
           SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
-          PORT: ${{ inputs.port }}
+          PORT: ${{ secrets.SSH_TEST_PORT || '22' }}
           SSH_USER: ${{ inputs.user }}
           ENGINE: ${{ inputs.engine }}
         run: |
