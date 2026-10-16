@@ -18,7 +18,7 @@ Las líneas de una transacción añaden `transaction_id` (UUID compartido por to
 
 - Un tipo nuevo que **abre y cierra** algo (un proceso, un script) se nombra con el sufijo `_start` al abrir y `_end` al cerrar: `command_start` y `command_end`, `script_start` y `script_end`. Las dos líneas comparten `span_id`.
 - Excepción: la petición y su respuesta se llaman `request` y `response`, sin sufijo. Lo mismo vale para el par que cubre el envío al destino de un `proxy_pass`: `proxy_pass_request` y `proxy_pass_response`.
-- Los eventos sueltos, que no abren ni cierran nada (`listening`, `request_annotation`, `annotation`), no llevan sufijo.
+- Los eventos sueltos, que no abren ni cierran nada (`listening`, `auth_failed`, `request_annotation`, `annotation`), no llevan sufijo.
 
 ## Transacciones anidadas
 
@@ -36,7 +36,8 @@ Cada petición es una **transacción** y todo lo que hace por debajo (cada proce
 | `type` | Cuándo | Campos propios |
 | --- | --- | --- |
 | `listening` | Al arrancar. | `host`, `port` (el real si `port` es `0`). |
-| `request` | Petición recibida. | `span_id`, `headers`, `payload`, y `payload_encoding: "base64"` si no es UTF-8. |
+| `request` | Petición recibida. | `span_id`, `headers` (`proxy-authorization` siempre aparece como `"[redacted]"`), `proxy_user` (con [`auth`](manifest.md#auth): el usuario que se autenticó), `payload`, y `payload_encoding: "base64"` si no es UTF-8. |
+| `auth_failed` | Un cliente falló la [autenticación](manifest.md#auth) (HTTP, `CONNECT` o SOCKS5). | `scheme` (`basic`), `protocol` (`http`, `connect` o `socks5`), `user` (el nombre que probó, si lo envió; la contraseña nunca se registra), `remote_address`. |
 | `request_annotation` | Datos propios que se adjuntan a la petición. | `span_id`, `annotation`. |
 | `proxy_pass_request` | Antes de enviar la petición al destino de una ruta `proxy_pass`. | `span_id`, `parent_span_id`, `target` (URL del destino), `headers`, `payload`. |
 | `proxy_pass_response` | Cuando el destino responde (o falla: `502`). | `span_id`, `parent_span_id`, `target`, `status`, `headers`, `payload`. |

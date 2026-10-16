@@ -33,6 +33,7 @@ manifiesto**, no al directorio desde el que se ejecuta el proceso.
 | `port` | `[http\|https] puerto [{ ssl { … } }]` | `0` | Alias de `listen` sin host: `port 8080` equivale a `listen http 8080`. |
 | `ssl` | bloque | ver abajo | **Deprecado.** Certificado usado para terminar el TLS de los túneles `CONNECT`. No sirve para que el proxy escuche por HTTPS: usa `listen https`. |
 | `log_file` | string | sin log | Archivo `.ndjson` donde se registran las transacciones. |
+| `auth` | `basic { username "…" password "…" }` | sin autenticación | Exige usuario y contraseña a los clientes (ver [`auth`](#auth)). Se puede repetir, una vez por usuario. |
 | `route` | bloque | sin rutas | Regla por petición. Se pueden declarar varias. |
 
 ### `ssl`
@@ -147,7 +148,7 @@ listen socks5 127.0.0.1 1080
 ```
 
 El listener habla SOCKS en lugar de HTTP: `socks4` acepta SOCKS4 y SOCKS4a, `socks5` acepta
-SOCKS5 (un cliente de otra versión es desconectado). Sin autenticación (SOCKS5 método «sin
+SOCKS5 (un cliente de otra versión es desconectado). Sin [`auth`](#auth) (SOCKS5 método «sin
 autenticación»; si el cliente no lo ofrece, responde `0xFF` y cierra), solo el comando `CONNECT`
 (`BIND` y `UDP ASSOCIATE` se rechazan) y destinos IPv4, IPv6 y nombre de dominio (en SOCKS4, el
 nombre solo con SOCKS4a).
@@ -170,6 +171,50 @@ el nombre).
 curl --socks5-hostname 127.0.0.1:1080 -k https://example.com/
 curl --socks4a 127.0.0.1:1080 http://example.com/
 ```
+
+### `auth`
+
+```
+proxy {
+  listen http 8080
+  listen socks5 1080
+  auth basic {
+    username "alice"
+    password "secreto"
+  }
+  auth basic {
+    username "bob"
+    password "otra"
+  }
+}
+```
+
+Con `auth` el proxy exige credenciales en **todos** sus `listen`. Cada `auth basic` declara un
+usuario (`username` y `password`, ambos textos obligatorios); se repite la directiva para varios
+usuarios. `username` no puede contener `:` ni repetirse. Sin `auth` el proxy sigue siendo abierto.
+Solo existe el esquema `basic`.
+
+| Listener | Cómo se autentica el cliente | Si falla |
+| --- | --- | --- |
+| `http` / `https` | Cabecera `Proxy-Authorization: Basic …` (`curl --proxy-user alice:secreto`). En `CONNECT` se comprueba antes de abrir el túnel; las peticiones de ese túnel no la repiten. | `407 Proxy Authentication Required` con `Proxy-Authenticate: Basic realm="donly-proxy", charset="UTF-8"`. Es idéntico si falta la cabecera, el usuario no existe o la contraseña es errónea. |
+| `socks5` | Usuario/contraseña de SOCKS5 (RFC 1929; `curl --socks5 alice:secreto@host:1080` o `--proxy-user`). El servidor solo acepta ese método: un cliente que ofrezca solo «sin autenticación» recibe `0xFF`. | Estado `1` en la subnegociación y se cierra la conexión. |
+| `socks4` | No soportado (SOCKS4 solo envía un `userid`, sin contraseña): con `auth` el arranque falla. | n/a |
+
+```sh
+curl --proxy http://127.0.0.1:8080 --proxy-user alice:secreto http://example.com/
+curl -k --proxy http://127.0.0.1:8080 --proxy-user alice:secreto https://example.com/
+curl -k --socks5-hostname alice:secreto@127.0.0.1:1080 https://example.com/
+```
+
+- La autenticación ocurre **antes** de evaluar las `route`. `Proxy-Authorization` se quita de la
+  petición: nunca llega a `proxy_pass`, `command_pass` ni a sus comandos.
+- El log no guarda credenciales: la cabecera `proxy-authorization` se registra como
+  `"[redacted]"`, la línea `request` lleva `proxy_user` con el usuario y cada intento fallido
+  escribe un evento `auth_failed` (ver [`log-format.md`](log-format.md)).
+- Basic envía la contraseña en claro: usa `listen https` (o un túnel cifrado) si el proxy no está
+  en loopback. La contraseña está en el manifiesto; no lo subas al repositorio.
+- Los servidores internos que atienden los túneles escuchan en `127.0.0.1` con puerto aleatorio y no
+  piden credenciales: confían en que el cliente ya se autenticó al abrir el túnel.
 
 ### `log_file`
 
@@ -329,3 +374,7 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `retry` que no es un entero no negativo, o fuera de `command_pass curl` | `route …: retry debe ser un entero no negativo, no "…"` / `retry solo aplica a command_pass curl` |
 | `engine` distinto de `curl` / `node` / `wget`, o usado fuera de `ssh` y `kubectl` | `route …: engine solo soporta …` / `engine solo aplica a command_pass ssh y kubectl` |
 | `proxy_pass` con una URL inválida | Error de `URL` |
+| `auth` con un esquema distinto de `basic` | `auth: solo se soporta basic (auth basic { username … password … })` |
+| `auth basic` sin `username` o `password` | `auth basic: username y password son obligatorios y deben ser textos` |
+| `auth basic` con `username` con `:` o repetido | `auth basic: username no puede contener ':' ("…")` / `auth basic: el usuario "…" está declarado más de una vez` |
+| `auth` junto a un `listen socks4` | `auth: socks4 no soporta autenticación; usa listen socks5` |

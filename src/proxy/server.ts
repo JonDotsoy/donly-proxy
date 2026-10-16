@@ -18,6 +18,7 @@ import { isRouteMethod, routeMethods } from "./route-methods";
 import { compileRoutePattern, type RoutePattern } from "./route-pattern";
 import type { ConsoleEntry } from "./tunnel/types";
 import { socksHandshake, targetName } from "./socks";
+import { authenticate, basicCredentials, challenge, parseAuth, verify, type AuthUser } from "./auth";
 import { createLogger_experimental, type CommandTransaction, type RequestTransaction } from "./logger";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
@@ -56,6 +57,8 @@ export interface ProxyConfig {
   routes: Route[];
   /** Absolute path of the `.ndjson` transaction log, if configured. */
   logFile?: string;
+  /** Users of `auth basic`; when set, every client must authenticate. */
+  auth?: AuthUser[];
 }
 
 /** `no_warnings` inside a `command_pass node` (or `no_warnings true`): it becomes `--no-warnings`. */
@@ -224,6 +227,8 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
     if (seen.has(key)) throw new Error(`listen: ${key} está declarado más de una vez`);
     seen.add(key);
   }
+  const auth = parseAuth(proxy);
+  if (auth && listeners.some((l) => l.socks === 4)) throw new Error("auth: socks4 no soporta autenticación; usa listen socks5");
   const logFile = child("log_file")?.args[0];
   if (logFile !== undefined && !String(logFile).endsWith(".ndjson")) {
     throw new Error(`log_file ${logFile}: solo se soporta la extensión .ndjson`);
@@ -238,6 +243,7 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
       key: resolve(String(child("key", ssl)?.args[0] ?? "./certs/key.pem")),
     },
     https: listeners[0]!.https,
+    auth,
     logFile: logFile === undefined ? undefined : resolve(String(logFile)),
     routes: (proxy?.children ?? [])
       .filter((c) => c.name === "route")
@@ -549,7 +555,8 @@ export const createProxyServers = ({
   listeners,
   routes,
   logFile,
-}: Pick<ProxyConfig, "ssl" | "routes"> & { listeners: ListenerConfig[]; logFile?: string }) => {
+  auth,
+}: Pick<ProxyConfig, "ssl" | "routes" | "auth"> & { listeners: ListenerConfig[]; logFile?: string }) => {
   ensureCerts(ssl);
   for (const { https } of listeners) if (https) ensureCerts(https);
   const tlsOptions = { key: readFileSync(ssl.key), cert: readFileSync(ssl.cert) };
@@ -591,21 +598,33 @@ export const createProxyServers = ({
   // Client port of each loopback connection -> host of the CONNECT that opened it.
   const tunnels = new Map<number, string | undefined>();
 
-  const handle = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+  // Client port of each loopback connection -> user that authenticated the CONNECT / SOCKS tunnel.
+  const tunnelUsers = new Map<number, string>();
+
+  // `checkAuth`: the request came straight to a listener, so `Proxy-Authorization` is checked here. The loopback
+  // servers behind the tunnels get `false`: the client already authenticated when it opened the tunnel.
+  const makeHandle = (checkAuth: boolean) => async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = requestUrl(req, tunnels);
     const body = Buffer.concat(await Array.fromAsync(req));
+    const header = req.headers["proxy-authorization"];
+    // The credentials stop here: routes, proxy_pass and command_pass never see them.
+    delete req.headers["proxy-authorization"];
+    const proxyUser = checkAuth && auth ? authenticate(auth, header) : tunnelUsers.get(req.socket.remotePort!);
+    const denied = checkAuth && auth && proxyUser === undefined;
+    if (denied) Logger.authFailed({ protocol: "http", user: basicCredentials(header)?.username, remoteAddress: req.socket.remoteAddress });
     const logger = Logger.request.openTransaction({
       method: req.method ?? "GET",
       url,
       httpVersion: req.httpVersion,
-      headers: req.headers,
+      headers: header === undefined ? req.headers : { ...req.headers, "proxy-authorization": header },
       body,
+      proxyUser,
     });
 
     const route = routes.find(
       (r) => (r.method === null || r.method === req.method) && r.pattern.test(url),
     );
-    const reply = await answer(route, req, body, url, logger);
+    const reply: Reply = denied ? { status: 407, headers: challenge, body: Buffer.alloc(0) } : await answer(route, req, body, url, logger);
 
     logger.response(reply);
     res.writeHead(reply.status, reply.headers);
@@ -613,7 +632,9 @@ export const createProxyServers = ({
   };
   // CONNECT tunnels are piped into this loopback HTTPS server instead of wrapping the socket in a
   // `tls.TLSSocket`: Bun 1.3.x never completes the handshake on a wrapped socket.
-  const tlsServer = https.createServer(tlsOptions, handle);
+  const handle = makeHandle(true);
+  const tunnelHandle = makeHandle(false);
+  const tlsServer = https.createServer(tlsOptions, tunnelHandle);
   tlsServer.on("tlsClientError", () => {});
   tlsServer.listen(0, "127.0.0.1");
   tlsServer.unref();
@@ -621,15 +642,26 @@ export const createProxyServers = ({
 
   const onConnect = (req: http.IncomingMessage, socket: Duplex) => {
     socket.on("error", () => {});
+    const header = req.headers["proxy-authorization"];
+    const user = auth ? authenticate(auth, header) : undefined;
+    if (auth && user === undefined) {
+      Logger.authFailed({ protocol: "connect", user: basicCredentials(header)?.username, remoteAddress: (socket as net.Socket).remoteAddress });
+      socket.end(`HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: ${challenge["proxy-authenticate"]}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`);
+      return;
+    }
     socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
     let port: number | undefined;
     const inner = net.connect((tlsServer.address() as AddressInfo).port, "127.0.0.1", () => {
       port = inner.localPort!;
       tunnels.set(port, req.url?.replace(/:443$/, ""));
+      if (user !== undefined) tunnelUsers.set(port, user);
     });
     inner.on("error", () => socket.destroy());
     inner.on("close", () => {
-      if (port) tunnels.delete(port);
+      if (port) {
+        tunnels.delete(port);
+        tunnelUsers.delete(port);
+      }
       socket.destroy();
     });
     socket.on("close", () => inner.destroy());
@@ -639,7 +671,7 @@ export const createProxyServers = ({
   // `listen socks4|socks5`: the client speaks SOCKS and, once the handshake is done, its bytes are piped
   // into a loopback server, the same way as a CONNECT tunnel: TLS (first byte 0x16) goes to the TLS
   // server and anything else to a plain HTTP one, so the routes apply to the decrypted requests.
-  const plainServer = http.createServer(handle);
+  const plainServer = http.createServer(tunnelHandle);
   if (listeners.some((l) => l.socks)) {
     plainServer.listen(0, "127.0.0.1");
     plainServer.unref();
@@ -647,7 +679,15 @@ export const createProxyServers = ({
   const onSocks = (socket: net.Socket, socks: 4 | 5) => {
     socket.on("error", () => {});
     void (async () => {
-      const { target, rest } = await socksHandshake(socket, socks);
+      const checkLogin =
+        auth && socks === 5
+          ? (username: string, password: string) => {
+              const ok = verify(auth, username, password);
+              if (!ok) Logger.authFailed({ protocol: "socks5", user: username, remoteAddress: socket.remoteAddress });
+              return ok;
+            }
+          : undefined;
+      const { target, rest, user } = await socksHandshake(socket, socks, checkLogin);
       const first =
         rest.length > 0
           ? rest
@@ -666,12 +706,16 @@ export const createProxyServers = ({
       const inner = net.connect(loopback, "127.0.0.1", () => {
         port = inner.localPort!;
         if (encrypted) tunnels.set(port, targetName(target));
+        if (user !== undefined) tunnelUsers.set(port, user);
         inner.write(first);
         socket.pipe(inner).pipe(socket);
       });
       inner.on("error", () => socket.destroy());
       inner.on("close", () => {
-        if (port) tunnels.delete(port);
+        if (port) {
+          tunnels.delete(port);
+          tunnelUsers.delete(port);
+        }
         socket.destroy();
       });
       socket.on("close", () => inner.destroy());
@@ -709,5 +753,5 @@ export const createProxyServers = ({
 };
 
 /** The first server of {@link createProxyServers}: enough when the manifest has a single `listen`. */
-export const createProxyServer = (config: Pick<ProxyConfig, "ssl" | "routes"> & { logFile?: string } & ({ listeners: ListenerConfig[] } | { https?: ProxyConfig["https"] })) =>
+export const createProxyServer = (config: Pick<ProxyConfig, "ssl" | "routes" | "auth"> & { logFile?: string } & ({ listeners: ListenerConfig[] } | { https?: ProxyConfig["https"] })) =>
   createProxyServers({ ...config, listeners: "listeners" in config ? config.listeners : [{ host: "127.0.0.1", port: 0, https: config.https }] })[0]!;
