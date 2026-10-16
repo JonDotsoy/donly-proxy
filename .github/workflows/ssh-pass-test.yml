@@ -1,0 +1,61 @@
+name: ssh-pass-test
+
+# Temporary check: run the proxy with ssh_pass against the test droplet.
+# Only runs on pull requests from this exact branch.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ssh-pass:
+    if: github.head_ref == 'claude/project-thread-ouqt66' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+
+      - name: Write key and manifest
+        env:
+          SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_TEST_KEY" > "$RUNNER_TEMP/id_ed25519"
+          cat > "$RUNNER_TEMP/manifest.donly" <<MANIFEST
+          proxy {
+            host "127.0.0.1"
+            port 18080
+            log_file "$RUNNER_TEMP/proxy.ndjson"
+            route {
+              ssh_pass "161.35.11.114" "-i" "$RUNNER_TEMP/id_ed25519" "-o" "StrictHostKeyChecking=accept-new" "-o" "IdentitiesOnly=yes" {
+                port 45322
+                user "root"
+                command_pass curl "--max-time" "10"
+              }
+            }
+          }
+          MANIFEST
+
+      - name: Start proxy
+        run: |
+          bun src/cli/main.ts "$RUNNER_TEMP/manifest.donly" > "$RUNNER_TEMP/proxy.out" 2>&1 &
+          for i in $(seq 1 20); do nc -z 127.0.0.1 18080 && break; sleep 0.5; done
+          cat "$RUNNER_TEMP/proxy.out"
+
+      - name: Request through ssh_pass
+        run: |
+          echo "runner ip: $(curl -fsS https://api.ipify.org)"
+          echo "egress via droplet:"
+          curl -sS -m 30 -x http://127.0.0.1:18080 http://api.ipify.org -w '\nHTTP %{http_code}\n'
+
+      - name: Proxy log
+        if: always()
+        run: |
+          cat "$RUNNER_TEMP/proxy.out" || true
+          sed -E 's/("pass"|password)[^,}]*/\1:"***"/' "$RUNNER_TEMP/proxy.ndjson" || true
+          rm -f "$RUNNER_TEMP/id_ed25519"
