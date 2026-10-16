@@ -10,6 +10,7 @@ manifiesto [DON](https://don.jon.soy/) (`manifest.donly`). Corre sobre [Bun](htt
 | --- | --- |
 | `src/cli/main.ts` | Punto de entrada: `bun start [manifest.donly]`. |
 | `src/proxy/server.ts` | `loadConfig` (lee y valida el manifest) y `createProxyServer` (HTTP, `CONNECT`/TLS, rutas, log). |
+| `src/spawn/` | Módulo `spawn` (`ShellRequest`, `SystemSpawn`, `spawn`): única vía para lanzar procesos (ver [Procesos del sistema](#procesos-del-sistema-módulo-spawn)). Referencia en `docs/spawn.md`. |
 | `src/proxy/tunnel/` | Acciones que ejecutan la petición fuera del proceso: `curl/`, `wget/`, `node/`, `ssh/`, `kubectl/`, más `run.ts`, `remote.ts`, `quote.ts`, `types.ts`. |
 | `src/proxy/*.test.ts` | Tests del servidor (un archivo por tema). Los de `tunnel/` viven junto a su código. |
 | `src/utils/test_utils/test-feature/` | `testFeature`: registra cada test como una *spec* de feature. |
@@ -101,6 +102,18 @@ de commit convencional `tipo: descripción` (el scope `tipo(scope):` también va
 Cualquier otro título (o sin prefijo) cae en "📦 Otros cambios", sin limpiar. Escribe la descripción en
 español, en minúscula inicial y sin punto final, p. ej. `feat: soporta wget como engine`.
 Los commits `release: vX.Y.Z` los crea el workflow y se omiten de las notas.
+
+## Procesos del sistema: módulo `spawn`
+
+Todo lo que lance un proceso del sistema (tráfico Shell: `curl`, `ssh`, `kubectl`, `openssl`, `bash`…) **debe**
+pasar por `src/spawn/`: construye un `ShellRequest` y ejecútalo con `spawn(request, { logger })`
+(`SystemSpawn.defaultChildProcess` por defecto, `SystemSpawn.fromResponse(...)` para comandos anidados).
+Así cada comando queda en el log `.ndjson` (`command_start`/`command_end`) y se prueba en un solo sitio.
+
+- No uses `node:child_process`, `Bun.spawn`, `Bun.spawnSync`, `Bun.$` ni equivalentes fuera de `src/spawn/`.
+- Pasa siempre el `logger` cuando la ejecución es parte de una petición del proxy.
+- Argumentos separados en `ShellRequest.commands`; nunca una cadena de shell (ver [Estilo y seguridad](#estilo-y-seguridad)).
+- Referencia: `docs/spawn.md`.
 
 ## Log `.ndjson`: nombres de los tipos
 
