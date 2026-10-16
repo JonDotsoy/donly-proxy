@@ -11,6 +11,7 @@ manifiesto [DON](https://don.jon.soy/) (`manifest.donly`). Corre sobre [Bun](htt
 | `src/cli/main.ts` | Punto de entrada: `bun start [manifest.donly]`. |
 | `src/proxy/server.ts` | `loadConfig` (lee y valida el manifest) y `createProxyServer` (HTTP, `CONNECT`/TLS, rutas, log). |
 | `src/spawn/` | Módulo `spawn` (`ShellRequest`, `SystemSpawn`, `spawn`): única vía para lanzar procesos (ver [Procesos del sistema](#procesos-del-sistema-módulo-spawn)). Referencia en `docs/spawn.md`. |
+| `src/proxy/command-pass/` | Plugins de `command_pass`: `CommandPass` (interfaz `start`/`request`), `plugins.ts` (registro `plugins` y `aliases`) y el plugin `proxy`. Adaptan las funciones de `tunnel/`. |
 | `src/proxy/tunnel/` | Acciones que ejecutan la petición fuera del proceso: `curl/`, `wget/`, `node/`, `ssh/`, `kubectl/`, más `run.ts`, `remote.ts`, `quote.ts`, `types.ts`. |
 | `src/proxy/*.test.ts` | Tests del servidor (un archivo por tema). Los de `tunnel/` viven junto a su código. |
 | `src/utils/test_utils/test-feature/` | `testFeature`: registra cada test como una *spec* de feature. |

@@ -8,12 +8,10 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DON, type Directive } from "donly";
 import { ensureCerts } from "./certs";
-import { curl } from "./tunnel/curl/curl";
 import { Semaphore } from "./semaphore";
-import { nodeRequest } from "./tunnel/node/node";
 import type { Engine } from "./tunnel/remote";
-import { sshRequest } from "./tunnel/ssh/ssh";
-import { kubectlRequest } from "./tunnel/kubectl/kubectl";
+import { hopByHop, type CommandPass } from "./command-pass/command-pass";
+import { createPlugin } from "./command-pass/plugins";
 import { isRouteMethod, routeMethods } from "./route-methods";
 import { compileRoutePattern, type RoutePattern } from "./route-pattern";
 import type { ConsoleEntry } from "./tunnel/types";
@@ -405,11 +403,6 @@ const requestUrl = (req: http.IncomingMessage, tunnels: Map<number, string | und
   return `http://${req.headers.host}${req.url}`;
 };
 
-const hopByHop = new Set([
-  "connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "trailer",
-  "host", "content-length",
-]);
-
 interface Reply {
   /** Command line executed to produce this reply (`command_pass` only). */
   command?: string[];
@@ -418,36 +411,23 @@ interface Reply {
   body: Buffer;
 }
 
-/**
- * Forwards the request to `target`. The original path and query are kept,
- * unless `target` declares its own path, which then replaces the path.
- */
-const forward = async (
-  req: http.IncomingMessage,
-  body: Buffer,
-  url: string,
-  target: URL,
-  logger: RequestTransaction,
-): Promise<Reply> => {
-  const original = new URL(url);
-  const upstream = new URL(target);
-  if (upstream.pathname === "/") upstream.pathname = original.pathname;
-  upstream.search = original.search;
-
+/** Builds the `Request` a plugin receives: the full URL, the headers and the body of the client request. */
+const pluginRequest = (req: http.IncomingMessage, body: Buffer, url: string) => {
   const headers = new Headers();
-  for (const [k, v] of Object.entries(req.headers)) {
-    if (!hopByHop.has(k) && v !== undefined) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
+  for (const [k, v] of Object.entries(req.headers)) if (v !== undefined) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
+  const method = req.method ?? "GET";
+  return new Request(url, { method, headers, body: method === "GET" || method === "HEAD" ? undefined : new Uint8Array(body) });
+};
+
+/** The `Reply` for the `Response` of a plugin. */
+const pluginReply = async (response: Response, command?: string[]): Promise<Reply> => {
+  const headers: Record<string, string | string[]> = {};
+  for (const [name, value] of response.headers) {
+    if (name !== "set-cookie" && !hopByHop.has(name) && name !== "content-encoding") headers[name] = value;
   }
-  const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const proxyPass = logger.proxyPass.openTransaction({
-    method: req.method ?? "GET",
-    target: upstream.toString(),
-    headers: Object.fromEntries(headers),
-    body: hasBody ? body : Buffer.alloc(0),
-  });
-  const reply = await fetchUpstream(upstream, req.method, headers, hasBody ? body : undefined);
-  proxyPass.end(reply);
-  return reply;
+  const cookies = response.headers.getSetCookie();
+  if (cookies.length > 0) headers["set-cookie"] = cookies.length === 1 ? cookies[0]! : cookies;
+  return { status: response.status, headers, body: Buffer.from(await response.arrayBuffer()), command };
 };
 
 /** Forwards the request as-is to its own URL (no `proxy_pass` log lines: there is no route involved). */
@@ -486,20 +466,9 @@ const commandPass = async (
   body: Buffer,
   url: string,
   command: Command,
-  engine: Engine | undefined,
-  args: string[],
-  engineArgs: string[] | undefined,
-  podMatch: { glob: string; selectors: string[] } | undefined,
-  password: string | undefined,
+  plugin: CommandPass,
   logger: RequestTransaction,
 ): Promise<Reply> => {
-  const headers: Record<string, string> = {};
-  for (const [k, v] of Object.entries(req.headers)) {
-    // curl negotiates the encoding itself (`--compressed`).
-    if (!hopByHop.has(k) && k !== "accept-encoding" && v !== undefined) {
-      headers[k] = Array.isArray(v) ? v.join(", ") : v;
-    }
-  }
   let executed: string[] | undefined;
   let script: string | undefined;
   // One transaction per process: kubectl runs the engine after `--`, so it opens two (the engine is
@@ -544,21 +513,8 @@ const commandPass = async (
     for (const process of [...processes].reverse()) process.end(code, consoleLog);
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onScript, onExit, onConsole };
-    const response = await (command === "ssh"
-      ? sshRequest(request, engine ?? "curl")
-      : command === "kubectl"
-        ? kubectlRequest(request, engine ?? "curl")
-        : command === "node"
-          ? nodeRequest(request)
-          : curl(request));
-    return {
-      ...response,
-      command: executed,
-      headers: Object.fromEntries(
-        Object.entries(response.headers).filter(([k]) => !hopByHop.has(k) && k !== "content-encoding"),
-      ),
-    };
+    const response = await plugin.request(pluginRequest(req, body, url), { onLookup, onCommand, onScript, onExit, onConsole });
+    return pluginReply(response, executed);
   } catch (error) {
     return { ...text(502, `bad gateway: ${(error as Error).message}`), command: executed };
   }
@@ -600,6 +556,34 @@ export const createProxyServers = ({
     return limits.get(route)!;
   };
 
+  // One plugin per route, built and started the first time the route answers: its state lives in the plugin.
+  const plugins = new Map<Route, Promise<CommandPass>>();
+  const pluginOf = (route: Route, action: Route["action"]) => {
+    if (!plugins.has(route)) {
+      plugins.set(
+        route,
+        (async () => {
+          const plugin = createPlugin(action.kind === "command_pass" ? action.command : action.kind);
+          await plugin.start(
+            action.kind === "command_pass"
+              ? { args: action.args, engine: action.engine, engineArgs: action.engineArgs, podMatch: action.podMatch, password: action.password }
+              : { args: [action.kind === "proxy_pass" ? action.target.toString() : ""] },
+          );
+          return plugin;
+        })(),
+      );
+    }
+    return plugins.get(route)!;
+  };
+
+  const viaPlugin = async (route: Route, action: Route["action"], req: http.IncomingMessage, body: Buffer, url: string, logger: RequestTransaction): Promise<Reply> => {
+    const plugin = await pluginOf(route, action);
+    const response = await plugin.request(pluginRequest(req, body, url), {
+      upstream: (call) => logger.proxyPass.openTransaction(call),
+    });
+    return pluginReply(response);
+  };
+
   const answer = async (route: Route | undefined, req: http.IncomingMessage, body: Buffer, url: string, logger: RequestTransaction) => {
     // No routes at all: forward the request untouched to its own URL.
     if (routes.length === 0) return passthrough(req, body, url);
@@ -609,11 +593,11 @@ export const createProxyServers = ({
       case "respond":
         return text(action.status, action.body);
       case "proxy_pass":
-        return forward(req, body, url, action.target, logger);
+        return viaPlugin(route, action, req, body, url, logger);
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.podMatch, action.password, logger);
+          return await commandPass(req, body, url, action.command, await pluginOf(route, action), logger);
         } finally {
           release();
         }

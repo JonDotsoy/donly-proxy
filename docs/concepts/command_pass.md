@@ -47,3 +47,7 @@ El primer argumento es el comando; los siguientes son **opciones adicionales** d
 | `no_warnings` | `node` | Equivale a `--no-warnings`. |
 
 Referencia completa: [`tunnel/command-pass.md`](../tunnel/command-pass.md).
+
+## Plugins
+
+Cada `command_pass <nombre>` lo atiende un plugin (`CommandPass` con `start(options)` y `request(request): Promise<Response>`) registrado en `src/proxy/command-pass/plugins.ts`. Cada ruta construye su propia instancia, así que el estado vive en la clausura de la fábrica. `proxy_pass`, `ssh_pass` y `kubectl_pass` son alias de los plugins `proxy`, `ssh` y `kubectl`. La sintaxis del manifest no cambia.

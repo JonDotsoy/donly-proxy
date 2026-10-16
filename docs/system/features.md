@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **371** · ✅ pasan: **371** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **377** · ✅ pasan: **377** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -143,6 +143,7 @@ Specs: **371** · ✅ pasan: **371** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should answer 407 with Proxy-Authenticate when the proxy-authorization header is missing | ✅ | <code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
 | should answer each proxy block with its own route | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should answer the socks5 username/password subnegotiation status | ✅ | <code>listen http 127.0.0.1 0</code><br><code>listen socks5 127.0.0.1 0</code><br><code>listen https 127.0.0.1 0</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
+| should answer with a plain fetch in the proxy plugin and keep the query | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should append the extra_args of ssh_pass as ssh options | ✅ | <code>extra_args "-4" "-v"</code> |
 | should authenticate a socks5 client with username and password | ✅ | <code>listen http 127.0.0.1 0</code><br><code>listen socks5 127.0.0.1 0</code><br><code>listen https 127.0.0.1 0</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
 | should authenticate through a https listener | ✅ | <code>listen http 127.0.0.1 0</code><br><code>listen socks5 127.0.0.1 0</code><br><code>listen https 127.0.0.1 0</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
@@ -156,7 +157,9 @@ Specs: **371** · ✅ pasan: **371** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should default the port to 0 when the manifest has none | ✅ |  |
 | should fail --ui with a clear error when the manifest has no log_file | ✅ | <code>port 0</code> |
 | should fail --ui with a clear error when the ui port is already in use | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| should give every route its own plugin state | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should hand the pass of ssh_pass to ssh through an askpass program, never on the command line | ✅ | <code>pass "s3cr3t pa$$"</code> |
+| should install a plugin for every engine and transport | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should keep a non default port of the target in the url the routes see | ✅ | <code>listen socks5 127.0.0.1 0</code><br><code>&nbsp;&nbsp;respond 200 "secure good"</code><br><code>&nbsp;&nbsp;respond 200 "secure ip good"</code><br><code>&nbsp;&nbsp;respond 200 "secure port good"</code><br><code>&nbsp;&nbsp;respond 200 "secure ipv6 good"</code> |
 | should keep BatchMode and no askpass in ssh_pass without pass | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should keep rejecting command_pass proxy until it is a plugin | ✅ | <code>command_pass proxy</code> |
@@ -276,6 +279,7 @@ Specs: **371** · ✅ pasan: **371** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject a no_warnings that is not a boolean | ✅ | <code>no_warnings "yes"</code> |
 | should reject a no_warnings that is not true or false | ✅ | <code>no_warnings maybe</code> |
 | should reject a pass that is empty or not a text | ✅ | <code>pass ""</code> |
+| should reject a plugin name that is not installed | ✅ |  |
 | should reject a port that is not between 1 and 65535 | ✅ | <code>port 0</code> |
 | should reject a repeated username | ✅ | <code>auth basic {</code><br><code>&nbsp;&nbsp;username "a"</code><br><code>&nbsp;&nbsp;password "b"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "a"</code><br><code>&nbsp;&nbsp;password "c"</code><br><code>}</code> |
 | should reject a retry that is not a non-negative integer | ✅ | <code>retry -1</code> |
@@ -340,11 +344,13 @@ Specs: **371** · ✅ pasan: **371** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should report an error when the method or the pattern is not a text | ✅ | <code>route 5 a {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code><br><code>route GET 7 {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code> |
 | should report an error when the port is not a number | ✅ | <code>port "8080"</code> |
 | should report an error when the port is out of range | ✅ | <code>port 70000</code> |
+| should report an unreachable upstream as a bad gateway in the proxy plugin | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should report errors for an invalid respond status or body | ✅ | <code>respond 700 "x"</code><br><code>respond 200 5</code> |
 | should require the destination of command_pass kubectl | ✅ | <code>command_pass kubectl</code> |
 | should require the destination of command_pass ssh | ✅ | <code>command_pass ssh</code> |
 | should require the destination of kubectl_pass | ✅ | <code>kubectl_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should require the destination of ssh_pass | ✅ | <code>ssh_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
+| should resolve the pass directives as aliases of their plugin | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should run the request over ssh with the curl of the nested command_pass | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
 | should run the same engine remotely in ssh_pass and command_pass ssh | ✅ | <code>command_pass ssh "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>command_pass ssh "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>&nbsp;&nbsp;extra_args "-o" "ConnectTimeout=3"</code><br><code>}</code><br><code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;extra_args "-o" "ConnectTimeout=3"</code><br><code>&nbsp;&nbsp;command_pass node</code><br><code>}</code><br><code>command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass kubectl "pod/api-0" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>&nbsp;&nbsp;context dev</code><br><code>&nbsp;&nbsp;namespace prod</code><br><code>}</code> |
 | should send the namespace to kubectl exec when namespace is defined | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
