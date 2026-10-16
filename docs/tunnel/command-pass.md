@@ -540,22 +540,44 @@ route http{s}?://api.internal/* {
 }
 ```
 
-- El **primer argumento es el host**: un nombre de `~/.ssh/config` (`myserver`), un nombre DNS, una
-  IP o `usuario@host`. Al ser el que recibe `ssh`, la configuración de `~/.ssh/config` (usuario,
-  puerto, llave, `ProxyJump`…) se aplica. Los argumentos que siguen al host son opciones
-  adicionales de `ssh` (`ssh_pass myserver "-v" { … }`). La forma anterior, con las opciones
-  primero y el destino al final (`ssh_pass "-p" "2222" "user@host" { … }`), sigue funcionando
-  cuando el primer argumento empieza por `-`.
+- El **destino** se declara con la subdirectiva `host` o, como alternativa, con el primer argumento
+  de la línea: un nombre de `~/.ssh/config` (`myserver`), un nombre DNS, una IP o `usuario@host`.
+  Al ser el que recibe `ssh`, la configuración de `~/.ssh/config` (usuario, puerto, llave,
+  `ProxyJump`…) se aplica. Con `host`, los argumentos de la línea (si los hay) son opciones de
+  `ssh`; sin `host`, los que siguen al primer argumento lo son (`ssh_pass myserver "-v" { … }`). La
+  forma anterior, con las opciones primero y el destino al final
+  (`ssh_pass "-p" "2222" "user@host" { … }`), sigue funcionando cuando el primer argumento empieza
+  por `-`.
 - Subdirectivas de conexión (todas opcionales):
 
   | Subdirectiva | Equivale a | Valor |
   | --- | --- | --- |
+  | `host <destino>` | el destino de `ssh` | texto no vacío |
   | `port <n>` | `-p <n>` | entero entre 1 y 65535 |
   | `user <nombre>` | `-l <nombre>` | texto no vacío |
+  | `identity_file <ruta>` | `-i <ruta>` | texto no vacío; una ruta relativa se resuelve contra la carpeta del manifest |
+  | `option <opción>` | `-o <opción>` | texto no vacío, p. ej. `"StrictHostKeyChecking=accept-new"`; se puede repetir |
+  | `extra_args <arg…>` | opciones de `ssh` tal cual | cualquier opción (`"-v"`, `"-4"`…) |
   | `pass <contraseña>` | autenticación por contraseña | texto no vacío (o número) |
 
-  Con otro valor el arranque falla con `port debe ser un puerto entre 1 y 65535`,
-  `user debe ser un nombre` o `pass debe ser un texto no vacío`.
+  Con otro valor el arranque falla con `host debe ser un destino (…)`,
+  `port debe ser un puerto entre 1 y 65535`, `user debe ser un nombre`,
+  `identity_file debe ser una ruta`, `option debe ser un texto no vacío` o
+  `pass debe ser un texto no vacío`. Las opciones se pasan a `ssh` en este orden: las de la línea,
+  `-p`, `-l`, `-i`, los `-o`, los `extra_args` y por último el destino.
+
+  ```
+  route {
+    ssh_pass {
+      host "203.0.113.10"
+      port 45322
+      user root
+      identity_file "./keys/id_ed25519"
+      option "StrictHostKeyChecking=accept-new"
+      command_pass curl "--max-time" "10"
+    }
+  }
+  ```
 - **`pass`**: sin él `ssh` corre con `BatchMode=yes` (solo llaves o agente). Con él, la
   contraseña se entrega a `ssh` mediante `SSH_ASKPASS` (`SSH_ASKPASS_REQUIRE=force`, requiere
   OpenSSH 8.4 o superior) con un programa temporal que solo puede usar el dueño y que la lee de
@@ -565,6 +587,6 @@ route http{s}?://api.internal/* {
 - Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
   comando, o sin hijo, el arranque falla con `ssh_pass requiere un command_pass hijo`. Sus
   argumentos y subdirectivas (`concurrency`, `extra_args`, `max_time`, `insecure`, `retry`)
-  siguen las mismas reglas que en `kubectl_pass`. Sin host, falla con `ssh_pass requiere el destino`.
+  siguen las mismas reglas que en `kubectl_pass`. Sin destino (ni `host` ni primer argumento), falla con `ssh_pass requiere el destino`.
 - Un `route` no puede combinar `ssh_pass` con otra acción.
 - El `log_file` registra el `ssh …` completo, igual que con `command_pass ssh`.
