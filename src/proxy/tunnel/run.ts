@@ -1,4 +1,4 @@
-import { ShellRequest, spawn } from "../../spawn";
+import { ShellRequest, spawn, type SystemSpawn } from "../../spawn";
 import type { ConsoleEntry } from "./types";
 
 export interface RunResult {
@@ -28,16 +28,19 @@ export const run = async (
   env?: Record<string, string>,
   onExit?: (code: number | null) => void,
   onConsole?: (entry: ConsoleEntry) => void,
+  /** Where the command runs: by default a child process of this one. */
+  system?: SystemSpawn,
 ): Promise<RunResult> => {
   onCommand?.([command, ...argv]);
   const entry = (type: ConsoleEntry["type"], message: string) =>
     onConsole?.({ type, timestamp: new Date().toISOString(), message });
   const request = new ShellRequest({ commands: [command, ...argv], stdin: new WritableStream(), env });
-  const response = await spawn(request);
+  // The input is written while the command starts: a nested system reads all of it before it runs the command.
   entry("stdin", input.toString());
   const writer = request.stdin!.getWriter();
   // Not awaited: the command may print before it has read all of its input.
   writer.write(typeof input === "string" ? new TextEncoder().encode(input) : input).then(() => writer.close()).catch(() => {});
+  const response = await spawn(request, { system });
   const [stdout, stderr, code] = await Promise.all([
     collect(response.stdout, (chunk) => entry("stdout", chunk.toString())),
     collect(response.stderr, (chunk) => entry("stderr", chunk.toString())),

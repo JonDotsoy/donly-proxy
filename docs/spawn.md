@@ -26,5 +26,11 @@ await request.stdin.getWriter().close(); // cierra el stdin del proceso
 - `signal` (un `AbortSignal`): al abortarlo se termina el proceso con la señal de `controller.abort(new SignalError("SIGHUP"))` (también acepta el número de señal o un código de salida: `new SignalError(129)`); sin ella, `SIGTERM` (`SIGHUP` con tty). No aplica a procesos anidados.
 - `SystemSpawn.defaultChildProcess` ejecuta como hijo de este proceso.
 - `SystemSpawn.fromResponse(response)` ejecuta dentro de un shell ya iniciado (p. ej. `bash`) que lee comandos
-  por stdin. Toma posesión de `response.stdout`, ejecuta de a un proceso por vez, mezcla stderr en stdout y
-  les da `/dev/null` como stdin. Los argumentos se citan, no se interpolan.
+  por stdin. Toma posesión de `response.stdout` y ejecuta de a un proceso por vez. El `stdin` del request (o `/dev/null`) viaja
+  en base64 dentro del script, y el stderr se entrega al terminar, después del stdout. Con un shell en tty las líneas están limitadas
+  a 4096 bytes, así que ahí solo caben entradas pequeñas. Los argumentos se citan, no se interpolan.
+
+## Túneles dentro de un shell
+
+`CurlRequest.system` (y el parámetro `system` de `run()`) hace que `curl`, `node`, `ssh` y `kubectl` (incluido el `pod_match`)
+se ejecuten dentro de un shell ya abierto en vez de como hijos. Aún no se declara desde el manifest.

@@ -5,7 +5,7 @@ const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
 
 /**
  * Runs the requests inside the shell behind `shell`, one at a time. The shell must read commands from
- * its stdin. It takes over `shell.stdout`; the stderr of the nested processes is merged into their stdout.
+ * its stdin. It takes over `shell.stdout`; the stderr of a nested process is delivered after its stdout, once it ends.
  */
 export const nestedSpawner = (shell: ShellResponse) => {
   const shellStdin = shell.stdin;
@@ -72,34 +72,52 @@ export const nestedSpawner = (shell: ShellResponse) => {
       await turn;
       await ready;
       const pidMarker = mark("PID");
+      const errMarker = mark("ERR");
       const endMarker = mark("END");
       const inner = [
         print(pidMarker, '"$BASHPID"'),
         ...(request.cwd ? [`cd ${quote(request.cwd)} || exit 1`] : []),
         `exec ${request.env ? `env ${Object.entries(request.env).map(([k, v]) => quote(`${k}=${v}`)).join(" ")} ` : ""}${request.commands.map(quote).join(" ")}`,
       ].join("; ");
-      await send(`( ${inner} ) </dev/null 2>&1; ${print(endMarker, "$?")}`);
+      // The input travels as base64 in the script (bash reads the script from its stdin, so there is no argument limit).
+      const input = request.input ? Buffer.from(await new Response(request.input).arrayBuffer()) : undefined;
+      const stdin = input?.length ? `< <(printf '%s' ${quote(input.toString("base64"))} | base64 -d)` : "</dev/null";
+      // stderr goes to a file and is printed after stdout, between the markers.
+      await send(
+        `e=$(mktemp); ( ${inner} ) ${stdin} 2>"$e"; c=$?; ${print(errMarker, "0")}; cat "$e"; rm -f "$e"; ${print(endMarker, "$c")}`,
+      );
       const pid = Number(await until(pidMarker));
 
-      let output!: ReadableStreamDefaultController<Uint8Array>;
-      const stdout = new ReadableStream<Uint8Array>({ start: (controller) => void (output = controller) });
-      const stderr = new ReadableStream<Uint8Array>({ start: (controller) => controller.close() });
-      const exitCode = until(endMarker, (data) => {
-        if (data) output.enqueue(Buffer.from(data, "latin1"));
-      }).then(
+      const stream = () => {
+        let controller!: ReadableStreamDefaultController<Uint8Array>;
+        const readable = new ReadableStream<Uint8Array>({ start: (c) => void (controller = c) });
+        return { readable, controller };
+      };
+      const out = stream();
+      const err = stream();
+      const enqueueTo = (target: ReadableStreamDefaultController<Uint8Array>) => (data: string) => {
+        if (data) target.enqueue(Buffer.from(data, "latin1"));
+      };
+      const exitCode = (async () => {
+        await until(errMarker, enqueueTo(out.controller));
+        out.controller.close();
+        const code = await until(endMarker, enqueueTo(err.controller));
+        err.controller.close();
+        return Number(code);
+      })().then(
         (code) => {
-          output.close();
           release();
-          return Number(code);
+          return code;
         },
         (error) => {
-          output.error(error);
+          out.controller.error(error);
+          err.controller.error(error);
           release();
           throw error;
         },
       );
       exitCode.catch(() => {});
-      return new ShellResponse({ pid, exitCode, stdout, stderr, stdin: request.stdin });
+      return new ShellResponse({ pid, exitCode, stdout: out.readable, stderr: err.readable, stdin: request.stdin });
     } catch (error) {
       release();
       throw error;
