@@ -6,6 +6,8 @@ export interface ConsoleEntry {
   message: string;
 }
 
+import type { SystemSpawn } from "../../spawn";
+
 export interface CurlRequest {
   method: string;
   url: string;
@@ -27,6 +29,8 @@ export interface CurlRequest {
   onScript?: (script: string) => void;
   /** Called with every stdin/stdout/stderr piece of the command, in order, as it happens. */
   onConsole?: (entry: ConsoleEntry) => void;
+  /** Where the commands run (a shell already running, see `SystemSpawn.fromResponse`); by default as child processes. */
+  system?: SystemSpawn;
   /** Called with the exit code of that command once it has finished. */
   onExit?: (code: number | null) => void;
 }

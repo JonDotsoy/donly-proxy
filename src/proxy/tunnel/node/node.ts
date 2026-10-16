@@ -49,6 +49,7 @@ export const nodeRequest = async (request: CurlRequest) => {
       undefined,
       request.onExit,
       request.onConsole,
+      request.system,
     ),
   );
 };
