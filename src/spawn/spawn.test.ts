@@ -43,10 +43,8 @@ test("rejects when the program does not exist", async () => {
   expect(spawn(new ShellRequest({ commands: ["donly-no-such-program"] }))).rejects.toThrow();
 });
 
-test("runs a nested process inside a running bash", async () => {
-  const bashRequest = new ShellRequest({ commands: ["bash"], tty: true });
+const runLsInBash = async (bashRequest: ShellRequest) => {
   const bash = await spawn(bashRequest);
-
   const system = SystemSpawn.fromResponse(bash);
   const ls = await spawn(new ShellRequest({ commands: ["ls", "/"] }), { system });
   expect(ls.pid).toBeGreaterThan(0);
@@ -55,10 +53,24 @@ test("runs a nested process inside a running bash", async () => {
 
   const fail = await spawn(new ShellRequest({ commands: ["sh", "-c", "exit 4"] }), { system });
   expect(await fail.exitCode).toBe(4);
+  return bash;
+};
 
-  // With a tty closing stdin hangs the process up (SIGHUP) instead of sending an end of input.
+test("closes a bash with tty by signal (SIGHUP) after running a nested process", async () => {
+  const bashRequest = new ShellRequest({ commands: ["bash"], tty: true });
+  const bash = await runLsInBash(bashRequest);
+
+  // A terminal has no end of input: closing stdin hangs the process up (128 + SIGHUP).
   await bashRequest.stdin.getWriter().close();
   expect(await bash.exitCode).toBe(129);
+});
+
+test("closes a bash without tty by closing stdin after running a nested process", async () => {
+  const bashRequest = new ShellRequest({ commands: ["bash"] });
+  const bash = await runLsInBash(bashRequest);
+
+  await bashRequest.stdin.getWriter().close();
+  expect(await bash.exitCode).toBe(0);
 });
 
 test("nested processes never go through a shell", async () => {
