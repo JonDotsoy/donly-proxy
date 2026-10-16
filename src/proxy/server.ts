@@ -16,10 +16,10 @@ import { sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
 import { isRouteMethod, routeMethods } from "./route-methods";
 import { compileRoutePattern, type RoutePattern } from "./route-pattern";
-import type { ConsoleEntry } from "./tunnel/types";
+import type { SpawnLogger } from "../spawn";
 import { socksHandshake, targetName } from "./socks";
 import { authenticate, basicCredentials, challenge, parseAuth, verify, type AuthUser } from "./auth";
-import { createLogger_experimental, type CommandTransaction, type RequestTransaction } from "./logger";
+import { createLogger_experimental, type RequestTransaction } from "./logger";
 
 type Command = "curl" | "node" | "ssh" | "kubectl";
 
@@ -501,50 +501,34 @@ const commandPass = async (
     }
   }
   let executed: string[] | undefined;
-  let script: string | undefined;
-  // One transaction per process: kubectl runs the engine after `--`, so it opens two (the engine is
-  // the child of kubectl). The exit code of kubectl is the one of the engine (`kubectl exec` forwards it).
-  const processes: CommandTransaction[] = [];
   const onCommand = (c: string[]) => {
     executed = c;
-    const open = (parent: { command: RequestTransaction["command"] }, line: string[]) => {
-      const process = parent.command.openTransaction({ program: line[0]!, args: line.slice(1) });
-      processes.push(process);
-      return process;
-    };
-    const outer = open(logger, c);
-    const remote = command === "kubectl" ? c.indexOf("--") : -1;
-    const inner = remote >= 0 ? open(outer, c.slice(remote + 1)) : outer;
-    // `node` reads its script from stdin: the command alone does not say what it runs.
-    if (script !== undefined) inner.script.openTransaction({ script, program: "node" });
+  };
+  let script: string | undefined;
+  // Every process the tunnels spawn writes its own lines through the spawn API. kubectl runs the engine
+  // after `--`, so it opens two transactions (the engine is the child of kubectl); both end with the
+  // exit code of kubectl, which is the one of the engine (`kubectl exec` forwards it).
+  const open = (parent: { command: RequestTransaction["command"] }, line: string[]) =>
+    parent.command.openTransaction({ program: line[0]!, args: line.slice(1) });
+  const spawnLogger: SpawnLogger = {
+    parent: logger,
+    open: (shell) => {
+      const line = [...shell.commands];
+      const outer = open(logger, line);
+      const remote = command === "kubectl" ? line.indexOf("--") : -1;
+      const inner = remote >= 0 ? open(outer, line.slice(remote + 1)) : outer;
+      // `node` reads its script from stdin: the command alone does not say what it runs.
+      if (script !== undefined) inner.script.openTransaction({ script, program: "node" });
+      return inner === outer ? [outer] : [outer, inner];
+    },
   };
   // The `kubectl get pods` of `pod_match` is a process of its own, a sibling of the `kubectl exec`.
-  const lookupLog: ConsoleEntry[] = [];
-  let lookup: CommandTransaction | undefined;
-  const onLookup = {
-    onCommand: (c: string[]) => {
-      lookup = logger.command.openTransaction({ program: c[0]!, args: c.slice(1) });
-    },
-    onConsole: (entry: ConsoleEntry) => {
-      lookupLog.push(entry);
-    },
-    onExit: (code: number | null) => lookup?.end(code, lookupLog),
-  };
+  const onLookup = { logger: { parent: logger } };
   const onScript = (s: string) => {
     script = s;
   };
-  // Goes only to the log (the response to the client is untouched).
-  const consoleLog: ConsoleEntry[] = [];
-  const onConsole = (entry: ConsoleEntry) => {
-    consoleLog.push(entry);
-  };
-  const onExit = (code: number | null) => {
-    // Every process that ran ends with an exit code and a `console_log` (empty when it wrote nothing);
-    // the innermost ends first.
-    for (const process of [...processes].reverse()) process.end(code, consoleLog);
-  };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onScript, onExit, onConsole };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onScript, logger: spawnLogger };
     const response = await (command === "ssh"
       ? sshRequest(request, engine ?? "curl")
       : command === "kubectl"

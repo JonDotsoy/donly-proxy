@@ -52,6 +52,10 @@ Orden de una transacción con `proxy_pass`: `request` → `proxy_pass_request` �
 
 Orden de una transacción con comando: `request` → `command_start` (→ `command_start` hijo → `script_start`) → `command_end` del hijo (→ `script_end`) → `command_end` del padre → `response`.
 
+## Un proceso, una pareja de líneas
+
+Cada proceso que el proxy lanza con la API de spawn (`spawn(new ShellRequest(…), { logger })`) escribe su propia pareja `command_start` y `command_end`: `command_start` justo antes de ejecutarlo y `command_end` cuando termina, con su `exit_code` y todo lo que escribió a stdin, stdout y stderr. Si el proceso no llega a arrancar (por ejemplo, el binario no existe), `command_end` llega con `exit_code: null` y el error en un `stderr`. Los túneles `curl`, `node`, `ssh` y `kubectl` pasan por ahí, así que cada `ShellRequest` deja su línea en el `.ndjson` sin que el túnel sepa nada del log.
+
 ## `command_end`: `exit_code` y `console_log`
 
 - `exit_code`: código de salida del programa, o `null` si lo mató una señal (también si la petición terminó antes de que el proceso lo hiciera).

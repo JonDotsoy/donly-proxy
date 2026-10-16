@@ -50,6 +50,7 @@ export const nodeRequest = async (request: CurlRequest) => {
       request.onExit,
       request.onConsole,
       request.system,
+      request.logger,
     ),
   );
 };

@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **303** · ✅ pasan: **303** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **307** · ✅ pasan: **307** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -122,6 +122,7 @@ Specs: **303** · ✅ pasan: **303** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should call https://httpbin.io/get through kubectl_pass from the pod | ✅ | <code>kubectl_pass "--context" "kind-kind-cluster" "-n" "donly-proxy-test" "pod/echo" {</code><br><code>&nbsp;&nbsp;command_pass curl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;retry 3</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;extra_args --retry-all-errors --retry-delay 2</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should call kubectl exec with --context and --namespace when both are defined | ✅ | <code>context dev</code><br><code>namespace prod</code><br><code>namespace staging</code><br><code>context dev</code><br><code>namespace the-namespace</code><br><code>context the-context</code><br><code>namespace the-namespace</code> |
 | should close a connection that does not speak the configured socks version | ✅ | <code>listen socks5 127.0.0.1 0</code> |
+| should close the kubectl command lines with its exit code and stderr when it fails | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code><br><code>&nbsp;&nbsp;command_pass kubectl "deploy/broken"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code> |
 | should combine max_time with the options given as arguments | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>}</code><br><code>command_pass curl "--insecure" {</code><br><code>&nbsp;&nbsp;max_time 2.5</code><br><code>}</code><br><code>command_pass curl</code> |
 | should configure the whole ssh connection of ssh_pass with subdirectives | ✅ | <code>ssh_pass  {</code><br><code>&nbsp;&nbsp;host "remote.test"</code><br><code>&nbsp;&nbsp;port 45322</code><br><code>&nbsp;&nbsp;user "root"</code><br><code>&nbsp;&nbsp;identity_file "./id"</code><br><code>&nbsp;&nbsp;option "StrictHostKeyChecking=accept-new"</code><br><code>&nbsp;&nbsp;extra_args "-v"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should default the host to 127.0.0.1 when the manifest has none | ✅ |  |
@@ -306,6 +307,9 @@ Specs: **303** · ✅ pasan: **303** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should warn about an unknown directive inside auth | ✅ | <code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "secreto"</code><br><code>&nbsp;&nbsp;token "x"</code><br><code>}</code> |
 | should warn about routes declared after a route without arguments | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 404</code><br><code>}</code> |
 | should warn that host and port are deprecated | ✅ | <code>host "127.0.0.1"</code><br><code>port 8080</code> |
+| should write a command_start and a command_end line for the ssh ShellRequest | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code><br><code>&nbsp;&nbsp;command_pass kubectl "deploy/broken"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code> |
+| should write the kubectl get pods lookup as its own command lines, a sibling of the exec | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;pod_match "api-*"</code> |
+| should write two nested command lines for the kubectl ShellRequest | ✅ | <code>log_file "./proxy.ndjson"</code><br><code>&nbsp;&nbsp;command_pass kubectl "-n" "prod" "deploy/api"</code><br><code>&nbsp;&nbsp;command_pass kubectl "deploy/broken"</code><br><code>&nbsp;&nbsp;command_pass ssh "-p" "2222" "user@remote.test"</code> |
 | ssh failures are reported as a bad gateway | ✅ | <code>command_pass ssh "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass ssh "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>}</code><br><code>command_pass ssh "user@remote.test"</code> |
 | the status and headers are read from the last response printed by -S | ✅ | <code>engine wget</code> |
 | the three formats of route are evaluated in order | ✅ | <code>route POST "http://formats.test/*" {</code><br><code>&nbsp;&nbsp;respond 201 "method and url"</code><br><code>}</code><br><code>route "http://formats.test/*" {</code><br><code>&nbsp;&nbsp;respond 202 "url only"</code><br><code>}</code><br><code>route {</code><br><code>&nbsp;&nbsp;respond 203 "no arguments"</code><br><code>}</code> |
