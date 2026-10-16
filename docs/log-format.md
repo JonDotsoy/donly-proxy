@@ -42,6 +42,7 @@ Cada petición es una **transacción** y todo lo que hace por debajo (cada proce
 | `proxy_pass_request` | Antes de enviar la petición al destino de una ruta `proxy_pass`. | `span_id`, `parent_span_id`, `target` (URL del destino), `headers`, `payload`. |
 | `proxy_pass_response` | Cuando el destino responde (o falla: `502`). | `span_id`, `parent_span_id`, `target`, `status`, `headers`, `payload`. |
 | `command_start` | Cuando arranca un proceso de una ruta `command_pass`, `kubectl_pass` o `ssh_pass`. | `span_id`, `parent_span_id`, `program`, `args`, `command` (programa y argumentos). Con `kubectl` hay dos: `kubectl exec …` y, hijo suyo, el del motor remoto. Con `pod_match` hay además un `kubectl get pods …` previo, hermano del `exec`. |
+| `command_stdin` | Una petición de `ssh_pass` que se envió como stdin a un `ssh` que **ya estaba abierto** (o que se abrió para ella). Evento suelto, sin `_start`/`_end`. | `transaction_id` (el de la petición que lo envía), `parent_span_id` (el `command_start` del `ssh`), `program: "ssh"`, `reused` (`false` en la petición que abrió el `ssh`, `true` en las siguientes), `message` (lo que se envió por stdin al motor). |
 | `annotation` | Datos propios que se adjuntan a un proceso. | `span_id`, `parent_span_id`, `annotation`. |
 | `script_start` | Motor `node` (local o remoto), justo después de `command_start`. | `parent_span_id` (el proceso `node`), `program: "node"`, `script` (lo que se envía por stdin). |
 | `command_end` | **Siempre** al terminar cada proceso. | `span_id`, `parent_span_id`, `program`, `exit_code`, `console_log`. |
@@ -49,6 +50,8 @@ Cada petición es una **transacción** y todo lo que hace por debajo (cada proce
 | `response` | Respuesta enviada al cliente. | `span_id`, `status`, `headers`, `payload`, `payload_encoding`, y `command` en rutas con comando. |
 
 Orden de una transacción con `proxy_pass`: `request` → `proxy_pass_request` → `proxy_pass_response` → `response`.
+
+Con `ssh_pass` el `ssh` se reutiliza ([`idle_time`](concepts/ssh_pass.md#conexión-reutilizada)): su `command_start` y su `command_end` pertenecen a la petición que lo abrió, pero el `command_end` llega cuando el `ssh` se cierra por inactividad, después del `response` de esa petición. Entre ambos, cada petición que lo usa escribe un `command_stdin`.
 
 Orden de una transacción con comando: `request` → `command_start` (→ `command_start` hijo → `script_start`) → `command_end` del hijo (→ `script_end`) → `command_end` del padre → `response`.
 

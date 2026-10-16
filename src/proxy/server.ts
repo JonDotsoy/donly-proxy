@@ -12,7 +12,7 @@ import { curl } from "./tunnel/curl/curl";
 import { Semaphore } from "./semaphore";
 import { nodeRequest } from "./tunnel/node/node";
 import type { Engine } from "./tunnel/remote";
-import { sshRequest } from "./tunnel/ssh/ssh";
+import { SshSessions, sshRequest } from "./tunnel/ssh/ssh";
 import { kubectlRequest } from "./tunnel/kubectl/kubectl";
 import { isRouteMethod, routeMethods } from "./route-methods";
 import { compileRoutePattern, type RoutePattern } from "./route-pattern";
@@ -31,7 +31,7 @@ export interface Route {
   action:
     | { kind: "respond"; status: number; body: string }
     | { kind: "proxy_pass"; target: URL }
-    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; podMatch?: { glob: string; selectors: string[] }; password?: string };
+    | { kind: "command_pass"; command: Command; engine?: Engine; concurrency: number; args: string[]; engineArgs?: string[]; podMatch?: { glob: string; selectors: string[] }; password?: string; idleTime?: number };
 }
 
 /** One `listen` (or `port`) of the `proxy` block. */
@@ -140,9 +140,12 @@ const commandPassArgs = (name: string, directive: Directive): string[] => {
   return [...args.slice(0, -1), ...options, ...selectors, args.at(-1)!];
 };
 
+/** Seconds an `ssh_pass` keeps its ssh process open after the last request. */
+const defaultIdleTime = 10;
+
 /**
  * The connection settings inside an `ssh_pass`: `host`, `port` (`-p`), `user` (`-l`), `identity_file` (`-i`),
- * `option` (`-o`, repeatable), `extra_args` (raw ssh options) and the `pass` word for askpass.
+ * `option` (`-o`, repeatable), `extra_args` (raw ssh options), `idle_time` (seconds to keep ssh open) and the `pass` word for askpass.
  */
 const sshPassOptions = (name: string, directive: Directive, resolve: (path: string) => string) => {
   const all = (key: string) => directive.children.filter((c) => c.name === key);
@@ -152,6 +155,7 @@ const sshPassOptions = (name: string, directive: Directive, resolve: (path: stri
   const user = value("user");
   const pass = value("pass");
   const identity = value("identity_file");
+  const idleTime = value("idle_time") ?? defaultIdleTime;
   if (host !== undefined && (typeof host !== "string" || host === "")) {
     throw new Error(`route ${name}: host debe ser un destino (usuario@host, host o alias de ~/.ssh/config), no "${host}"`);
   }
@@ -167,6 +171,9 @@ const sshPassOptions = (name: string, directive: Directive, resolve: (path: stri
   if (identity !== undefined && (typeof identity !== "string" || identity === "")) {
     throw new Error(`route ${name}: identity_file debe ser una ruta, no "${identity}"`);
   }
+  if (typeof idleTime !== "number" || !Number.isFinite(idleTime) || idleTime < 0) {
+    throw new Error(`route ${name}: idle_time debe ser un número de segundos mayor o igual a 0, no "${idleTime}"`);
+  }
   const options = all("option").flatMap((c) => {
     const option = c.args[0];
     if (typeof option !== "string" || option === "") throw new Error(`route ${name}: option debe ser un texto no vacío, p. ej. "StrictHostKeyChecking=accept-new"`);
@@ -174,6 +181,7 @@ const sshPassOptions = (name: string, directive: Directive, resolve: (path: stri
   });
   return {
     host,
+    idleTime,
     options: [
       ...(port === undefined ? [] : ["-p", String(port)]),
       ...(user === undefined ? [] : ["-l", user]),
@@ -333,13 +341,13 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
           // the rest after the host are. The older "options… destination" form still works when the first one is an option.
           const sshArgs = (() => {
             if (kubectlPass) return undefined;
-            const { host: sshHost, options, password } = sshPassOptions(name, pass, resolve);
+            const { host: sshHost, options, password, idleTime } = sshPassOptions(name, pass, resolve);
             const args = pass.args.map(String);
-            if (sshHost !== undefined) return { args: [...args, ...options, sshHost], password };
+            if (sshHost !== undefined) return { args: [...args, ...options, sshHost], password, idleTime };
             const legacy = args[0]!.startsWith("-");
             const host = legacy ? args.at(-1)! : args[0]!;
             const given = legacy ? args.slice(0, -1) : args.slice(1);
-            return { args: [...given, ...options, host], password };
+            return { args: [...given, ...options, host], password, idleTime };
           })();
           return {
             method,
@@ -358,6 +366,7 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
                 : [...pass.args.map(String), ...selectorArgs(name, pass), String(podName)]),
               engineArgs: [...inner.args.slice(1).map(String), ...optionArgs(name, innerCommand, inner)],
               ...(sshArgs?.password === undefined ? {} : { password: sshArgs.password }),
+              ...(sshArgs === undefined ? {} : { idleTime: sshArgs.idleTime }),
             },
           };
         }
@@ -480,6 +489,9 @@ const fetchUpstream = async (upstream: URL, method: string | undefined, headers:
   }
 };
 
+/** The log transaction of each long-lived ssh process (`ssh_pass`), by its command line. */
+const sessionLogs = new WeakMap<string[], CommandTransaction>();
+
 /** Passes the request to an external command, which performs it against the original URL. */
 const commandPass = async (
   req: http.IncomingMessage,
@@ -492,6 +504,8 @@ const commandPass = async (
   podMatch: { glob: string; selectors: string[] } | undefined,
   password: string | undefined,
   logger: RequestTransaction,
+  /** `ssh_pass`: keep the ssh process open this many seconds between requests, in these sessions. */
+  keepOpen?: { idleTime: number; sessions: SshSessions },
 ): Promise<Reply> => {
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
@@ -508,8 +522,10 @@ const commandPass = async (
   const onCommand = (c: string[]) => {
     executed = c;
     const open = (parent: { command: RequestTransaction["command"] }, line: string[]) => {
-      const process = parent.command.openTransaction({ program: line[0]!, args: line.slice(1) });
+      // The ssh of a session outlives this request: it is not closed with the response.
+      const process = parent.command.openTransaction({ program: line[0]!, args: line.slice(1), persistent: keepOpen !== undefined && command === "ssh" });
       processes.push(process);
+      if (keepOpen) sessionLogs.set(line, process);
       return process;
     };
     const outer = open(logger, c);
@@ -530,6 +546,12 @@ const commandPass = async (
     },
     onExit: (code: number | null) => lookup?.end(code, lookupLog),
   };
+  // A request that goes as stdin to an ssh process that is already open (or was just opened for it).
+  const onStdin = (c: string[], reused: boolean, input: string) => {
+    executed = c;
+    const process = sessionLogs.get(c);
+    if (process) logger.stdin(process, input, reused);
+  };
   const onScript = (s: string) => {
     script = s;
   };
@@ -544,9 +566,11 @@ const commandPass = async (
     for (const process of [...processes].reverse()) process.end(code, consoleLog);
   };
   try {
-    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onScript, onExit, onConsole };
+    const request = { method: req.method ?? "GET", url, headers, body, args, engineArgs, podMatch, onLookup, password, onCommand, onStdin, onScript, onExit, onConsole };
     const response = await (command === "ssh"
-      ? sshRequest(request, engine ?? "curl")
+      ? keepOpen && keepOpen.idleTime > 0
+        ? keepOpen.sessions.request(request, engine ?? "curl", keepOpen.idleTime)
+        : sshRequest(request, engine ?? "curl")
       : command === "kubectl"
         ? kubectlRequest(request, engine ?? "curl")
         : command === "node"
@@ -593,6 +617,9 @@ export const createProxyServers = ({
     new WritableStream<Uint8Array>({ write: (chunk) => void (logFile && appendFileSync(logFile, chunk)) }),
   );
 
+  // The ssh processes that `ssh_pass` keeps open between requests; they end with the servers.
+  const sshSessions = new SshSessions();
+
   // One semaphore per command_pass route: `concurrency` processes at a time, the rest queue up.
   const limits = new Map<Route, Semaphore>();
   const limitOf = (route: Route, concurrency: number) => {
@@ -613,7 +640,7 @@ export const createProxyServers = ({
       case "command_pass": {
         const release = await limitOf(route, action.concurrency).acquire();
         try {
-          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.podMatch, action.password, logger);
+          return await commandPass(req, body, url, action.command, action.engine, action.args, action.engineArgs, action.podMatch, action.password, logger, action.idleTime === undefined ? undefined : { idleTime: action.idleTime, sessions: sshSessions });
         } finally {
           release();
         }
@@ -751,6 +778,7 @@ export const createProxyServers = ({
   return listeners.map(({ https: https_, socks }): net.Server => {
     const onClose = () => {
       if (--open === 0) {
+        sshSessions.close();
         tlsServer.close();
         plainServer.close();
       }

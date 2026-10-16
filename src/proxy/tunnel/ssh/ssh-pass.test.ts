@@ -29,6 +29,7 @@ const manifestPayload = `proxy {
   port 0
   route http://ssh-pass.test/* {
     ssh_pass "-p" "2222" "user@remote.test" {
+      idle_time 0
       command_pass curl "--max-time" "5"
     }
   }

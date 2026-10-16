@@ -37,6 +37,7 @@ const manifestPayload = (port: number) => `proxy {
   }
   route http://logcmd.test/via-ssh-pass {
     ssh_pass logged-host "-v" {
+      idle_time 0
       port 2200
       user deploy
       pass "top-secret"

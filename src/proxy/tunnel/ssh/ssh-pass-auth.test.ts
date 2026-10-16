@@ -34,17 +34,20 @@ const manifestPayload = `proxy {
   log_file "./proxy.ndjson"
   route http://alias.test/* {
     ssh_pass myserver {
+      idle_time 0
       command_pass curl
     }
   }
   route http://port.test/* {
     ssh_pass myserver {
+      idle_time 0
       port 2222
       command_pass curl
     }
   }
   route http://user.test/* {
     ssh_pass myserver {
+      idle_time 0
       user jon
       port 2200
       command_pass curl
@@ -52,11 +55,13 @@ const manifestPayload = `proxy {
   }
   route http://options.test/* {
     ssh_pass myserver "-v" {
+      idle_time 0
       command_pass curl
     }
   }
   route http://password.test/* {
     ssh_pass myserver {
+      idle_time 0
       user jon
       pass "s3cr3t pa$$"
       command_pass curl

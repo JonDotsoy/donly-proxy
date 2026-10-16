@@ -491,6 +491,15 @@ route http{s}?://api.internal/* {
   arranque falla con `namespace debe ser un nombre` / `context debe ser un nombre`.
   Lo mismo vale para [`command_pass kubectl`](#kubectl); con otro comando falla con
   `namespace solo aplica a kubectl_pass y command_pass kubectl`.
+- **`idle_time`**: `ssh_pass` reutiliza la conexión. La primera petición abre `ssh <host> sh -s` y
+  las siguientes solo escriben su script por stdin en ese proceso, sin repetir el handshake ni la
+  autenticación. Pasados `idle_time` segundos sin uso el `ssh` se cierra (y también al terminar el
+  proxy); la siguiente petición abre uno nuevo. Una petición usa un `ssh` a la vez: con peticiones
+  simultáneas se abren varios (hasta el `concurrency` de la ruta), agrupados por host, opciones y
+  contraseña. En el `log_file` aparece un solo `command_start` y un solo `command_end` por `ssh`, y
+  cada petición añade una línea `command_stdin` (`reused: true` si el proceso ya estaba abierto).
+  `command_pass ssh` no reutiliza la conexión. El protocolo con el `sh` remoto está en
+  [`ssh-session.md`](ssh-session.md).
 - Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
   comando, o sin hijo, el arranque falla. Sus argumentos son **opciones adicionales del comando
   remoto** (`curl`: tras los flags fijos; `wget`: antes de la URL; `node`: antes del script, sin
@@ -559,11 +568,12 @@ route http{s}?://api.internal/* {
   | `option <opción>` | `-o <opción>` | texto no vacío, p. ej. `"StrictHostKeyChecking=accept-new"`; se puede repetir |
   | `extra_args <arg…>` | opciones de `ssh` tal cual | cualquier opción (`"-v"`, `"-4"`…) |
   | `pass <contraseña>` | autenticación por contraseña | texto no vacío (o número) |
+  | `idle_time <segundos>` | cuánto se mantiene abierto el `ssh` tras la última petición | número ≥ 0 (admite decimales), por defecto `10`; `0` abre un `ssh` por petición |
 
   Con otro valor el arranque falla con `host debe ser un destino (…)`,
   `port debe ser un puerto entre 1 y 65535`, `user debe ser un nombre`,
   `identity_file debe ser una ruta`, `option debe ser un texto no vacío` o
-  `pass debe ser un texto no vacío`. Las opciones se pasan a `ssh` en este orden: las de la línea,
+  `pass debe ser un texto no vacío` (y `idle_time debe ser un número de segundos mayor o igual a 0`). Las opciones se pasan a `ssh` en este orden: las de la línea,
   `-p`, `-l`, `-i`, los `-o`, los `extra_args` y por último el destino.
 
   ```
