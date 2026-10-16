@@ -17,12 +17,13 @@ jobs:
       fail-fast: false
       matrix:
         host: [161.35.11.114, 147.182.174.111]
+        port: [22, 45322]
     steps:
       - name: Runner public IP
         run: curl -fsS https://api.ipify.org; echo
 
-      - name: Port 22 reachable
-        run: nc -zv -w 10 "${{ matrix.host }}" 22
+      - name: Port reachable
+        run: nc -zv -w 10 "${{ matrix.host }}" "${{ matrix.port }}"
 
       - name: SSH login
         env:
@@ -33,5 +34,5 @@ jobs:
           ssh -i "$RUNNER_TEMP/id_ed25519" \
             -o BatchMode=yes -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
-            "root@${{ matrix.host }}" 'echo connected; uname -a'
+            -p "${{ matrix.port }}" "root@${{ matrix.host }}" 'echo connected; uname -a'
           rm -f "$RUNNER_TEMP/id_ed25519"
