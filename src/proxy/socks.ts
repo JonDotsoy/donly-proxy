@@ -70,19 +70,27 @@ const ipv6 = (bytes: Buffer) => {
   return new URL(`http://[${groups.join(":")}]`).hostname.slice(1, -1);
 };
 
+/** Decides a SOCKS5 username/password pair (RFC 1929). */
+export type SocksAuthenticate = (username: string, password: string) => boolean;
+
 /**
  * SOCKS handshake for `version` (4, which includes 4a, or 5), without authentication and with the
  * CONNECT command only. Resolves with the target and the bytes already read after the request;
  * rejects after answering the client with the matching error when it asks for anything else.
  * The socket is left paused.
  */
-export const socksHandshake = async (socket: Duplex, version: 4 | 5): Promise<{ target: SocksTarget; rest: Buffer }> => {
+export const socksHandshake = async (
+  socket: Duplex,
+  version: 4 | 5,
+  authenticate?: SocksAuthenticate,
+): Promise<{ target: SocksTarget; rest: Buffer; user?: string }> => {
   const reader = new Reader(socket);
   try {
     const [first] = await reader.read(1);
     if (first !== version) throw new Error(`socks: expected SOCKS${version}, got version ${first}`);
-    const target = version === 4 ? await socks4(reader, socket) : await socks5(reader, socket);
-    return { target, rest: reader.detach() };
+    if (version === 4 && authenticate) throw new Error("socks4: no soporta autenticación");
+    const result = version === 4 ? { target: await socks4(reader, socket) } : await socks5(reader, socket, authenticate);
+    return { ...result, rest: reader.detach() };
   } catch (error) {
     reader.detach();
     throw error;
@@ -103,14 +111,30 @@ const socks4 = async (reader: Reader, socket: Duplex): Promise<SocksTarget> => {
   return { host: domain ?? `${a}.${b}.${c}.${d}`, port: (portHi! << 8) | portLo! };
 };
 
-const socks5 = async (reader: Reader, socket: Duplex): Promise<SocksTarget> => {
+const socks5 = async (reader: Reader, socket: Duplex, authenticate?: SocksAuthenticate): Promise<{ target: SocksTarget; user?: string }> => {
   const [count] = await reader.read(1);
   const methods = await reader.read(count!);
-  if (!methods.includes(0)) {
+  // With authentication only method 0x02 (username/password) is acceptable; without it, only 0x00.
+  const method = authenticate ? 2 : 0;
+  if (!methods.includes(method)) {
     socket.write(Buffer.from([5, 0xff]));
-    throw new Error("socks5: no acceptable authentication method (only no-auth is supported)");
+    throw new Error(`socks5: no acceptable authentication method (only ${authenticate ? "username/password" : "no-auth"} is supported)`);
   }
-  socket.write(Buffer.from([5, 0]));
+  socket.write(Buffer.from([5, method]));
+  let user: string | undefined;
+  if (authenticate) {
+    // RFC 1929: VER=1, ULEN, UNAME, PLEN, PASSWD.
+    const [subVersion, userLength] = await reader.read(2);
+    const username = (await reader.read(userLength!)).toString("utf8");
+    const [passwordLength] = await reader.read(1);
+    const password = (await reader.read(passwordLength!)).toString("utf8");
+    if (subVersion !== 1 || !authenticate(username, password)) {
+      socket.write(Buffer.from([1, 1]));
+      throw new Error("socks5: authentication failed");
+    }
+    socket.write(Buffer.from([1, 0]));
+    user = username;
+  }
   const [version, command, , type] = await reader.read(4);
   const reply = (code: number) => socket.write(Buffer.from([5, code, 0, 1, 0, 0, 0, 0, 0, 0]));
   if (version !== 5) throw new Error(`socks5: unexpected version ${version}`);
@@ -132,7 +156,7 @@ const socks5 = async (reader: Reader, socket: Duplex): Promise<SocksTarget> => {
     throw new Error(`socks5: unsupported command ${command}`);
   }
   reply(0);
-  return { host, port };
+  return { target: { host, port }, user };
 };
 
 /** `host:port` of a target the way the routes see it (the default `:443` is omitted, IPv6 in brackets). */

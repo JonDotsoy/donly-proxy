@@ -13,6 +13,16 @@ export interface RequestInfo {
   httpVersion: string;
   headers: Record<string, string | string[] | undefined>;
   body: Buffer;
+  /** User that authenticated the request or its tunnel (`auth basic`). */
+  proxyUser?: string;
+}
+
+/** A refused attempt to authenticate against the proxy. */
+export interface AuthFailureInfo {
+  protocol: "http" | "connect" | "socks5";
+  /** Name the client tried; the password is never logged. */
+  user?: string;
+  remoteAddress?: string;
 }
 
 export interface CommandInfo {
@@ -53,6 +63,7 @@ type Entry = Record<string, unknown>;
 
 export interface Logger {
   listening(host: string, port: number): void;
+  authFailed(info: AuthFailureInfo): void;
   readonly request: { openTransaction(request: RequestInfo): RequestTransaction };
   /** Resolves once every line written so far has been accepted by the stream. */
   flush(): Promise<void>;
@@ -80,6 +91,10 @@ export interface RequestTransaction extends Spans {
   /** Writes `response`; commands still open are closed first, with a `null` exit code. */
   response(reply: ResponseInfo): void;
 }
+
+/** Credentials never reach the log. */
+const redact = (headers: RequestInfo["headers"]) =>
+  "proxy-authorization" in headers ? { ...headers, "proxy-authorization": "[redacted]" } : headers;
 
 /** Payload as utf8 when lossless, base64 otherwise. */
 const encodePayload = (body: Buffer) => {
@@ -143,6 +158,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
 
   return {
     listening: (host, port) => write({ type: "listening", host, port }),
+    authFailed: (info) => write({ type: "auth_failed", scheme: "basic", protocol: info.protocol, user: info.user, remote_address: info.remoteAddress }),
     flush: async () => {
       await pending;
     },
@@ -155,7 +171,7 @@ export const createLogger_experimental = (writable: WritableStream<Uint8Array>):
           url: request.url,
         };
         const spanId = randomUUID();
-        write({ ...transaction, type: "request", span_id: spanId, headers: request.headers, ...encodePayload(request.body) });
+        write({ ...transaction, type: "request", span_id: spanId, headers: redact(request.headers), ...(request.proxyUser === undefined ? {} : { proxy_user: request.proxyUser }), ...encodePayload(request.body) });
         const open = new Set<CommandTransaction>();
         return {
           transactionId: transaction.transaction_id,

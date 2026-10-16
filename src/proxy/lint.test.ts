@@ -166,3 +166,20 @@ testFeature(`proxy {\n  route "example.com" {\n    respond 200\n  }\n}\n`, ["/pr
 testFeature(`proxy {\n  route POST "example.com" {\n    respond 200\n  }\n}\n`, ["/proxy/route"], "should lint a route with a method and a pattern", (payload) => {
   expect(messages(payload)).toEqual([]);
 });
+
+const withAuth = (auth: string) => `proxy {\n  listen http 0\n  ${auth}\n}\n`;
+
+const authValid = withAuth(`auth basic {\n    username "alice"\n    password "secreto"\n  }`);
+testFeature(authValid, ["/proxy/auth/username", "/proxy/auth/password"], "should lint an auth basic block without issues", (payload) => {
+  expect(lintManifest(payload)).toEqual([]);
+});
+
+const authScheme = withAuth(`auth digest {\n    username "alice"\n    password "secreto"\n  }`);
+testFeature(authScheme, ["/proxy/auth"], "should report an error when auth uses a scheme other than basic", (payload) => {
+  expect(messages(payload, "error")).toEqual(["auth solo soporta el esquema basic"]);
+});
+
+const authUnknown = withAuth(`auth basic {\n    username "alice"\n    password "secreto"\n    token "x"\n  }`);
+testFeature(authUnknown, ["/proxy/auth"], "should warn about an unknown directive inside auth", (payload) => {
+  expect(messages(payload, "warning")).toEqual(["directiva desconocida `token` en auth"]);
+});

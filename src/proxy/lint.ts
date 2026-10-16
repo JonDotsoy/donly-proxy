@@ -6,7 +6,7 @@ import type { Directive } from "donly";
 import { isRouteMethod, routeMethods } from "./route-methods";
 
 const actions = ["respond", "proxy_pass", "command_pass", "kubectl_pass", "ssh_pass"];
-const proxyDirectives = ["listen", "host", "port", "ssl", "log_file", "route"];
+const proxyDirectives = ["listen", "host", "port", "ssl", "log_file", "route", "auth"];
 const routeDirectives = actions;
 
 const unknownChildren = (known: string[], where: string) => (directive: Directive): LintIssue[] =>
@@ -86,6 +86,10 @@ export const manifestRules: LintRuleDocument = {
   "/proxy/ssl": { evaluation: unknownChildren(["cert", "key"], "ssl") },
   "/proxy/ssl/cert[1]": { type: "string", message: "ssl.cert debe ser un texto" },
   "/proxy/ssl/key[1]": { type: "string", message: "ssl.key debe ser un texto" },
+  "/proxy/auth": { evaluation: unknownChildren(["username", "password"], "auth") },
+  "/proxy/auth[1]": { type: "string", pattern: "^basic$", message: "auth solo soporta el esquema basic" },
+  "/proxy/auth/username[1]": { type: "string", message: "auth username debe ser un texto" },
+  "/proxy/auth/password[1]": { type: "string", message: "auth password debe ser un texto" },
   "/proxy/route": { evaluation: (directive) => [...routeArguments(directive), ...routeActions(directive), ...unknownChildren(routeDirectives, "route")(directive)] },
   // The body is optional, so it is checked here instead of with a `[2]` constraint.
   "/proxy/route/respond": {
