@@ -10,6 +10,9 @@ name: ssh-pass-e2e
 #   SSH_TEST_KEY   private key (OpenSSH format, no passphrase) that the host accepts.
 #   SSH_TEST_PORT  SSH port of the host (optional, 22 when it is not set).
 on:
+  # Temporary branch only (never merged): the push runs the check with the defaults below.
+  push:
+    branches: [claude/ssh-pass-e2e-with-refactor]
   workflow_dispatch:
     inputs:
       engine:
@@ -41,7 +44,7 @@ jobs:
           SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
           SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
           PORT: ${{ secrets.SSH_TEST_PORT || '22' }}
-          SSH_USER: ${{ inputs.user }}
+          SSH_USER: ${{ inputs.user || 'root' }}
         run: |
           [ -n "$SSH_TEST_HOST" ] || { echo "::error::falta el secreto SSH_TEST_HOST"; exit 1; }
           [ -n "$SSH_TEST_KEY" ] || { echo "::error::falta el secreto SSH_TEST_KEY"; exit 1; }
@@ -54,8 +57,8 @@ jobs:
           SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
           SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
           PORT: ${{ secrets.SSH_TEST_PORT || '22' }}
-          SSH_USER: ${{ inputs.user }}
-          ENGINE: ${{ inputs.engine }}
+          SSH_USER: ${{ inputs.user || 'root' }}
+          ENGINE: ${{ inputs.engine || 'curl' }}
         run: |
           echo "::add-mask::$SSH_TEST_HOST"
           umask 077
@@ -98,7 +101,7 @@ jobs:
           egress_ip=$(curl -fsS -m 30 -x http://127.0.0.1:18080 http://api.ipify.org)
           local_ip=$(curl -fsS -m 30 -x http://127.0.0.1:18080 http://ipv4.icanhazip.com | tr -d '[:space:]')
           echo "runner ip: $runner_ip"
-          echo "egress ip via ssh_pass (${{ inputs.engine }}): $egress_ip"
+          echo "egress ip via ssh_pass (${{ inputs.engine || 'curl' }}): $egress_ip"
           echo "ip via local command_pass curl: $local_ip"
           [[ "$egress_ip" =~ $ip ]] || { echo "::error::ssh_pass no devolvió una IP"; exit 1; }
           [ "$egress_ip" != "$runner_ip" ] || { echo "::error::ssh_pass salió con la IP del runner"; exit 1; }
