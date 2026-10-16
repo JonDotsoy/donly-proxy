@@ -5,7 +5,7 @@
 ```ts
 import { ShellRequest, SystemSpawn, spawn } from "./src/spawn";
 
-const request = new ShellRequest({ commands: ["cat"], env: { A: "1" }, cwd: "/tmp" });
+const request = new ShellRequest({ commands: ["cat"], env: { A: "1" }, cwd: "/tmp", stdin: new WritableStream() });
 const response = await spawn(request, { system: SystemSpawn.defaultChildProcess });
 response.pid;        // number
 response.stdout;     // ReadableStream<Uint8Array>
@@ -14,10 +14,11 @@ await response.exitCode;
 await request.stdin.getWriter().close(); // cierra el stdin del proceso
 ```
 
-- `ShellRequest` recibe `commands` (programa y argumentos, nunca una cadena de shell), `env`, `cwd`, `stdin` y `tty`.
+- `ShellRequest` recibe `commands` (programa y argumentos, nunca una cadena de shell), `env`, `cwd` y `stdin`.
   `new ShellRequest(request, extra)` copia una petición y comparte su `stdin` salvo que `extra.stdin` lo reemplace.
-  Con `stdin` en las opciones, lo que se escribe en `request.stdin` también se escribe en ese stream.
-- `tty: true` (solo Bun) conecta el proceso a un pseudo terminal: stdout y stderr llegan mezclados por `stdout`
+  Sin `stdin` el request no tiene `stdin` ni tty (`tty: false`) y el proceso recibe el fin de entrada de inmediato.
+  Con `stdin` en las opciones el request tiene `request.stdin` (lo escrito también va a ese stream) y equivale a `tty: true`.
+- Con `stdin` (solo Bun) el proceso queda en un pseudo terminal: stdout y stderr llegan mezclados por `stdout`
   y cerrar el stdin envía `SIGHUP` al proceso (un terminal no tiene fin de entrada).
 - `SystemSpawn.defaultChildProcess` ejecuta como hijo de este proceso.
 - `SystemSpawn.fromResponse(response)` ejecuta dentro de un shell ya iniciado (p. ej. `bash`) que lee comandos

@@ -25,7 +25,8 @@ export const spawnChildProcess = async (request: ShellRequest): Promise<ShellRes
     child.once("close", (code, signal) => resolve(exitCodeOf(code, signal))),
   );
   child.stdin.on("error", () => {});
-  request.input.pipeTo(Writable.toWeb(child.stdin)).catch(() => {});
+  if (request.input) request.input.pipeTo(Writable.toWeb(child.stdin)).catch(() => {});
+  else child.stdin.end();
   return new ShellResponse({
     pid: child.pid!,
     exitCode,
@@ -43,14 +44,19 @@ const spawnWithTerminal = async (request: ShellRequest): Promise<ShellResponse> 
   const child = Bun.spawn(request.commands, {
     cwd: request.cwd,
     env: request.env && { ...process.env, ...request.env },
-    terminal: { cols: 80, rows: 24, data: (_terminal: unknown, data: Uint8Array) => output.enqueue(data.slice()) },
+    terminal: { cols: 80, rows: 24, data: (_terminal: unknown, data: Uint8Array) => {
+        // Late data after the exit is dropped.
+        try {
+          output.enqueue(data.slice());
+        } catch {}
+      } },
   } as Bun.SpawnOptions.OptionsObject<any, any, any>);
   const terminal = (child as unknown as { terminal: { write(data: string | Uint8Array): void } }).terminal;
   const exitCode = child.exited.then((code) => {
     output.close();
     return code;
   });
-  request.input
+  request.input!
     .pipeTo(
       new WritableStream<Uint8Array>({
         write: (chunk) => void terminal.write(chunk),

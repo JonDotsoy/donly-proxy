@@ -1,12 +1,13 @@
 export interface ShellRequestOptions {
   /** Program followed by its arguments. They are never interpreted by a shell. */
   commands: string[];
-  /** When given, everything written to `request.stdin` is also written to this stream. */
+  /**
+   * Gives the process an input and runs it attached to a pseudo terminal (tty).
+   * Without it the request has no stdin and no tty. Everything written to `request.stdin` is also written to this stream.
+   */
   stdin?: WritableStream<Uint8Array>;
   env?: Record<string, string>;
   cwd?: string;
-  /** Run the process attached to a pseudo terminal. */
-  tty?: boolean;
 }
 
 /** Asserts that `val` starts with the program to run. */
@@ -15,14 +16,18 @@ export function assertCommands(val: string[]): asserts val is [string, ...string
 }
 
 export class ShellRequest {
+  /** Whether the process runs attached to a pseudo terminal: when the request has a stdin. */
+  get tty() {
+    return this.stdin !== undefined;
+  }
+
   readonly commands: [string, ...string[]];
   readonly env?: Record<string, string>;
   readonly cwd?: string;
-  readonly tty: boolean;
-  /** Writable side of the process input: write to it, and close it to end the input. */
-  readonly stdin: WritableStream<Uint8Array>;
+  /** Writable side of the process input. Only exists when `stdin` was given, and then the process runs in a tty. */
+  readonly stdin?: WritableStream<Uint8Array>;
   /** Readable side of the process input, consumed by the system that runs the request. */
-  readonly input: ReadableStream<Uint8Array>;
+  readonly input?: ReadableStream<Uint8Array>;
 
   /** Copies `request` overriding it with `extra`. The copy shares the input of the original unless `extra.stdin` is given. */
   constructor(request: ShellRequest, extra?: Partial<ShellRequestOptions>);
@@ -35,7 +40,6 @@ export class ShellRequest {
     assertCommands(copy);
     this.commands = copy;
     this.cwd = extra?.cwd ?? source.cwd;
-    this.tty = extra?.tty ?? source.tty ?? false;
     const env = { ...source.env, ...extra?.env };
     this.env = source.env || extra?.env ? env : undefined;
 
@@ -44,13 +48,14 @@ export class ShellRequest {
       this.input = base.input;
       return;
     }
-    const sink = options.stdin?.getWriter();
+    if (!options.stdin) return;
+    const sink = options.stdin.getWriter();
     const pipe = new TransformStream<Uint8Array, Uint8Array>({
       transform: async (chunk, controller) => {
         controller.enqueue(chunk);
-        await sink?.write(chunk);
+        await sink.write(chunk);
       },
-      flush: () => sink?.close(),
+      flush: () => sink.close(),
     });
     this.stdin = pipe.writable;
     this.input = pipe.readable;
@@ -63,7 +68,7 @@ export interface ShellResponseInit {
   stdout: ReadableStream<Uint8Array>;
   stderr: ReadableStream<Uint8Array>;
   /** The input of the process, used to run nested processes (see `SystemSpawn.fromResponse`). */
-  stdin: WritableStream<Uint8Array>;
+  stdin?: WritableStream<Uint8Array>;
 }
 
 export class ShellResponse {
@@ -71,7 +76,7 @@ export class ShellResponse {
   readonly exitCode: Promise<number>;
   readonly stdout: ReadableStream<Uint8Array>;
   readonly stderr: ReadableStream<Uint8Array>;
-  readonly stdin: WritableStream<Uint8Array>;
+  readonly stdin?: WritableStream<Uint8Array>;
 
   constructor(init: ShellResponseInit) {
     this.pid = init.pid;

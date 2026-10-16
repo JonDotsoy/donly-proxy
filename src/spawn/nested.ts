@@ -8,6 +8,8 @@ const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
  * its stdin. It takes over `shell.stdout`; the stderr of the nested processes is merged into their stdout.
  */
 export const nestedSpawner = (shell: ShellResponse) => {
+  const shellStdin = shell.stdin;
+  if (!shellStdin) throw new TypeError("the shell has no stdin: create its request with a stdin to run nested processes");
   const reader = shell.stdout.getReader();
   let pending = "";
   let ended = false;
@@ -22,7 +24,7 @@ export const nestedSpawner = (shell: ShellResponse) => {
   };
 
   const send = async (script: string) => {
-    const writer = shell.stdin.getWriter();
+    const writer = shellStdin.getWriter();
     try {
       await writer.write(new TextEncoder().encode(`${script}\n`));
     } finally {

@@ -22,14 +22,15 @@ test("passes env and cwd without a shell", async () => {
   expect(await text(response.stdout)).toBe(`$(echo injected) ${cwd}`);
 });
 
-test("feeds request.stdin to the process and ends with it", async () => {
-  const request = new ShellRequest({ commands: ["cat"] });
+test("feeds request.stdin to a process in a tty and hangs it up when closed", async () => {
+  const request = new ShellRequest({ commands: ["cat"], stdin: new WritableStream() });
   const response = await spawn(request);
-  const writer = request.stdin.getWriter();
-  await writer.write(new TextEncoder().encode("hello"));
+  const writer = request.stdin!.getWriter();
+  await writer.write(new TextEncoder().encode("hello\n"));
+  await Bun.sleep(100);
   await writer.close();
-  expect(await text(response.stdout)).toBe("hello");
-  expect(await response.exitCode).toBe(0);
+  expect(await response.exitCode).toBe(129);
+  expect(await text(response.stdout)).toContain("hello");
 });
 
 test("a request copy overrides the options of the original", async () => {
@@ -57,28 +58,35 @@ const runLsInBash = async (bashRequest: ShellRequest) => {
 };
 
 test("closes a bash with tty by signal (SIGHUP) after running a nested process", async () => {
-  const bashRequest = new ShellRequest({ commands: ["bash"], tty: true });
+  const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream() });
   const bash = await runLsInBash(bashRequest);
 
   // A terminal has no end of input: closing stdin hangs the process up (128 + SIGHUP).
-  await bashRequest.stdin.getWriter().close();
+  await bashRequest.stdin!.getWriter().close();
   expect(await bash.exitCode).toBe(129);
 });
 
-test("closes a bash without tty by closing stdin after running a nested process", async () => {
-  const bashRequest = new ShellRequest({ commands: ["bash"] });
-  const bash = await runLsInBash(bashRequest);
+test("a request without stdin has no stdin and no tty", async () => {
+  const request = new ShellRequest({ commands: ["cat"] });
+  expect(request.stdin).toBeUndefined();
+  expect(request.tty).toBe(false);
+  const response = await spawn(request);
+  expect(await text(response.stdout)).toBe("");
+  expect(await response.exitCode).toBe(0);
+  expect(() => SystemSpawn.fromResponse(response)).toThrow("no stdin");
+});
 
-  await bashRequest.stdin.getWriter().close();
-  expect(await bash.exitCode).toBe(0);
+test("a request with stdin runs in a tty", () => {
+  expect(new ShellRequest({ commands: ["cat"], stdin: new WritableStream() }).tty).toBe(true);
 });
 
 test("nested processes never go through a shell", async () => {
-  const bashRequest = new ShellRequest({ commands: ["bash"] });
+  const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream() });
   const bash = await spawn(bashRequest);
   const system = SystemSpawn.fromResponse(bash);
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
-  expect(await text(echo.stdout)).toBe("$(echo x)'; echo y\n");
-  await bashRequest.stdin.getWriter().close();
-  expect(await bash.exitCode).toBe(0);
+  // The tty of the parent shell turns "\n" into "\r\n".
+  expect((await text(echo.stdout)).replaceAll("\r", "")).toBe("$(echo x)'; echo y\n");
+  await bashRequest.stdin!.getWriter().close();
+  expect(await bash.exitCode).toBe(129);
 });
