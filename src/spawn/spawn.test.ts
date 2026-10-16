@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { ShellRequest, SystemSpawn, spawn } from "./index";
+import { ShellRequest, SignalError, SystemSpawn, spawn } from "./index";
 
 const text = (stream: ReadableStream<Uint8Array>) => new Response(stream).text();
 
@@ -99,6 +99,13 @@ test("nested processes never go through a shell, closing the bash by signal", as
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
   // The tty of the parent shell turns "\n" into "\r\n".
   expect((await text(echo.stdout)).replaceAll("\r", "")).toBe("$(echo x)'; echo y\n");
-  controller.abort();
+  controller.abort(new SignalError("SIGHUP"));
   expect(await bash.exitCode).toBe(129);
+});
+
+test("aborting with a SignalError sends that signal", async () => {
+  const controller = new AbortController();
+  const response = await spawn(new ShellRequest({ commands: ["sleep", "30"], signal: controller.signal }));
+  controller.abort(new SignalError("SIGKILL"));
+  expect(await response.exitCode).toBe(137);
 });

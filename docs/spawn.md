@@ -18,7 +18,7 @@ await request.stdin.getWriter().close(); // cierra el stdin del proceso
   `new ShellRequest(request, extra)` copia una petición y comparte su `stdin` salvo que `extra.stdin` lo reemplace.
   Sin `stdin` el request no tiene `stdin` ni tty (`tty: false`) y el proceso recibe el fin de entrada de inmediato.
   Con `stdin` en las opciones el request tiene `request.stdin` (lo escrito también va a ese stream) y equivale a `tty: true`.
-- `signal` (un `AbortSignal`): al abortarlo se termina el proceso (`SIGHUP` en tty, `SIGTERM` si no). No aplica a procesos anidados.
+- `signal` (un `AbortSignal`): al abortarlo se termina el proceso con la señal de `controller.abort(new SignalError("SIGHUP"))`; sin ella, `SIGHUP` en tty y `SIGTERM` si no. No aplica a procesos anidados.
 - Con `stdin` (solo Bun) el proceso queda en un pseudo terminal: stdout y stderr llegan mezclados por `stdout`
   y cerrar el stdin envía `SIGHUP` al proceso (un terminal no tiene fin de entrada).
 - `SystemSpawn.defaultChildProcess` ejecuta como hijo de este proceso.

@@ -8,8 +8,19 @@ export interface ShellRequestOptions {
   stdin?: WritableStream<Uint8Array>;
   env?: Record<string, string>;
   cwd?: string;
-  /** Aborting it ends the process: with `SIGHUP` in a tty (shells ignore `SIGTERM`), with `SIGTERM` otherwise. */
+  /**
+   * Aborting it ends the process with the signal of a `SignalError` reason, or by default with `SIGHUP`
+   * in a tty (shells ignore `SIGTERM`) and `SIGTERM` otherwise.
+   */
   signal?: AbortSignal;
+}
+
+/** Abort reason that picks the signal sent to the process: `controller.abort(new SignalError("SIGHUP"))`. */
+export class SignalError extends Error {
+  constructor(readonly signal: NodeJS.Signals) {
+    super(`process ended by ${signal}`);
+    this.name = "SignalError";
+  }
 }
 
 /** Asserts that `val` starts with the program to run. */
