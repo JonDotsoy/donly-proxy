@@ -1,7 +1,9 @@
 name: ssh-pass-e2e
 
 # Manual check of `ssh_pass` against a real SSH host: the proxy runs on the runner and sends the
-# request through the host, so the IP it answers with must be the host's, not the runner's.
+# request through the host, so the IP it answers with must be the host's, not the runner's. A second
+# route runs a local `command_pass curl` as control (its IP must be the runner's), and the `.ndjson`
+# log must show both the `ssh` and the `curl` processes.
 #
 # Secrets (Settings > Secrets and variables > Actions):
 #   SSH_TEST_HOST  destination for ssh_pass: `host`, `user@host` or an IP. Not printed to the logs.
@@ -63,7 +65,7 @@ jobs:
           proxy {
             listen 127.0.0.1 18080
             log_file "./proxy.ndjson"
-            route {
+            route http://api.ipify.org/* {
               ssh_pass {
                 host "$SSH_TEST_HOST"
                 port $PORT
@@ -74,6 +76,9 @@ jobs:
                 command_pass $ENGINE
               }
             }
+            route http://ipv4.icanhazip.com/* {
+              command_pass curl
+            }
           }
           MANIFEST
 
@@ -83,16 +88,26 @@ jobs:
           for i in $(seq 1 20); do nc -z 127.0.0.1 18080 && break; sleep 0.5; done
           nc -z 127.0.0.1 18080
 
-      - name: Request through ssh_pass
+      - name: Request through ssh_pass and through a local command_pass curl
         env:
           SSH_TEST_HOST: ${{ secrets.SSH_TEST_HOST }}
         run: |
           echo "::add-mask::$SSH_TEST_HOST"
-          runner_ip=$(curl -fsS https://api.ipify.org)
+          ip='^[0-9]{1,3}(\.[0-9]{1,3}){3}$'
+          runner_ip=$(curl -4 -fsS https://api.ipify.org)
           egress_ip=$(curl -fsS -m 30 -x http://127.0.0.1:18080 http://api.ipify.org)
+          local_ip=$(curl -fsS -m 30 -x http://127.0.0.1:18080 http://ipv4.icanhazip.com | tr -d '[:space:]')
           echo "runner ip: $runner_ip"
           echo "egress ip via ssh_pass (${{ inputs.engine }}): $egress_ip"
-          [ -n "$egress_ip" ] && [ "$egress_ip" != "$runner_ip" ]
+          echo "ip via local command_pass curl: $local_ip"
+          [[ "$egress_ip" =~ $ip ]] || { echo "::error::ssh_pass no devolvió una IP"; exit 1; }
+          [ "$egress_ip" != "$runner_ip" ] || { echo "::error::ssh_pass salió con la IP del runner"; exit 1; }
+          [ "$local_ip" = "$runner_ip" ] || { echo "::error::command_pass curl local no salió con la IP del runner"; exit 1; }
+
+      - name: Check the log
+        run: |
+          jq -s -e 'map(select(.type == "command_start") | .program) | index("ssh") != null and index("curl") != null' \
+            "$RUNNER_TEMP/proxy.ndjson"
 
       - name: Cleanup
         if: always()
