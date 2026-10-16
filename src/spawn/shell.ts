@@ -1,3 +1,5 @@
+import { constants } from "node:os";
+
 export interface ShellRequestOptions {
   /** Program followed by its arguments. They are never interpreted by a shell. */
   commands: string[];
@@ -15,11 +17,24 @@ export interface ShellRequestOptions {
   signal?: AbortSignal;
 }
 
-/** Abort reason that picks the signal sent to the process: `controller.abort(new SignalError("SIGHUP"))`. */
+/** Name of the signal for a name, a signal number (`1`) or an exit code of a signalled process (`129` = 128 + 1). */
+const signalName = (signal: NodeJS.Signals | number): NodeJS.Signals => {
+  if (typeof signal === "string") return signal;
+  const number = signal > 128 ? signal - 128 : signal;
+  const name = (Object.keys(constants.signals) as NodeJS.Signals[]).find((key) => constants.signals[key] === number);
+  if (!name) throw new RangeError(`unknown signal ${signal}`);
+  return name;
+};
+
+/** Abort reason that picks the signal sent to the process: `controller.abort(new SignalError("SIGHUP"))` or `new SignalError(129)`. */
 export class SignalError extends Error {
-  constructor(readonly signal: NodeJS.Signals) {
-    super(`process ended by ${signal}`);
+  readonly signal: NodeJS.Signals;
+
+  constructor(signal: NodeJS.Signals | number) {
+    const name = signalName(signal);
+    super(`process ended by ${name}`);
     this.name = "SignalError";
+    this.signal = name;
   }
 }
 

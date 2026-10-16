@@ -109,3 +109,17 @@ test("aborting with a SignalError sends that signal", async () => {
   controller.abort(new SignalError("SIGKILL"));
   expect(await response.exitCode).toBe(137);
 });
+
+test("a SignalError accepts a signal number or an exit code", () => {
+  expect(new SignalError(1).signal).toBe("SIGHUP");
+  expect(new SignalError(129).signal).toBe("SIGHUP");
+  expect(new SignalError(137).signal).toBe("SIGKILL");
+  expect(() => new SignalError(999)).toThrow(RangeError);
+});
+
+test("aborting with a SignalError made of an exit code sends that signal", async () => {
+  const controller = new AbortController();
+  const response = await spawn(new ShellRequest({ commands: ["sleep", "30"], signal: controller.signal }));
+  controller.abort(new SignalError(129));
+  expect(await response.exitCode).toBe(129);
+});
