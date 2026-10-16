@@ -498,7 +498,8 @@ route http{s}?://api.internal/* {
   simultáneas se abren varios (hasta el `concurrency` de la ruta), agrupados por host, opciones y
   contraseña. En el `log_file` aparece un solo `command_start` y un solo `command_end` por `ssh`, y
   cada petición añade una línea `command_stdin` (`reused: true` si el proceso ya estaba abierto).
-  `command_pass ssh` no reutiliza la conexión.
+  `command_pass ssh` no reutiliza la conexión. El protocolo con el `sh` remoto está en
+  [`ssh-session.md`](ssh-session.md).
 - Debe tener un `command_pass` hijo con `curl`, `wget` o `node` (equivale a `engine`); con otro
   comando, o sin hijo, el arranque falla. Sus argumentos son **opciones adicionales del comando
   remoto** (`curl`: tras los flags fijos; `wget`: antes de la URL; `node`: antes del script, sin

@@ -46,7 +46,8 @@ así que no repiten el handshake ni la autenticación. Tras `idle_time` segundos
 defecto) el `ssh` se cierra, y la siguiente petición abre uno nuevo. Una petición usa un `ssh` a la
 vez: con peticiones simultáneas se abren varios (hasta el `concurrency` de la ruta). En el
 `log_file` hay un solo `command_start` y un solo `command_end` por `ssh`, y un `command_stdin` por
-petición ([`log-format.md`](../log-format.md)). `command_pass ssh` no reutiliza la conexión.
+petición ([`log-format.md`](../log-format.md)). El protocolo con el `sh` remoto está en
+[`tunnel/ssh-session.md`](../tunnel/ssh-session.md). `command_pass ssh` no reutiliza la conexión.
 
 ## Autenticación
 
