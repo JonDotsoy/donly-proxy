@@ -140,12 +140,21 @@ const commandPassArgs = (name: string, directive: Directive): string[] => {
   return [...args.slice(0, -1), ...options, ...selectors, args.at(-1)!];
 };
 
-/** `port`, `user` and `pass` inside an `ssh_pass`: `-p <port>`, `-l <user>` and the password for askpass. */
-const sshPassOptions = (name: string, directive: Directive) => {
-  const value = (key: string) => directive.children.find((c) => c.name === key)?.args[0];
+/**
+ * The connection settings inside an `ssh_pass`: `host`, `port` (`-p`), `user` (`-l`), `identity_file` (`-i`),
+ * `option` (`-o`, repeatable), `extra_args` (raw ssh options) and the `pass` word for askpass.
+ */
+const sshPassOptions = (name: string, directive: Directive, resolve: (path: string) => string) => {
+  const all = (key: string) => directive.children.filter((c) => c.name === key);
+  const value = (key: string) => all(key)[0]?.args[0];
+  const host = value("host");
   const port = value("port");
   const user = value("user");
   const pass = value("pass");
+  const identity = value("identity_file");
+  if (host !== undefined && (typeof host !== "string" || host === "")) {
+    throw new Error(`route ${name}: host debe ser un destino (usuario@host, host o alias de ~/.ssh/config), no "${host}"`);
+  }
   if (port !== undefined && !(typeof port === "number" && Number.isInteger(port) && port >= 1 && port <= 65535)) {
     throw new Error(`route ${name}: port debe ser un puerto entre 1 y 65535, no "${port}"`);
   }
@@ -155,8 +164,23 @@ const sshPassOptions = (name: string, directive: Directive) => {
   if (pass !== undefined && !((typeof pass === "string" && pass !== "") || typeof pass === "number")) {
     throw new Error(`route ${name}: pass debe ser un texto no vacío`);
   }
+  if (identity !== undefined && (typeof identity !== "string" || identity === "")) {
+    throw new Error(`route ${name}: identity_file debe ser una ruta, no "${identity}"`);
+  }
+  const options = all("option").flatMap((c) => {
+    const option = c.args[0];
+    if (typeof option !== "string" || option === "") throw new Error(`route ${name}: option debe ser un texto no vacío, p. ej. "StrictHostKeyChecking=accept-new"`);
+    return ["-o", option];
+  });
   return {
-    options: [...(port === undefined ? [] : ["-p", String(port)]), ...(user === undefined ? [] : ["-l", user])],
+    host,
+    options: [
+      ...(port === undefined ? [] : ["-p", String(port)]),
+      ...(user === undefined ? [] : ["-l", user]),
+      ...(identity === undefined ? [] : ["-i", resolve(identity)]),
+      ...options,
+      ...all("extra_args").flatMap((c) => c.args.map(String)),
+    ],
     password: pass === undefined ? undefined : String(pass),
   };
 };
@@ -294,8 +318,8 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
           if (podMatchDirective && podName !== undefined) {
             throw new Error(`route ${name}: pod_name y pod_match no se pueden combinar`);
           }
-          if (pass.args.length < 1 && podName === undefined && podMatch === undefined) {
-            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre, o las subdirectivas pod_name / pod_match" : "usuario@host"})`);
+          if (pass.args.length < 1 && podName === undefined && podMatch === undefined && !(sshPass && child("host", sshPass))) {
+            throw new Error(`route ${name}: ${directive} requiere el destino (${kubectlPass ? "pod o tipo/nombre, o las subdirectivas pod_name / pod_match" : "usuario@host, o la subdirectiva host"})`);
           }
           if (!inner || (innerCommand !== "curl" && innerCommand !== "wget" && innerCommand !== "node")) {
             throw new Error(`route ${name}: ${directive} requiere un command_pass hijo con "curl", "wget" o "node"${innerCommand === undefined ? "" : `, no "${innerCommand}"`}`);
@@ -304,12 +328,14 @@ const buildConfig = (proxy: Directive | undefined, url: URL): ProxyConfig => {
           if (innerConcurrency !== undefined && !(typeof innerConcurrency === "number" && Number.isInteger(innerConcurrency) && innerConcurrency >= 1)) {
             throw new Error(`route ${name}: concurrency debe ser un entero positivo, no "${innerConcurrency}"`);
           }
-          // ssh_pass takes the host first (an alias of ~/.ssh/config works); the arguments after it are
-          // ssh options. The older "options… destination" form still works when the first one is an option.
+          // ssh_pass takes the host from the `host` subdirective or, failing that, from the first argument of the
+          // line (an alias of ~/.ssh/config works). With `host` every argument of the line is an ssh option; without it
+          // the rest after the host are. The older "options… destination" form still works when the first one is an option.
           const sshArgs = (() => {
             if (kubectlPass) return undefined;
-            const { options, password } = sshPassOptions(name, pass);
+            const { host: sshHost, options, password } = sshPassOptions(name, pass, resolve);
             const args = pass.args.map(String);
+            if (sshHost !== undefined) return { args: [...args, ...options, sshHost], password };
             const legacy = args[0]!.startsWith("-");
             const host = legacy ? args.at(-1)! : args[0]!;
             const given = legacy ? args.slice(0, -1) : args.slice(1);

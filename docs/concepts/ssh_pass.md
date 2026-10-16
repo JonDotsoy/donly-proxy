@@ -6,9 +6,12 @@ anidada de [`command_pass ssh`](command_pass.md): la directiva nombra el host y 
 
 ```
 route http{s}?://api.internal/* {
-  ssh_pass myserver {
+  ssh_pass {
+    host "myserver"
     port 2222
     user deploy
+    identity_file "./keys/id_ed25519"
+    option "StrictHostKeyChecking=accept-new"
     command_pass curl "--max-time" "5"
   }
 }
@@ -16,17 +19,22 @@ route http{s}?://api.internal/* {
 
 ## Idea
 
-Sirve para que el tráfico salga desde un host remoto (un bastión, un servidor con otra IP…). El
-primer argumento es el **host**: un nombre de `~/.ssh/config`, un DNS, una IP o `usuario@host`, de
-modo que se aplica la configuración de `ssh` (usuario, puerto, llave, `ProxyJump`…). Los
-argumentos siguientes son opciones adicionales de `ssh`.
+Sirve para que el tráfico salga desde un host remoto (un bastión, un servidor con otra IP…). Toda
+la conexión se declara con subdirectivas. El **host** puede ser un nombre de `~/.ssh/config`, un
+DNS, una IP o `usuario@host`, de modo que se aplica la configuración de `ssh` (usuario, puerto,
+llave, `ProxyJump`…). También sigue valiendo darlo como primer argumento
+(`ssh_pass myserver { … }`); entonces los argumentos que siguen son opciones adicionales de `ssh`.
 
 ## Piezas
 
 | Pieza | Equivale a | Valor |
 | --- | --- | --- |
+| `host <destino>` | el destino de `ssh` | texto no vacío |
 | `port <n>` | `-p <n>` | entero entre 1 y 65535 |
 | `user <nombre>` | `-l <nombre>` | texto no vacío |
+| `identity_file <ruta>` | `-i <ruta>` | texto no vacío; relativa a la carpeta del manifest |
+| `option <opción>` | `-o <opción>` | texto no vacío; se puede repetir |
+| `extra_args <arg…>` | opciones de `ssh` tal cual | cualquier opción |
 | `pass <contraseña>` | autenticación por contraseña | texto no vacío |
 | `command_pass` hijo | `engine` | obligatorio: `curl`, `wget` o `node` |
 
@@ -39,7 +47,7 @@ claro en el manifest: restringe sus permisos y prefiere llaves o el agente.
 
 ## Reglas
 
-- Sin host falla con `ssh_pass requiere el destino`; sin `command_pass` hijo, con
+- Sin destino (ni `host` ni primer argumento) falla con `ssh_pass requiere el destino`; sin `command_pass` hijo, con
   `ssh_pass requiere un command_pass hijo`.
 - Un `route` no puede combinar `ssh_pass` con otra acción.
 - Ningún dato de la petición pasa por el shell remoto (ver [`command_pass`](command_pass.md)).
