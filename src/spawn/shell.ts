@@ -9,8 +9,13 @@ export interface ShellRequestOptions {
   tty?: boolean;
 }
 
+/** Asserts that `val` starts with the program to run. */
+export function assertCommands(val: string[]): asserts val is [string, ...string[]] {
+  if (!val.length || !val[0]) throw new TypeError("commands must start with the program to run");
+}
+
 export class ShellRequest {
-  readonly commands: string[];
+  readonly commands: [string, ...string[]];
   readonly env?: Record<string, string>;
   readonly cwd?: string;
   readonly tty: boolean;
@@ -26,8 +31,9 @@ export class ShellRequest {
     const base = source instanceof ShellRequest ? source : undefined;
     const options = { ...source, ...extra };
     const commands = extra?.commands ?? source.commands;
-    if (!commands.length || !commands[0]) throw new TypeError("commands must start with the program to run");
-    this.commands = [...commands];
+    const copy = [...commands];
+    assertCommands(copy);
+    this.commands = copy;
     this.cwd = extra?.cwd ?? source.cwd;
     this.tty = extra?.tty ?? source.tty ?? false;
     const env = { ...source.env, ...extra?.env };

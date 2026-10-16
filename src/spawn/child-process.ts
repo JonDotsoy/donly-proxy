@@ -12,7 +12,7 @@ const exitCodeOf = (code: number | null, signal: NodeJS.Signals | null) =>
 export const spawnChildProcess = async (request: ShellRequest): Promise<ShellResponse> => {
   if (request.tty) return spawnWithTerminal(request);
   const [command, ...args] = request.commands;
-  const child = spawn(command!, args, {
+  const child = spawn(command, args, {
     cwd: request.cwd,
     env: request.env && { ...process.env, ...request.env },
     stdio: "pipe",
