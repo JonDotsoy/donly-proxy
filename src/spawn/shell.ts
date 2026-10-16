@@ -9,10 +9,13 @@ export interface ShellRequestOptions {
    * process gets the end of the input right away. Everything written to `request.stdin` is also written to this stream.
    */
   stdin?: WritableStream<Uint8Array>;
+  /** Run the process attached to a pseudo terminal (Bun only). Defaults to `false`: stdin, stdout and stderr are pipes. */
+  tty?: boolean;
   env?: Record<string, string>;
   cwd?: string;
   /**
-   * Aborting it ends the process with the signal of a `SignalError` reason, or by default with `SIGTERM`.
+   * Aborting it ends the process with the signal of a `SignalError` reason, or by default with `SIGTERM`
+   * (`SIGHUP` in a tty: shells ignore `SIGTERM`).
    */
   signal?: AbortSignal;
 }
@@ -49,6 +52,8 @@ export class ShellRequest {
   readonly env?: Record<string, string>;
   readonly cwd?: string;
   readonly signal?: AbortSignal;
+  /** Whether the process runs attached to a pseudo terminal, where stdout and stderr come mixed through stdout. */
+  readonly tty: boolean;
   /** Writable side of the process input. Only exists when `stdin` was given. */
   readonly stdin?: WritableStream<Uint8Array>;
   /** Readable side of the process input, consumed by the system that runs the request. */
@@ -66,6 +71,7 @@ export class ShellRequest {
     this.commands = copy;
     this.cwd = extra?.cwd ?? source.cwd;
     this.signal = extra?.signal ?? source.signal;
+    this.tty = extra?.tty ?? source.tty ?? false;
     const env = { ...source.env, ...extra?.env };
     this.env = source.env || extra?.env ? env : undefined;
 

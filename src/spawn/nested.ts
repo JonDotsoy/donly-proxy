@@ -57,9 +57,9 @@ export const nestedSpawner = (shell: ShellResponse) => {
   const print = (marker: string, value: string) => `printf '%s%d\\n' ${quote(marker)} ${value}`;
 
   const ready = (async () => {
-    // Without prompts the output of the shell is only the output of the commands.
+    // Without readline echo, prompts and line editing the output of the shell is only the output of the commands.
     const marker = mark("INIT");
-    await send(`PS1=; PS2=; ${print(marker, "0")}`);
+    await send(`set +o emacs 2>/dev/null; set +o vi 2>/dev/null; stty -echo 2>/dev/null; PS1=; PS2=; ${print(marker, "0")}`);
     await until(marker);
   })();
   ready.catch(() => {});

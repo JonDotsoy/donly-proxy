@@ -131,3 +131,34 @@ test("a request without stdin has no stdin and the process gets the end of input
   expect(await response.exitCode).toBe(0);
   expect(() => SystemSpawn.fromResponse(response)).toThrow("no stdin");
 });
+
+test("tty: the process runs in a terminal and closing stdin hangs it up", async () => {
+  const request = new ShellRequest({ commands: ["cat"], stdin: new WritableStream(), tty: true });
+  expect(request.tty).toBe(true);
+  const response = await spawn(request);
+  const writer = request.stdin!.getWriter();
+  await writer.write(new TextEncoder().encode("hello\n"));
+  await Bun.sleep(100);
+  await writer.close();
+  expect(await response.exitCode).toBe(129);
+  expect(await text(response.stdout)).toContain("hello");
+});
+
+test("tty: runs a nested process in a bash with a terminal and closes it by stdin or by signal", async () => {
+  for (const close of ["stdin", "signal"] as const) {
+    const controller = new AbortController();
+    const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream(), tty: true, signal: controller.signal });
+    const bash = await runLsInBash(bashRequest);
+    if (close === "stdin") await bashRequest.stdin!.getWriter().close();
+    else controller.abort(new SignalError("SIGHUP"));
+    // A terminal has no end of input: both ways hang the shell up (128 + SIGHUP).
+    expect(await bash.exitCode).toBe(129);
+  }
+});
+
+test("a request copy keeps the tty option", () => {
+  const base = new ShellRequest({ commands: ["bash"], stdin: new WritableStream(), tty: true });
+  expect(new ShellRequest(base).tty).toBe(true);
+  expect(new ShellRequest(base, { tty: false }).tty).toBe(false);
+  expect(new ShellRequest({ commands: ["bash"] }).tty).toBe(false);
+});
