@@ -22,15 +22,16 @@ test("passes env and cwd without a shell", async () => {
   expect(await text(response.stdout)).toBe(`$(echo injected) ${cwd}`);
 });
 
-test("feeds request.stdin to a process in a tty and hangs it up when closed", async () => {
+test("feeds request.stdin to the process, which lives while the writable is open", async () => {
   const request = new ShellRequest({ commands: ["cat"], stdin: new WritableStream() });
   const response = await spawn(request);
   const writer = request.stdin!.getWriter();
   await writer.write(new TextEncoder().encode("hello\n"));
   await Bun.sleep(100);
+  await writer.write(new TextEncoder().encode("world"));
   await writer.close();
-  expect(await response.exitCode).toBe(129);
-  expect(await text(response.stdout)).toContain("hello");
+  expect(await text(response.stdout)).toBe("hello\nworld");
+  expect(await response.exitCode).toBe(0);
 });
 
 test("a request copy overrides the options of the original", async () => {
@@ -57,27 +58,12 @@ const runLsInBash = async (bashRequest: ShellRequest) => {
   return bash;
 };
 
-test("closes a bash with tty by signal (SIGHUP) after running a nested process", async () => {
+test("closes a bash by closing its stdin after running a nested process", async () => {
   const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream() });
   const bash = await runLsInBash(bashRequest);
 
-  // A terminal has no end of input: closing stdin hangs the process up (128 + SIGHUP).
   await bashRequest.stdin!.getWriter().close();
-  expect(await bash.exitCode).toBe(129);
-});
-
-test("a request without stdin has no stdin and no tty", async () => {
-  const request = new ShellRequest({ commands: ["cat"] });
-  expect(request.stdin).toBeUndefined();
-  expect(request.tty).toBe(false);
-  const response = await spawn(request);
-  expect(await text(response.stdout)).toBe("");
-  expect(await response.exitCode).toBe(0);
-  expect(() => SystemSpawn.fromResponse(response)).toThrow("no stdin");
-});
-
-test("a request with stdin runs in a tty", () => {
-  expect(new ShellRequest({ commands: ["cat"], stdin: new WritableStream() }).tty).toBe(true);
+  expect(await bash.exitCode).toBe(0);
 });
 
 test("nested processes never go through a shell", async () => {
@@ -85,10 +71,9 @@ test("nested processes never go through a shell", async () => {
   const bash = await spawn(bashRequest);
   const system = SystemSpawn.fromResponse(bash);
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
-  // The tty of the parent shell turns "\n" into "\r\n".
-  expect((await text(echo.stdout)).replaceAll("\r", "")).toBe("$(echo x)'; echo y\n");
+  expect(await text(echo.stdout)).toBe("$(echo x)'; echo y\n");
   await bashRequest.stdin!.getWriter().close();
-  expect(await bash.exitCode).toBe(129);
+  expect(await bash.exitCode).toBe(0);
 });
 
 test("nested processes never go through a shell, closing the bash by signal", async () => {
@@ -97,8 +82,7 @@ test("nested processes never go through a shell, closing the bash by signal", as
   const bash = await spawn(bashRequest);
   const system = SystemSpawn.fromResponse(bash);
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
-  // The tty of the parent shell turns "\n" into "\r\n".
-  expect((await text(echo.stdout)).replaceAll("\r", "")).toBe("$(echo x)'; echo y\n");
+  expect(await text(echo.stdout)).toBe("$(echo x)'; echo y\n");
   controller.abort(new SignalError("SIGHUP"));
   expect(await bash.exitCode).toBe(129);
 });
@@ -139,13 +123,11 @@ test("combines a controller and a timeout with AbortSignal.any: the timeout ends
   expect(await response.exitCode).toBe(143);
 });
 
-test("stdin with tty false is piped: no terminal echo, and closing it ends the input", async () => {
-  const request = new ShellRequest({ commands: ["cat"], stdin: new WritableStream(), tty: false });
-  expect(request.tty).toBe(false);
+test("a request without stdin has no stdin and the process gets the end of input", async () => {
+  const request = new ShellRequest({ commands: ["cat"] });
+  expect(request.stdin).toBeUndefined();
   const response = await spawn(request);
-  const writer = request.stdin!.getWriter();
-  await writer.write(new TextEncoder().encode("hello\nworld"));
-  await writer.close();
-  expect(await text(response.stdout)).toBe("hello\nworld");
+  expect(await text(response.stdout)).toBe("");
   expect(await response.exitCode).toBe(0);
+  expect(() => SystemSpawn.fromResponse(response)).toThrow("no stdin");
 });

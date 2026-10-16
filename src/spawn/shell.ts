@@ -4,17 +4,15 @@ export interface ShellRequestOptions {
   /** Program followed by its arguments. They are never interpreted by a shell. */
   commands: string[];
   /**
-   * Gives the process an input (and, unless `tty: false`, runs it attached to a pseudo terminal).
-   * Without it the request has no stdin and no tty. Everything written to `request.stdin` is also written to this stream.
+   * Gives the process an input: what is written to `request.stdin` reaches the process, and closing it ends the input.
+   * The process keeps its stdin open while the writable stays alive. Without it the request has no stdin and the
+   * process gets the end of the input right away. Everything written to `request.stdin` is also written to this stream.
    */
   stdin?: WritableStream<Uint8Array>;
-  /** Attach the process to a pseudo terminal. Defaults to whether `stdin` is given; `stdin` with `tty: false` pipes it. */
-  tty?: boolean;
   env?: Record<string, string>;
   cwd?: string;
   /**
-   * Aborting it ends the process with the signal of a `SignalError` reason, or by default with `SIGHUP`
-   * in a tty (shells ignore `SIGTERM`) and `SIGTERM` otherwise.
+   * Aborting it ends the process with the signal of a `SignalError` reason, or by default with `SIGTERM`.
    */
   signal?: AbortSignal;
 }
@@ -46,14 +44,12 @@ export function assertCommands(val: string[]): asserts val is [string, ...string
 }
 
 export class ShellRequest {
-  /** Whether the process runs attached to a pseudo terminal: by default, when the request has a stdin. */
-  readonly tty: boolean;
 
   readonly commands: [string, ...string[]];
   readonly env?: Record<string, string>;
   readonly cwd?: string;
   readonly signal?: AbortSignal;
-  /** Writable side of the process input. Only exists when `stdin` was given, and then the process runs in a tty. */
+  /** Writable side of the process input. Only exists when `stdin` was given. */
   readonly stdin?: WritableStream<Uint8Array>;
   /** Readable side of the process input, consumed by the system that runs the request. */
   readonly input?: ReadableStream<Uint8Array>;
@@ -70,7 +66,6 @@ export class ShellRequest {
     this.commands = copy;
     this.cwd = extra?.cwd ?? source.cwd;
     this.signal = extra?.signal ?? source.signal;
-    this.tty = extra?.tty ?? (extra?.stdin ? true : source instanceof ShellRequest ? source.tty : source.tty ?? source.stdin !== undefined);
     const env = { ...source.env, ...extra?.env };
     this.env = source.env || extra?.env ? env : undefined;
 
