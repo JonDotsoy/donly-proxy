@@ -1,0 +1,37 @@
+name: ssh-connectivity-test
+
+# Temporary check: can a GitHub runner reach the test droplets over SSH?
+# Only runs on pull requests from this exact branch.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ssh:
+    if: github.head_ref == 'claude/project-thread-ouqt66' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [161.35.11.114, 147.182.174.111]
+    steps:
+      - name: Runner public IP
+        run: curl -fsS https://api.ipify.org; echo
+
+      - name: Port 22 reachable
+        run: nc -zv -w 10 "${{ matrix.host }}" 22
+
+      - name: SSH login
+        env:
+          SSH_TEST_KEY: ${{ secrets.SSH_TEST_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_TEST_KEY" > "$RUNNER_TEMP/id_ed25519"
+          ssh -i "$RUNNER_TEMP/id_ed25519" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 \
+            "root@${{ matrix.host }}" 'echo connected; uname -a'
+          rm -f "$RUNNER_TEMP/id_ed25519"
