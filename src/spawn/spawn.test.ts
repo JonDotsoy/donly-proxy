@@ -139,12 +139,13 @@ test("combines a controller and a timeout with AbortSignal.any: the timeout ends
   expect(await response.exitCode).toBe(143);
 });
 
-test("data is written to the stdin of the process without a tty", async () => {
-  const request = new ShellRequest({ commands: ["cat"], data: "hello\nworld" });
-  expect(request.stdin).toBeUndefined();
+test("stdin with tty false is piped: no terminal echo, and closing it ends the input", async () => {
+  const request = new ShellRequest({ commands: ["cat"], stdin: new WritableStream(), tty: false });
   expect(request.tty).toBe(false);
   const response = await spawn(request);
+  const writer = request.stdin!.getWriter();
+  await writer.write(new TextEncoder().encode("hello\nworld"));
+  await writer.close();
   expect(await text(response.stdout)).toBe("hello\nworld");
   expect(await response.exitCode).toBe(0);
-  expect(() => new ShellRequest({ commands: ["cat"], data: "x", stdin: new WritableStream() })).toThrow(TypeError);
 });

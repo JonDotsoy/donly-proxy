@@ -32,8 +32,13 @@ export const run = async (
   onCommand?.([command, ...argv]);
   const entry = (type: ConsoleEntry["type"], message: string) =>
     onConsole?.({ type, timestamp: new Date().toISOString(), message });
-  const response = await spawn(new ShellRequest({ commands: [command, ...argv], data: input, env }));
+  // A piped stdin, not a terminal: the output has to be exactly what the command wrote.
+  const request = new ShellRequest({ commands: [command, ...argv], stdin: new WritableStream(), tty: false, env });
+  const response = await spawn(request);
   entry("stdin", input.toString());
+  const writer = request.stdin!.getWriter();
+  // Not awaited: the command may print before it has read all of its input.
+  writer.write(typeof input === "string" ? new TextEncoder().encode(input) : input).then(() => writer.close()).catch(() => {});
   const [stdout, stderr, code] = await Promise.all([
     collect(response.stdout, (chunk) => entry("stdout", chunk.toString())),
     collect(response.stderr, (chunk) => entry("stderr", chunk.toString())),

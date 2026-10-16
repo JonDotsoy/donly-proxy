@@ -4,12 +4,12 @@ export interface ShellRequestOptions {
   /** Program followed by its arguments. They are never interpreted by a shell. */
   commands: string[];
   /**
-   * Gives the process an input and runs it attached to a pseudo terminal (tty).
+   * Gives the process an input (and, unless `tty: false`, runs it attached to a pseudo terminal).
    * Without it the request has no stdin and no tty. Everything written to `request.stdin` is also written to this stream.
    */
   stdin?: WritableStream<Uint8Array>;
-  /** Bytes written to the process stdin before closing it, without a tty. Not combinable with `stdin`. */
-  data?: string | Uint8Array;
+  /** Attach the process to a pseudo terminal. Defaults to whether `stdin` is given; `stdin` with `tty: false` pipes it. */
+  tty?: boolean;
   env?: Record<string, string>;
   cwd?: string;
   /**
@@ -46,10 +46,8 @@ export function assertCommands(val: string[]): asserts val is [string, ...string
 }
 
 export class ShellRequest {
-  /** Whether the process runs attached to a pseudo terminal: when the request has a stdin. */
-  get tty() {
-    return this.stdin !== undefined;
-  }
+  /** Whether the process runs attached to a pseudo terminal: by default, when the request has a stdin. */
+  readonly tty: boolean;
 
   readonly commands: [string, ...string[]];
   readonly env?: Record<string, string>;
@@ -72,23 +70,13 @@ export class ShellRequest {
     this.commands = copy;
     this.cwd = extra?.cwd ?? source.cwd;
     this.signal = extra?.signal ?? source.signal;
+    this.tty = extra?.tty ?? (extra?.stdin ? true : source instanceof ShellRequest ? source.tty : source.tty ?? source.stdin !== undefined);
     const env = { ...source.env, ...extra?.env };
     this.env = source.env || extra?.env ? env : undefined;
 
-    if (base && !extra?.stdin && extra?.data === undefined) {
+    if (base && !extra?.stdin) {
       this.stdin = base.stdin;
       this.input = base.input;
-      return;
-    }
-    if (options.data !== undefined) {
-      if (options.stdin) throw new TypeError("data and stdin cannot be used together");
-      const data = typeof options.data === "string" ? new TextEncoder().encode(options.data) : options.data;
-      this.input = new ReadableStream<Uint8Array>({
-        start: (controller) => {
-          if (data.length) controller.enqueue(data);
-          controller.close();
-        },
-      });
       return;
     }
     if (!options.stdin) return;
