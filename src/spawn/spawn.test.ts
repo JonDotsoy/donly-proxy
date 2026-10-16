@@ -123,3 +123,18 @@ test("aborting with a SignalError made of an exit code sends that signal", async
   controller.abort(new SignalError(129));
   expect(await response.exitCode).toBe(129);
 });
+
+test("combines a controller and a timeout with AbortSignal.any: the controller wins with its SignalError", async () => {
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+  const response = await spawn(new ShellRequest({ commands: ["sleep", "30"], signal }));
+  controller.abort(new SignalError("SIGKILL"));
+  expect(await response.exitCode).toBe(137);
+});
+
+test("combines a controller and a timeout with AbortSignal.any: the timeout ends the process with the default signal", async () => {
+  const controller = new AbortController();
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(100)]);
+  const response = await spawn(new ShellRequest({ commands: ["sleep", "30"], signal }));
+  expect(await response.exitCode).toBe(143);
+});
