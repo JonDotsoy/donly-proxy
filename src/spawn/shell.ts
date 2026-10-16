@@ -8,6 +8,8 @@ export interface ShellRequestOptions {
    * Without it the request has no stdin and no tty. Everything written to `request.stdin` is also written to this stream.
    */
   stdin?: WritableStream<Uint8Array>;
+  /** Bytes written to the process stdin before closing it, without a tty. Not combinable with `stdin`. */
+  data?: string | Uint8Array;
   env?: Record<string, string>;
   cwd?: string;
   /**
@@ -73,9 +75,20 @@ export class ShellRequest {
     const env = { ...source.env, ...extra?.env };
     this.env = source.env || extra?.env ? env : undefined;
 
-    if (base && !extra?.stdin) {
+    if (base && !extra?.stdin && extra?.data === undefined) {
       this.stdin = base.stdin;
       this.input = base.input;
+      return;
+    }
+    if (options.data !== undefined) {
+      if (options.stdin) throw new TypeError("data and stdin cannot be used together");
+      const data = typeof options.data === "string" ? new TextEncoder().encode(options.data) : options.data;
+      this.input = new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          if (data.length) controller.enqueue(data);
+          controller.close();
+        },
+      });
       return;
     }
     if (!options.stdin) return;

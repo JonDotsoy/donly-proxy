@@ -138,3 +138,13 @@ test("combines a controller and a timeout with AbortSignal.any: the timeout ends
   const response = await spawn(new ShellRequest({ commands: ["sleep", "30"], signal }));
   expect(await response.exitCode).toBe(143);
 });
+
+test("data is written to the stdin of the process without a tty", async () => {
+  const request = new ShellRequest({ commands: ["cat"], data: "hello\nworld" });
+  expect(request.stdin).toBeUndefined();
+  expect(request.tty).toBe(false);
+  const response = await spawn(request);
+  expect(await text(response.stdout)).toBe("hello\nworld");
+  expect(await response.exitCode).toBe(0);
+  expect(() => new ShellRequest({ commands: ["cat"], data: "x", stdin: new WritableStream() })).toThrow(TypeError);
+});

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { ShellRequest, spawn } from "../../spawn";
 import type { ConsoleEntry } from "./types";
 
 export interface RunResult {
@@ -7,8 +7,19 @@ export interface RunResult {
   stderr: Buffer;
 }
 
+/** Collects a stream, reporting every piece to `onChunk`. */
+const collect = async (stream: ReadableStream<Uint8Array>, onChunk: (chunk: Buffer) => void) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    const buffer = Buffer.from(chunk);
+    chunks.push(buffer);
+    onChunk(buffer);
+  }
+  return Buffer.concat(chunks);
+};
+
 /** Runs a command (no shell), feeds `input` to its stdin and collects its output. */
-export const run = (
+export const run = async (
   command: string,
   argv: string[],
   input: Buffer | string,
@@ -17,26 +28,17 @@ export const run = (
   env?: Record<string, string>,
   onExit?: (code: number | null) => void,
   onConsole?: (entry: ConsoleEntry) => void,
-) =>
-  new Promise<RunResult>((resolve, reject) => {
-    onCommand?.([command, ...argv]);
-    const child = spawn(command, argv, { stdio: ["pipe", "pipe", "pipe"], env: env && { ...process.env, ...env } });
-    const out: Buffer[] = [];
-    const err: Buffer[] = [];
-    child.stdout.on("data", (chunk) => {
-      out.push(chunk);
-      onConsole?.({ type: "stdout", timestamp: new Date().toISOString(), message: chunk.toString() });
-    });
-    child.stderr.on("data", (chunk) => {
-      err.push(chunk);
-      onConsole?.({ type: "stderr", timestamp: new Date().toISOString(), message: chunk.toString() });
-    });
-    child.on("error", reject);
-    child.stdin.on("error", () => {});
-    onConsole?.({ type: "stdin", timestamp: new Date().toISOString(), message: input.toString() });
-    child.stdin.end(input);
-    child.on("close", (code) => {
-      onExit?.(code);
-      resolve({ code, stdout: Buffer.concat(out), stderr: Buffer.concat(err) });
-    });
-  });
+): Promise<RunResult> => {
+  onCommand?.([command, ...argv]);
+  const entry = (type: ConsoleEntry["type"], message: string) =>
+    onConsole?.({ type, timestamp: new Date().toISOString(), message });
+  const response = await spawn(new ShellRequest({ commands: [command, ...argv], data: input, env }));
+  entry("stdin", input.toString());
+  const [stdout, stderr, code] = await Promise.all([
+    collect(response.stdout, (chunk) => entry("stdout", chunk.toString())),
+    collect(response.stderr, (chunk) => entry("stderr", chunk.toString())),
+    response.exitCode,
+  ]);
+  onExit?.(code);
+  return { code, stdout, stderr };
+};
