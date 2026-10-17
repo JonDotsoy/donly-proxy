@@ -19,6 +19,8 @@ const quoted = (args: string[]) => args.map((arg) => JSON.stringify(arg)).join("
 
 interface Session {
   name: string;
+  /** What the session shows, saved in its `session_start` entry. */
+  summary: string;
   programs: string[];
   /** Why the session cannot be recorded on this machine, if so (missing environment variable). */
   unavailable?: string;
@@ -57,24 +59,26 @@ const kubectl = process.env.DONLY_E2E_KUBECTL_POD; // `pod/name`; DONLY_E2E_KUBE
 const ipJson = /"ip":\s*"[\d.:a-f]+"/;
 
 const sessions: Session[] = [
-  { name: "curl-version", programs: ["curl"], run: shell(["curl", "--version"]) },
-  { name: "wget-version", programs: ["wget"], run: shell(["wget", "--version"]) },
-  { name: "node-version", programs: ["node"], run: shell(["node", "--version"]) },
-  { name: "kubectl-version", programs: ["kubectl"], run: shell(["kubectl", "version", "--client"]) },
-  { name: "kubectl-unreachable-cluster", programs: ["kubectl"], run: shell(["kubectl", "--server=https://127.0.0.1:1", "get", "pods"]) },
-  { name: "ssh-version", programs: ["ssh"], run: shell(["ssh", "-V"]) },
-  { name: "ssh-connection-refused", programs: ["ssh"], run: shell(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-p", "1", "nobody@127.0.0.1", "true"]) },
+  { name: "curl-version", summary: "curl --version run with Bun.$", programs: ["curl"], run: shell(["curl", "--version"]) },
+  { name: "wget-version", summary: "wget --version run with Bun.$", programs: ["wget"], run: shell(["wget", "--version"]) },
+  { name: "node-version", summary: "node --version run with Bun.$", programs: ["node"], run: shell(["node", "--version"]) },
+  { name: "kubectl-version", summary: "kubectl version --client run with Bun.$", programs: ["kubectl"], run: shell(["kubectl", "version", "--client"]) },
+  { name: "kubectl-unreachable-cluster", summary: "kubectl get pods against a cluster that refuses the connection", programs: ["kubectl"], run: shell(["kubectl", "--server=https://127.0.0.1:1", "get", "pods"]) },
+  { name: "ssh-version", summary: "ssh -V run with Bun.$ (prints on stderr)", programs: ["ssh"], run: shell(["ssh", "-V"]) },
+  { name: "ssh-connection-refused", summary: "ssh to a port nobody listens on, in batch mode", programs: ["ssh"], run: shell(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=3", "-p", "1", "nobody@127.0.0.1", "true"]) },
   // The proxy fetches the public IP of this machine with each real program.
-  { name: "manifest-curl-public-ip", programs: ["curl"], run: manifest(`    command_pass curl "--max-time" "15"`, ipJson) },
-  { name: "manifest-node-public-ip", programs: ["node"], run: manifest(`    command_pass node`, ipJson) },
+  { name: "manifest-curl-public-ip", summary: "command_pass curl asking api.ipify.org for the public IP through the proxy", programs: ["curl"], run: manifest(`    command_pass curl "--max-time" "15"`, ipJson) },
+  { name: "manifest-node-public-ip", summary: "command_pass node asking api.ipify.org for the public IP through the proxy", programs: ["node"], run: manifest(`    command_pass node`, ipJson) },
   {
     name: "manifest-ssh-pass-public-ip",
+    summary: "ssh_pass with a nested curl asking api.ipify.org for the public IP through the proxy",
     programs: ["ssh"],
     unavailable: ssh ? undefined : "set DONLY_E2E_SSH=user@host",
     run: manifest(`    ssh_pass ${quoted([...words(process.env.DONLY_E2E_SSH_ARGS), ssh ?? ""])} {\n      command_pass curl\n    }`, ipJson),
   },
   {
     name: "manifest-kubectl-pass-public-ip",
+    summary: "kubectl_pass with a nested curl asking api.ipify.org for the public IP through the proxy",
     programs: ["kubectl"],
     unavailable: kubectl ? undefined : "set DONLY_E2E_KUBECTL_POD=pod/name",
     run: manifest(`    kubectl_pass ${quoted([...words(process.env.DONLY_E2E_KUBECTL_ARGS), kubectl ?? ""])} {\n      command_pass curl\n    }`, ipJson),
@@ -99,22 +103,28 @@ for (const session of sessions) {
       chmodSync(join(bin, program), 0o755);
     }
     const recording = join(dir, "recording.session.json");
+    const t0 = Date.now();
+    const start: SessionEntry = { elapse_nanosecond: 0, type: "session_start", id: crypto.randomUUID(), timestamp: new Date(t0).toISOString(), name: session.name, summary: session.summary };
+    writeFileSync(recording, JSON.stringify([start], null, 2));
     const env = {
       ...(process.env as Record<string, string>),
       PATH: `${bin}${delimiter}${process.env.PATH}`,
       DONLY_SESSION_FILE: recording,
-      DONLY_SESSION_T0: String(Date.now()),
+      DONLY_SESSION_T0: String(t0),
       DONLY_SESSION_BIN: bin,
     };
     await session.run(env);
 
     // The recording only reaches its final place when the whole session ran: a failed run can be repeated.
     const entries: SessionEntry[] = JSON.parse(readFileSync(recording, "utf8"));
-    expect(entries.length).toBeGreaterThan(0);
+    // The file opens once with `session_start`.
+    expect(entries[0]).toMatchObject({ type: "session_start", name: session.name, elapse_nanosecond: 0 });
+    expect(entries.filter((entry) => entry.type === "session_start").length).toBe(1);
     for (const entry of entries) {
-      expect(["command", "stdin", "stdout", "stderr", "end"]).toContain(entry.type);
+      expect(["session_start", "command", "stdin", "stdout", "stderr", "end"]).toContain(entry.type);
       expect(Number.isInteger(entry.elapse_nanosecond) && entry.elapse_nanosecond >= 0).toBe(true);
-      if (entry.type === "command") {
+      if (entry.type === "session_start") expect(new Date(entry.timestamp).toISOString()).toBe(entry.timestamp);
+      else if (entry.type === "command") {
         expect(typeof entry.command).toBe("string");
         expect(entry.args.every((arg) => typeof arg === "string")).toBe(true);
       }

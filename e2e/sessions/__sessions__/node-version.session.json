@@ -1,6 +1,14 @@
 [
   {
-    "elapse_nanosecond": 25819092,
+    "elapse_nanosecond": 0,
+    "type": "session_start",
+    "id": "9e0b59ff-0fda-46a0-b386-db638b95d43d",
+    "timestamp": "2026-10-17T15:30:53.617Z",
+    "name": "node-version",
+    "summary": "node --version run with Bun.$"
+  },
+  {
+    "elapse_nanosecond": 20407959,
     "type": "command",
     "command": "node",
     "args": [
@@ -8,12 +16,12 @@
     ]
   },
   {
-    "elapse_nanosecond": 41417236,
+    "elapse_nanosecond": 58439697,
     "type": "stdout",
     "chunk": "v22.22.0\n"
   },
   {
-    "elapse_nanosecond": 42808838,
+    "elapse_nanosecond": 62732178,
     "type": "end",
     "exit_code": 0
   }
