@@ -117,4 +117,17 @@ export class ShellResponse {
     this.stderr = init.stderr;
     this.stdin = init.stdin;
   }
+
+  /** Reads all of `stdout` and decodes it as UTF-8. Consumes the stream. */
+  async text(): Promise<string> {
+    const decoder = new TextDecoder();
+    let result = "";
+    for await (const chunk of this.stdout) result += decoder.decode(chunk, { stream: true });
+    return result + decoder.decode();
+  }
+
+  /** Reads all of `stdout` and parses it as JSON. Consumes the stream. */
+  async json<T = unknown>(): Promise<T> {
+    return JSON.parse(await this.text()) as T;
+  }
 }

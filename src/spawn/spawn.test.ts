@@ -13,6 +13,16 @@ test("runs a process and exposes pid, stdout, stderr and exitCode", async () => 
   expect(await response.exitCode).toBe(3);
 });
 
+test("ShellResponse.text() reads the whole stdout as a string", async () => {
+  const response = await spawn(new ShellRequest({ commands: ["sh", "-c", "printf 'héllo\\nwörld'"] }));
+  expect(await response.text()).toBe("héllo\nwörld");
+});
+
+test("ShellResponse.json() parses stdout as JSON", async () => {
+  const response = await spawn(new ShellRequest({ commands: ["sh", "-c", `printf '{"a":[1,2]}'`] }));
+  expect(await response.json()).toEqual({ a: [1, 2] });
+});
+
 test("passes env and cwd without a shell", async () => {
   const cwd = realpathSync(mkdtempSync(`${tmpdir()}/donly-spawn-`));
   const response = await spawn(

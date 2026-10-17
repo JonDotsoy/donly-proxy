@@ -11,6 +11,8 @@ const request = new ShellRequest({ commands: ["cat"], env: { A: "1" }, cwd: "/tm
 const response = await spawn(request, { system: SystemSpawn.defaultChildProcess });
 response.pid;        // number
 response.stdout;     // ReadableStream<Uint8Array>
+await response.text(); // todo el stdout como string (consume stdout)
+await response.json(); // stdout parseado como JSON (consume stdout)
 response.stderr;     // ReadableStream<Uint8Array>
 await response.exitCode;
 await request.stdin.getWriter().close(); // cierra el stdin del proceso
