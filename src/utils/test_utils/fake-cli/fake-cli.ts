@@ -24,6 +24,8 @@ export interface FakeAnswer {
  * (one queued answer per call, in order, then the default behavior resumes). The queue is shared
  * state on disk between the test (this process) and the fake binary (a child of the proxy).
  *
+ * The stdin of the remote command is kept (`stdin()`) and then fed to it, so a body sent to `curl` can be checked.
+ *
  * `kubectl --version` answers like the real one; `kubectl exec` without `--` fails instead of looping.
  */
 const script = (program: FakeProgram, calls: string) => `#!/bin/sh
@@ -65,8 +67,8 @@ if [ -n "$FAKE_CLI_STDOUT" ]; then
 fi
 ${
   program === "kubectl"
-    ? 'while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\nexec "$@"'
-    : 'for last; do :; done\nexec sh -c "$last"'
+    ? `while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\ncat > "${calls}/${program}.exec.stdin"\n"$@" < "${calls}/${program}.exec.stdin"\nexit $?`
+    : `for last; do :; done\ncat > "${calls}/${program}.exec.stdin"\nsh -c "$last" < "${calls}/${program}.exec.stdin"\nexit $?`
 }
 `;
 
@@ -101,6 +103,11 @@ export const createFakeCli = (dir: string) => {
     args(program: FakeProgram, sub: "exec" | "get" = "exec") {
       const file = join(calls, `${program}.${sub}.args`);
       return existsSync(file) ? readFileSync(file, "utf8").split("\0").slice(0, -1) : [];
+    },
+    /** What the last `exec` call (or ssh call) read from its stdin, before running the remote command. */
+    stdin(program: FakeProgram) {
+      const file = join(calls, `${program}.exec.stdin`);
+      return existsSync(file) ? readFileSync(file, "utf8") : "";
     },
     /** How many times the program was called since the last `reset`. */
     count(program: FakeProgram, sub: "exec" | "get" = "exec") {

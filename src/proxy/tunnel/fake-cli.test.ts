@@ -224,6 +224,25 @@ testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "should use the po
   expect(fake.args("kubectl")).toContain("pod/my-pod-12345");
 });
 
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match", "/proxy/route/kubectl_pass/command_pass"], "should run the nested curl in the pod the fake kubectl lists and feed it the request body on stdin", async () => {
+  fake.next("kubectl", { stdout: "pod/other-1\npod/my-pod-7\n" }, "get");
+  const res = await fetch(`http://127.0.0.1:${upstreamPort}/pod-glob/nested`, { proxy, method: "POST", body: "hello from stdin" });
+  expect(res.status).toBe(200);
+  // The upstream got the body that travelled over the stdin of kubectl exec into curl.
+  expect(await res.json()).toMatchObject({ method: "POST", url: "/pod-glob/nested", body: "hello from stdin" });
+  expect(fake.stdin("kubectl")).toBe("hello from stdin");
+  const args = fake.args("kubectl");
+  expect(args.slice(0, args.indexOf("--"))).toEqual(["exec", "-i", "-q", "pod/my-pod-7"]);
+  expect(args.at(-1)).toContain("curl -K");
+  expect(fake.count("kubectl", "get")).toBe(1);
+});
+
+test("the fake ssh keeps the stdin of the remote command", async () => {
+  const sent = await run("ssh", ["host", "cat"], "typed on stdin");
+  expect(sent.stdout.toString()).toBe("typed on stdin");
+  expect(fake.stdin("ssh")).toBe("typed on stdin");
+});
+
 test("the fake kubectl answers --version and fails cleanly without a command after --", async () => {
   const version = await run("kubectl", ["--version"], "");
   expect(version.code).toBe(0);

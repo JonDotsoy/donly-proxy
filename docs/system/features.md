@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **392** · ✅ pasan: **392** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **393** · ✅ pasan: **393** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -364,6 +364,7 @@ Specs: **392** · ✅ pasan: **392** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should require the destination of ssh_pass | ✅ | <code>ssh_pass {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should resolve the pass directives as aliases of their plugin | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should run in the first listed pod that matches the pod_match glob and skip the others | ✅ | <code>pod_match my-pod-*</code><br><code>pod_match my-pod-9?</code><br><code>pod_match nope-*</code> |
+| should run the nested curl in the pod the fake kubectl lists and feed it the request body on stdin | ✅ | <code>pod_match my-pod-*</code><br><code>command_pass curl</code><br><code>pod_match my-pod-9?</code><br><code>command_pass curl</code><br><code>pod_match nope-*</code><br><code>command_pass curl</code><br><code>command_pass curl</code> |
 | should run the request over ssh with the curl of the nested command_pass | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl "--max-time" "5"</code><br><code>}</code> |
 | should run the same engine remotely in ssh_pass and command_pass ssh | ✅ | <code>command_pass ssh "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>command_pass ssh "user@remote.test" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>&nbsp;&nbsp;extra_args "-o" "ConnectTimeout=3"</code><br><code>}</code><br><code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;extra_args "-o" "ConnectTimeout=3"</code><br><code>&nbsp;&nbsp;command_pass node</code><br><code>}</code><br><code>command_pass kubectl "-n" "prod" "--context" "dev" "deploy/api" {</code><br><code>&nbsp;&nbsp;engine curl</code><br><code>}</code><br><code>command_pass kubectl "pod/api-0" {</code><br><code>&nbsp;&nbsp;engine node</code><br><code>&nbsp;&nbsp;context dev</code><br><code>&nbsp;&nbsp;namespace prod</code><br><code>}</code> |
 | should send the namespace to kubectl exec when namespace is defined | ✅ | <code>namespace prod</code><br><code>namespace staging</code><br><code>namespace the-namespace</code><br><code>namespace the-namespace</code> |
