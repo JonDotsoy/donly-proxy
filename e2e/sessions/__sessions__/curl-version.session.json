@@ -1,7 +1,7 @@
 [
   {
     "elapse_nanosecond": 0,
-    "type": "session_start",
+    "type": "session",
     "id": "29e1b408-4287-4daa-a437-1c52a6887fe2",
     "timestamp": "2026-10-17T15:30:53.473Z",
     "name": "curl-version",

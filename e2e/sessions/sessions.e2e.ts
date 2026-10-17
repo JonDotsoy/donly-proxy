@@ -19,7 +19,7 @@ const quoted = (args: string[]) => args.map((arg) => JSON.stringify(arg)).join("
 
 interface Session {
   name: string;
-  /** What the session shows, saved in its `session_start` entry. */
+  /** What the session shows, saved in its `session` entry. */
   summary: string;
   programs: string[];
   /** Why the session cannot be recorded on this machine, if so (missing environment variable). */
@@ -104,7 +104,7 @@ for (const session of sessions) {
     }
     const recording = join(dir, "recording.session.json");
     const t0 = Date.now();
-    const start: SessionEntry = { elapse_nanosecond: 0, type: "session_start", id: crypto.randomUUID(), timestamp: new Date(t0).toISOString(), name: session.name, summary: session.summary };
+    const start: SessionEntry = { elapse_nanosecond: 0, type: "session", id: crypto.randomUUID(), timestamp: new Date(t0).toISOString(), name: session.name, summary: session.summary };
     writeFileSync(recording, JSON.stringify([start], null, 2));
     const env = {
       ...(process.env as Record<string, string>),
@@ -117,13 +117,13 @@ for (const session of sessions) {
 
     // The recording only reaches its final place when the whole session ran: a failed run can be repeated.
     const entries: SessionEntry[] = JSON.parse(readFileSync(recording, "utf8"));
-    // The file opens once with `session_start`.
-    expect(entries[0]).toMatchObject({ type: "session_start", name: session.name, elapse_nanosecond: 0 });
-    expect(entries.filter((entry) => entry.type === "session_start").length).toBe(1);
+    // The file opens once with `session`.
+    expect(entries[0]).toMatchObject({ type: "session", name: session.name, elapse_nanosecond: 0 });
+    expect(entries.filter((entry) => entry.type === "session").length).toBe(1);
     for (const entry of entries) {
-      expect(["session_start", "command", "stdin", "stdout", "stderr", "end"]).toContain(entry.type);
+      expect(["session", "command", "stdin", "stdout", "stderr", "end"]).toContain(entry.type);
       expect(Number.isInteger(entry.elapse_nanosecond) && entry.elapse_nanosecond >= 0).toBe(true);
-      if (entry.type === "session_start") expect(new Date(entry.timestamp).toISOString()).toBe(entry.timestamp);
+      if (entry.type === "session") expect(new Date(entry.timestamp).toISOString()).toBe(entry.timestamp);
       else if (entry.type === "command") {
         expect(typeof entry.command).toBe("string");
         expect(entry.args.every((arg) => typeof arg === "string")).toBe(true);

@@ -1,7 +1,7 @@
 [
   {
     "elapse_nanosecond": 0,
-    "type": "session_start",
+    "type": "session",
     "id": "d12c5f72-2070-4f66-af6b-1bcde191913f",
     "timestamp": "2026-10-17T15:30:53.682Z",
     "name": "manifest-curl-public-ip",

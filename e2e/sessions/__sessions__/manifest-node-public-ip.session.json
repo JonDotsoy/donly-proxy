@@ -1,7 +1,7 @@
 [
   {
     "elapse_nanosecond": 0,
-    "type": "session_start",
+    "type": "session",
     "id": "95d7a89b-e9c3-4cc3-b2ba-12b43656517e",
     "timestamp": "2026-10-17T15:30:54.048Z",
     "name": "manifest-node-public-ip",

@@ -1,7 +1,7 @@
 [
   {
     "elapse_nanosecond": 0,
-    "type": "session_start",
+    "type": "session",
     "id": "40007dcd-a335-49e1-a1ad-7e0f64ed7f87",
     "timestamp": "2026-10-17T15:30:53.572Z",
     "name": "wget-version",
