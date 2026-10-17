@@ -344,6 +344,13 @@ Antes de cargar el manifiesto, `bun start` lo evalúa con las reglas de [`donly/
 | `respond` con argumentos de más | advertencia |
 | `route` declarada después de una `route` sin argumentos (inalcanzable) | advertencia |
 
+## Recarga en caliente
+
+El proxy vuelve a leer el manifiesto cuando el archivo cambia (se desactiva con `--no-reload` o
+`--no-hot`). Si el nuevo no es válido, sigue con el anterior y muestra
+`no se pudo recargar <ruta>: <causa>; se conserva la configuración anterior`. Detalles en
+[overview](overview.md#recarga-en-caliente).
+
 ## Errores de arranque
 
 | Causa | Mensaje |

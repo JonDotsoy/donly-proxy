@@ -91,3 +91,7 @@ brew untap $USER/local
 ```
 
 > Si el release no es público aún, genera el bundle con `bun run build` y usa `url "file:///ruta/absoluta/dist/donly-proxy.js"` junto con el hash de `shasum -a 256 dist/donly-proxy.js` (en un release público el hash ya está en sus notas).
+
+## Recarga en caliente
+
+El proxy recarga el manifiesto al guardarlo, sin reiniciar. Para desactivarlo: `donly-proxy --no-reload manifest.donly` (alias `--no-hot`). Si el manifiesto nuevo es inválido, se conserva la configuración anterior. Más en [docs/overview.md](docs/overview.md#recarga-en-caliente).
