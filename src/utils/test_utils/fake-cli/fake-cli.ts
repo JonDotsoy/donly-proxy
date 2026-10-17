@@ -15,8 +15,8 @@ export interface FakeAnswer {
  * real program would run remotely (`kubectl exec … -- cmd`, `ssh … cmd`) runs locally instead.
  * Each call is recorded, and the environment of the proxy scripts the answer:
  *
- * - `FAKE_CLI_EXIT` / `FAKE_CLI_STDERR`: fail the call with that code and message (any program).
- * - `FAKE_CLI_STDOUT`: print this instead of running the remote command (any program).
+ * - `FAKE_CLI_EXIT` / `FAKE_CLI_STDERR`: fail the call with that code and message (`kubectl exec` and `ssh`; `kubectl get` only listens to the `FAKE_KUBECTL_*` variables).
+ * - `FAKE_CLI_STDOUT`: print this instead of running the remote command (`kubectl exec` and `ssh`).
  * - `FAKE_KUBECTL_PODS`: what `kubectl get pods -o name` lists (default: three pods).
  * - `FAKE_KUBECTL_GET_EXIT`: make only `kubectl get` fail.
  *
@@ -24,7 +24,7 @@ export interface FakeAnswer {
  * (one queued answer per call, in order, then the default behavior resumes). The queue is shared
  * state on disk between the test (this process) and the fake binary (a child of the proxy).
  *
- * `kubectl exec` reads stdin only with `-i`/`--stdin`, as the real one does. The stdin of the remote command is kept (`stdin()`) and then fed to it, so a body sent to `curl` can be checked.
+ * `kubectl exec` reads stdin only with `-i`/`--stdin`, as the real one does. The stdin of the remote command is kept (`stdin()` is the one of the last call) and then fed to it from a file of its own, so concurrent calls never share a body, so a body sent to `curl` can be checked.
  *
  * `kubectl --version` answers like the real one; `kubectl exec` without `--` fails instead of looping.
  */
@@ -76,8 +76,8 @@ if [ -n "$FAKE_CLI_STDOUT" ]; then
 fi
 ${
   program === "kubectl"
-    ? `while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\nif [ -n "$reads_stdin" ]; then cat; fi > "${calls}/${program}.exec.stdin"\n"$@" < "${calls}/${program}.exec.stdin"\nexit $?`
-    : `for last; do :; done\ncat > "${calls}/${program}.exec.stdin"\nsh -c "$last" < "${calls}/${program}.exec.stdin"\nexit $?`
+    ? `while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\nown="${calls}/${program}.exec.stdin.$$"\nif [ -n "$reads_stdin" ]; then cat; fi > "$own"\ncp "$own" "${calls}/${program}.exec.stdin"\n"$@" < "$own"\ncode=$?\nrm -f "$own"\nexit $code`
+    : `for last; do :; done\nown="${calls}/${program}.exec.stdin.$$"\ncat > "$own"\ncp "$own" "${calls}/${program}.exec.stdin"\nsh -c "$last" < "$own"\ncode=$?\nrm -f "$own"\nexit $code`
 }
 `;
 

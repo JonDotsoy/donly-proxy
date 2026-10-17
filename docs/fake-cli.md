@@ -25,8 +25,8 @@ beforeEach(() => fake.reset());    // olvida las llamadas registradas
 
 | Variable | Efecto |
 | --- | --- |
-| `FAKE_CLI_EXIT`, `FAKE_CLI_STDERR` | La llamada falla con ese código y mensaje. |
-| `FAKE_CLI_STDOUT` | Imprime ese texto en lugar de ejecutar el comando remoto. |
+| `FAKE_CLI_EXIT`, `FAKE_CLI_STDERR` | `kubectl exec` y `ssh` fallan con ese código y mensaje (`FAKE_CLI_STDERR` sin `FAKE_CLI_EXIT` se ignora). `kubectl get` no las lee: usa `FAKE_KUBECTL_GET_EXIT` y `FAKE_KUBECTL_PODS`. |
+| `FAKE_CLI_STDOUT` | `kubectl exec` y `ssh` imprimen ese texto en lugar de ejecutar el comando remoto (`kubectl get` no la lee). |
 | `FAKE_KUBECTL_PODS` | Lo que lista `kubectl get pods -o name` (por defecto tres pods). |
 | `FAKE_KUBECTL_GET_EXIT` | Solo `kubectl get` falla. |
 

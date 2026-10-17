@@ -1,6 +1,6 @@
 import { accessSync, closeSync, constants, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
-import { ShellRequest, spawn } from "../src/spawn";
+import { ShellRequest, SignalError, spawn } from "../src/spawn";
 import type { SessionEntry } from "./session";
 
 /**
@@ -63,7 +63,16 @@ export const wrap = async (program: string) => {
   });
   const argv = process.argv.slice(2);
   entries.push({ elapse_nanosecond: elapse(), type: "command", command: program, args: argv });
-  const request = new ShellRequest({ commands: [real, ...argv], stdin: new WritableStream(), env: { DONLY_PARENT_SESSION: id } });
+  // The file exists from the start: a wrapper killed without a chance to finish leaves a session without `end`, which the scenario reports.
+  const file = join(dir, `${number}-${program}.session.json`);
+  const flush = () => writeFileSync(file, JSON.stringify(entries, null, 2));
+  flush();
+  // A reader that closes its end early (`| head`) must not crash the wrapper.
+  for (const stream of [process.stdout, process.stderr]) stream.on("error", () => {});
+  // A signal goes to the real program, and the session is closed with the exit code it ends with.
+  const stop = new AbortController();
+  for (const name of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(name, () => stop.abort(new SignalError(name)));
+  const request = new ShellRequest({ commands: [real, ...argv], stdin: new WritableStream(), env: { DONLY_PARENT_SESSION: id }, signal: stop.signal });
   const writer = request.stdin!.getWriter();
   // Not awaited: the program may finish without reading all of its input (or the input may never end).
   (async () => {
@@ -78,12 +87,13 @@ export const wrap = async (program: string) => {
   const pump = async (stream: ReadableStream<Uint8Array>, type: "stdout" | "stderr") => {
     for await (const chunk of stream) {
       record(type, chunk);
-      process[type].write(chunk);
+      // Wait until the chunk is handed over: exiting earlier would cut what a pipe still holds.
+      await new Promise<void>((done) => process[type].write(chunk, () => done()));
     }
   };
   const [, , exitCode] = await Promise.all([pump(response.stdout, "stdout"), pump(response.stderr, "stderr"), response.exitCode]);
 
   entries.push({ elapse_nanosecond: elapse(), type: "end", exit_code: exitCode });
-  writeFileSync(join(dir, `${number}-${program}.session.json`), JSON.stringify(entries, null, 2));
+  flush();
   process.exit(exitCode ?? 1);
 };

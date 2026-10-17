@@ -276,3 +276,27 @@ test("the fake kubectl answers --version and fails cleanly without a command aft
   expect(bare.code).toBe(1);
   expect(bare.stderr.toString()).toContain("needs a command after --");
 });
+
+test("concurrent calls with different bodies each feed their own body to the remote command", async () => {
+  const bodies = Array.from({ length: 8 }, (_, i) => `body-${i}-${"x".repeat(2000 + i)}`);
+  const outputs = await Promise.all([
+    ...bodies.map((body) => run("kubectl", ["exec", "-i", "pod/x", "--", "cat"], body)),
+    ...bodies.map((body) => run("ssh", ["host", "cat"], body)),
+  ]);
+  expect(outputs.map((out) => out.stdout.toString())).toEqual([...bodies, ...bodies]);
+  expect(bodies).toContain(fake.stdin("kubectl"));
+  expect(bodies).toContain(fake.stdin("ssh"));
+});
+
+test("FAKE_CLI_* variables fail kubectl exec and ssh but not kubectl get", async () => {
+  await withEnv({ FAKE_CLI_EXIT: "9", FAKE_CLI_STDERR: "env failure", FAKE_CLI_STDOUT: "env stdout" }, async () => {
+    const get = await run("kubectl", ["get", "pods", "-o", "name"], "");
+    expect(get.code).toBe(0);
+    expect(get.stdout.toString()).toContain("pod/my-pod-12345");
+    for (const [program, args] of [["kubectl", ["exec", "-i", "pod/x", "--", "true"]], ["ssh", ["host", "true"]]] as const) {
+      const failed = await run(program, [...args], "");
+      expect(failed.code).toBe(9);
+      expect(failed.stderr.toString()).toContain("env failure");
+    }
+  });
+});

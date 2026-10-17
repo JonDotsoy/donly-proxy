@@ -19,6 +19,8 @@ const fake = (name: string, body: string) => {
 };
 fake("node", 'echo "node $*"; [ -n "$NODE_EXIT" ] && exit "$NODE_EXIT"; exit 0');
 fake("curl", 'cat > /dev/null; printf \'200\\n{"content-type":["text/plain"]}\' >&2; printf "from curl"');
+fake("big", "head -c 3000000 /dev/zero | tr '\\0' x");
+fake("slow", "exec sleep 8");
 fake("outer", "curl --inner one; exit 4");
 const PATH = `${fakes}${delimiter}${process.env.PATH}`;
 
@@ -92,6 +94,29 @@ describe("Scenario", () => {
     expect(forced.id).not.toBe(first.id);
     expect(readFileSync(counter, "utf8").split("\n").filter(Boolean)).toHaveLength(2);
     expect(Scenario.load("once", root).id).toBe(forced.id);
+  });
+
+  test("hands the whole output of a wrapped program to a pipe, as recorded", async () => {
+    const scenario = await Scenario.run({ name: "pipe", wrap: ["big"], env: { PATH }, root: roots(), script: "big | wc -c" });
+    expect(scenario.stdout.trim()).toBe("3000000");
+    const recorded = scenario.sessions[0]!.entries.filter((entry) => entry.type === "stdout").map((entry) => (entry as { chunk: string }).chunk.length);
+    expect(recorded.reduce((a, b) => a + b, 0)).toBe(3000000);
+  });
+
+  test("closes the session of a wrapper that gets a signal and stops the real program", async () => {
+    const started = Date.now();
+    const scenario = await Scenario.run({ name: "signal", wrap: ["slow"], env: { PATH }, root: roots(), script: "slow & pid=$!; sleep 1; kill -TERM $pid; wait $pid; echo status=$?" });
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(scenario.stdout.trim()).toBe("status=143");
+    const [session] = scenario.sessions;
+    expect(types(session!.entries).at(-1)).toBe("end");
+    expect(session!.exit_code).toBe(143);
+  });
+
+  test("reports a wrapper killed before it could close its session", async () => {
+    await expect(
+      Scenario.run({ name: "killed", wrap: ["slow"], env: { PATH }, root: roots(), script: "slow & pid=$!; sleep 1; kill -KILL $pid; wait $pid; exit 0" }),
+    ).rejects.toThrow("every command needs its end");
   });
 
   test("starts the script in the cwd, a path or a vfs", async () => {
