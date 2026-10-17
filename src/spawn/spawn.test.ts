@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { ShellRequest, SignalError, SystemSpawn, spawn } from "./index";
+import { ShellRequest, ShellResponse, SignalError, SystemSpawn, spawn } from "./index";
 
 const text = (stream: ReadableStream<Uint8Array>) => new Response(stream).text();
 
@@ -21,6 +21,29 @@ test("ShellResponse.text() reads the whole stdout as a string", async () => {
 test("ShellResponse.json() parses stdout as JSON", async () => {
   const response = await spawn(new ShellRequest({ commands: ["sh", "-c", `printf '{"a":[1,2]}'`] }));
   expect(await response.json()).toEqual({ a: [1, 2] });
+});
+
+const streamOf = (text: string) =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(text));
+      controller.close();
+    },
+  });
+
+test("new ShellResponse(stdout) defaults to empty stderr, exit code 0 and pid 0", async () => {
+  const response = new ShellResponse(streamOf("hi"));
+  expect(await response.text()).toBe("hi");
+  expect(await new Response(response.stderr).text()).toBe("");
+  expect(await response.exitCode).toBe(0);
+  expect(response.pid).toBe(0);
+});
+
+test("new ShellResponse(stdout, { stderr, exitCode }) uses the given values", async () => {
+  const response = new ShellResponse(streamOf("out"), { stderr: streamOf("err"), exitCode: 2 });
+  expect(await response.text()).toBe("out");
+  expect(await new Response(response.stderr).text()).toBe("err");
+  expect(await response.exitCode).toBe(2);
 });
 
 test("passes env and cwd without a shell", async () => {
