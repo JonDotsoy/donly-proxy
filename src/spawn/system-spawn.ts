@@ -12,9 +12,12 @@ export class SystemSpawn {
   /** Runs processes as child processes of this one. */
   static readonly defaultChildProcess = new SystemSpawn(spawnChildProcess);
 
-  /** Runs processes inside the shell started by `response`, which must read its commands from stdin (e.g. `bash`). */
-  static fromResponse(response: ShellResponse): SystemSpawn {
-    return new SystemSpawn(nestedSpawner(response));
+  /**
+   * Runs processes inside the shell started by `request` (answered by `response`), which must read its commands
+   * from stdin (e.g. `bash`): `request` must have been created with a `stdin`.
+   */
+  static fromResponse(response: ShellResponse, request: ShellRequest): SystemSpawn {
+    return new SystemSpawn(nestedSpawner(response, request));
   }
 
   private constructor(private readonly run: (request: ShellRequest) => Promise<ShellResponse>) {}

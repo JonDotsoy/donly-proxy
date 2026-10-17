@@ -61,7 +61,7 @@ const inBash = async (fn: (system: SystemSpawn) => Promise<void>) => {
   const request = bashRequest();
   const bash = await spawn(request);
   try {
-    await fn(SystemSpawn.fromResponse(bash));
+    await fn(SystemSpawn.fromResponse(bash, request));
   } finally {
     await request.stdin!.getWriter().close();
   }

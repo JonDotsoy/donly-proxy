@@ -5,10 +5,10 @@ const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
 
 /**
  * Runs the requests inside the shell behind `shell`, one at a time. The shell must read commands from
- * its stdin. It takes over `shell.stdout`; the stderr of a nested process is delivered after its stdout, once it ends.
+ * its stdin (`shellRequest.stdin`, the response has no input). It takes over `shell.stdout`; the stderr of a nested process is delivered after its stdout, once it ends.
  */
-export const nestedSpawner = (shell: ShellResponse) => {
-  const shellStdin = shell.stdin;
+export const nestedSpawner = (shell: ShellResponse, shellRequest: ShellRequest) => {
+  const shellStdin = shellRequest.stdin;
   if (!shellStdin) throw new TypeError("the shell has no stdin: create its request with a stdin to run nested processes");
   const reader = shell.stdout.getReader();
   let pending = "";
@@ -117,7 +117,7 @@ export const nestedSpawner = (shell: ShellResponse) => {
         },
       );
       exitCode.catch(() => {});
-      return new ShellResponse({ pid, exitCode, stdout: out.readable, stderr: err.readable, stdin: request.stdin });
+      return new ShellResponse({ pid, exitCode, stdout: out.readable, stderr: err.readable });
     } catch (error) {
       release();
       throw error;

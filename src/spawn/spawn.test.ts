@@ -80,7 +80,7 @@ test("rejects when the program does not exist", async () => {
 
 const runLsInBash = async (bashRequest: ShellRequest) => {
   const bash = await spawn(bashRequest);
-  const system = SystemSpawn.fromResponse(bash);
+  const system = SystemSpawn.fromResponse(bash, bashRequest);
   const ls = await spawn(new ShellRequest({ commands: ["ls", "/"] }), { system });
   expect(ls.pid).toBeGreaterThan(0);
   expect(await text(ls.stdout)).toContain("usr");
@@ -102,7 +102,7 @@ test("closes a bash by closing its stdin after running a nested process", async 
 test("nested processes never go through a shell", async () => {
   const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream() });
   const bash = await spawn(bashRequest);
-  const system = SystemSpawn.fromResponse(bash);
+  const system = SystemSpawn.fromResponse(bash, bashRequest);
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
   expect(await text(echo.stdout)).toBe("$(echo x)'; echo y\n");
   await bashRequest.stdin!.getWriter().close();
@@ -113,7 +113,7 @@ test("nested processes never go through a shell, closing the bash by signal", as
   const controller = new AbortController();
   const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream(), signal: controller.signal });
   const bash = await spawn(bashRequest);
-  const system = SystemSpawn.fromResponse(bash);
+  const system = SystemSpawn.fromResponse(bash, bashRequest);
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
   expect(await text(echo.stdout)).toBe("$(echo x)'; echo y\n");
   controller.abort(new SignalError("SIGHUP"));
@@ -162,7 +162,7 @@ test("a request without stdin has no stdin and the process gets the end of input
   const response = await spawn(request);
   expect(await text(response.stdout)).toBe("");
   expect(await response.exitCode).toBe(0);
-  expect(() => SystemSpawn.fromResponse(response)).toThrow("no stdin");
+  expect(() => SystemSpawn.fromResponse(response, request)).toThrow("no stdin");
 });
 
 test("tty: the process runs in a terminal and closing stdin hangs it up", async () => {

@@ -99,8 +99,6 @@ export interface ShellResponseInit {
   exitCode: Promise<number>;
   stdout: ReadableStream<Uint8Array>;
   stderr: ReadableStream<Uint8Array>;
-  /** The input of the process, used to run nested processes (see `SystemSpawn.fromResponse`). */
-  stdin?: WritableStream<Uint8Array>;
 }
 
 /** Options of the `new ShellResponse(stdout, options)` form, like the `init` of a web `Response`. */
@@ -111,7 +109,6 @@ export interface ShellResponseOptions {
   exitCode?: number | Promise<number>;
   /** Defaults to `0`, as a synthetic response has no process. */
   pid?: number;
-  stdin?: WritableStream<Uint8Array>;
 }
 
 export class ShellResponse {
@@ -119,7 +116,6 @@ export class ShellResponse {
   readonly exitCode: Promise<number>;
   readonly stdout: ReadableStream<Uint8Array>;
   readonly stderr: ReadableStream<Uint8Array>;
-  readonly stdin?: WritableStream<Uint8Array>;
 
   /** Builds a response from a process description. */
   constructor(init: ShellResponseInit);
@@ -131,14 +127,12 @@ export class ShellResponse {
       this.exitCode = Promise.resolve(options.exitCode ?? 0);
       this.stdout = source;
       this.stderr = options.stderr ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() });
-      this.stdin = options.stdin;
       return;
     }
     this.pid = source.pid;
     this.exitCode = source.exitCode;
     this.stdout = source.stdout;
     this.stderr = source.stderr;
-    this.stdin = source.stdin;
   }
 
   /** Reads all of `stdout` and decodes it as UTF-8. Consumes the stream. */

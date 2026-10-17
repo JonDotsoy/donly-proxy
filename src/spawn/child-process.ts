@@ -40,7 +40,6 @@ export const spawnChildProcess = async (request: ShellRequest): Promise<ShellRes
     exitCode,
     stdout: Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>,
     stderr: Readable.toWeb(child.stderr) as ReadableStream<Uint8Array>,
-    stdin: request.stdin,
   });
 };
 
@@ -74,5 +73,5 @@ const spawnWithTerminal = async (request: ShellRequest): Promise<ShellResponse> 
       }),
     )
     .catch(() => {});
-  return new ShellResponse({ pid: child.pid, exitCode, stdout, stderr: emptyStream(), stdin: request.stdin });
+  return new ShellResponse({ pid: child.pid, exitCode, stdout, stderr: emptyStream() });
 };
