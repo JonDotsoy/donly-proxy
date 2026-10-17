@@ -1,7 +1,7 @@
 # Manifiesto (`manifest.donly`)
 
 El proxy se configura con un archivo en formato [DON](https://don.jon.soy/). Sin argumentos se lee
-`proxy.donly` del directorio actual (si no existe, termina con un error que indica el archivo y la ruta buscada);
+el primero que exista en el directorio actual entre `proxy.donly`, `.proxy.donly`, `manifest.donly` y `.manifest.donly` (si ninguno existe, termina con un error que indica los archivos y la ruta buscados);
 se puede indicar otro como primer argumento: `bun src/cli/main.ts ruta/al/manifest.donly`.
 
 Todo va dentro de un bloque `proxy` (se puede declarar más de uno, ver [Varios bloques `proxy`](#varios-bloques-proxy)):

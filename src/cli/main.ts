@@ -12,7 +12,7 @@ const parser = flags({
   version: flag("--version", "-V").boolean().describe("Muestra la versión"),
   ui: flag("--ui").boolean().describe("Levanta una página con los logs en vivo (requiere log_file)"),
   uiPort: flag("--ui-port").number().default(8081).describe("Puerto de la página de logs (por defecto 8081)"),
-  manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto proxy.donly en el directorio actual)"),
+  manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto, el primero que exista en el directorio actual: proxy.donly, .proxy.donly, manifest.donly, .manifest.donly)"),
 })
   .program("donly-proxy")
   .describe("Servidor proxy HTTP/HTTPS");
@@ -36,13 +36,14 @@ if (options.version) {
   process.exit(0);
 }
 
-// Without arguments, look for `proxy.donly` in the current directory.
-const manifest = options.manifest ?? "proxy.donly";
-if (!existsSync(manifest)) {
+// Without arguments, use the first of these that exists in the current directory.
+const defaultManifests = ["proxy.donly", ".proxy.donly", "manifest.donly", ".manifest.donly"];
+const manifest = options.manifest ?? defaultManifests.find((name) => existsSync(name));
+if (!manifest || !existsSync(manifest)) {
   console.error(
     options.manifest
-      ? `Error: no se encontró el manifiesto ${manifest} (buscado en ${resolve(manifest)})`
-      : `Error: no se encontró el manifiesto por defecto proxy.donly (buscado en ${resolve(manifest)}); indica otro como argumento`,
+      ? `Error: no se encontró el manifiesto ${options.manifest} (buscado en ${resolve(options.manifest)})`
+      : `Error: no se encontró ningún manifiesto por defecto (${defaultManifests.join(", ")}) en ${resolve(".")}; indica uno como argumento`,
   );
   process.exit(1);
 }

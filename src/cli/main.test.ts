@@ -29,8 +29,21 @@ describe("cli", () => {
     const result = runIn(dir);
     expect(result.exitCode).toBe(1);
     const stderr = result.stderr.toString();
-    expect(stderr).toContain("proxy.donly");
-    expect(stderr).toContain(join(dir, "proxy.donly"));
+    expect(stderr).toContain("proxy.donly, .proxy.donly, manifest.donly, .manifest.donly");
+    expect(stderr).toContain(dir);
+  });
+
+  test("sin argumentos respeta el orden proxy.donly, .proxy.donly, manifest.donly, .manifest.donly", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "donly-cli-"));
+    const names = ["proxy.donly", ".proxy.donly", "manifest.donly", ".manifest.donly"];
+    // Create from last to first: each round the earliest existing file must win.
+    for (const name of [...names].reverse()) {
+      writeFileSync(join(dir, name), 'proxy {\n  host "127.0.0.1"\n  port 0\n}\n');
+      const child = Bun.spawn(["bun", join(root, "src/cli/main.ts")], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+      await child.stdout.getReader().read();
+      child.kill();
+      expect(await new Response(child.stderr).text()).toContain(`leyendo manifiesto ${join(dir, name)} (por defecto)`);
+    }
   });
 
   test("sin argumentos carga proxy.donly del directorio actual", async () => {
