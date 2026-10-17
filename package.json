@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.20",
   "scripts": {
-    "start": "bun src/cli/main.ts",
+    "start": "bun src/cli/main.ts manifest.donly",
     "build": "bun build src/cli/main.ts --outfile dist/donly-proxy.js --target bun",
     "test": "bun test",
     "features": "bun scripts/features.ts",

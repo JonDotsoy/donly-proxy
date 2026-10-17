@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { resolve } from "node:path";
 import { argument, flag, flags } from "@jondotsoy/flags";
 import pkg from "../../package.json";
 import { lintManifestFile } from "../proxy/lint";
@@ -10,7 +12,7 @@ const parser = flags({
   version: flag("--version", "-V").boolean().describe("Muestra la versión"),
   ui: flag("--ui").boolean().describe("Levanta una página con los logs en vivo (requiere log_file)"),
   uiPort: flag("--ui-port").number().default(8081).describe("Puerto de la página de logs (por defecto 8081)"),
-  manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto manifest.donly)"),
+  manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto proxy.donly en el directorio actual)"),
 })
   .program("donly-proxy")
   .describe("Servidor proxy HTTP/HTTPS");
@@ -34,12 +36,25 @@ if (options.version) {
   process.exit(0);
 }
 
-// Lint errors abort the start; warnings are printed and let it continue.
-if (!(await lintManifestFile(options.manifest ?? new URL("../../manifest.donly", import.meta.url)))) {
+// Without arguments, look for `proxy.donly` in the current directory.
+const manifest = options.manifest ?? "proxy.donly";
+if (!existsSync(manifest)) {
+  console.error(
+    options.manifest
+      ? `Error: no se encontró el manifiesto ${manifest} (buscado en ${resolve(manifest)})`
+      : `Error: no se encontró el manifiesto por defecto proxy.donly (buscado en ${resolve(manifest)}); indica otro como argumento`,
+  );
   process.exit(1);
 }
 
-const configs = await loadConfigs(options.manifest);
+console.error(`leyendo manifiesto ${resolve(manifest)}${options.manifest ? "" : " (por defecto)"}`);
+
+// Lint errors abort the start; warnings are printed and let it continue.
+if (!(await lintManifestFile(manifest))) {
+  process.exit(1);
+}
+
+const configs = await loadConfigs(manifest);
 const logFile = configs.find((c) => c.logFile)?.logFile;
 if (options.ui && !logFile) {
   console.error("Error: --ui requiere log_file en el manifiesto para poder mostrar los logs");

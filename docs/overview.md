@@ -9,7 +9,8 @@ cuerpo fijo, reenviar la petición a otro servidor (`proxy_pass`) o pasarla a `c
 
 ```sh
 bun install
-bun start                        # usa ./manifest.donly
+bun start                        # usa ./manifest.donly (script de npm)
+bun src/cli/main.ts               # sin argumentos, usa ./proxy.donly del directorio actual
 bun src/cli/main.ts otro.donly     # usa otro manifiesto
 bun src/cli/main.ts --ui           # además, página de logs en vivo en http://127.0.0.1:8081
 bun src/cli/main.ts --ui --ui-port 9000   # la misma página en otro puerto
