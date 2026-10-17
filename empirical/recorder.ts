@@ -50,7 +50,9 @@ export const wrap = async (program: string) => {
   const id = crypto.randomUUID();
   const entries: SessionEntry[] = [];
   const elapse = () => Math.round((performance.timeOrigin + performance.now() - t0) * 1e6);
-  const record = (type: "stdin" | "stdout" | "stderr", chunk: Uint8Array) => entries.push({ elapse_nanosecond: elapse(), type, chunk: Buffer.from(chunk).toString() });
+  // One streaming decoder per stream: a character split between two chunks is not corrupted.
+  const decoders = { stdin: new TextDecoder(), stdout: new TextDecoder(), stderr: new TextDecoder() };
+  const record = (type: "stdin" | "stdout" | "stderr", chunk: Uint8Array) => entries.push({ elapse_nanosecond: elapse(), type, chunk: decoders[type].decode(chunk, { stream: true }) });
 
   entries.push({
     elapse_nanosecond: elapse(),

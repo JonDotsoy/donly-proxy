@@ -13,7 +13,7 @@ beforeEach(() => fake.reset());    // olvida las llamadas registradas
 ```
 
 - `fake.args("kubectl")` / `fake.args("kubectl", "get")` / `fake.args("ssh")`: argumentos de la última llamada.
-- `fake.stdin(programa)`: lo que leyó por stdin la última llamada `exec` (o `ssh`) antes de ejecutar el comando remoto, que luego recibe ese mismo stdin. Sirve para comprobar el cuerpo que viaja hasta el `curl` anidado.
+- `fake.stdin(programa)`: lo que leyó por stdin la última llamada `exec` (o `ssh`) antes de ejecutar el comando remoto, que luego recibe ese mismo stdin. Sirve para comprobar el cuerpo que viaja hasta el `curl` anidado. Cada llamada guarda su entrada en un archivo propio, así que llamadas concurrentes con cuerpos distintos no se mezclan. `kubectl exec` solo lee stdin con `-i`, `--stdin` o un grupo de flags con `i` (`-it`); sin eso `stdin()` queda vacío. Si responde la cola o `FAKE_CLI_STDOUT`, el stdin se descarta y `stdin()` no cambia.
 - `fake.count(programa, sub?)`: cuántas veces se llamó desde el último `reset`.
 - `fake.next(programa, { stdout, stderr, exit }, sub?)` encola la respuesta de la **siguiente** llamada
   ("el próximo stdout debe ser X"). El estado se comparte en archivos entre el test y el binario falso

@@ -35,7 +35,7 @@ ${program === "kubectl" ? '[ "$1" = "get" ] && sub=get' : ""}
 ${
   program === "kubectl"
     ? `reads_stdin=""
-for a in "$@"; do case "$a" in --) break ;; --stdin|-i|-[!-]*i*) reads_stdin=1 ;; esac; done`
+for a in "$@"; do case "$a" in --) break ;; --stdin) reads_stdin=1 ;; --*) ;; -*i*) reads_stdin=1 ;; esac; done`
     : "reads_stdin=1"
 }
 printf '%s\\0' "$@" > "${calls}/${program}.$sub.args"
@@ -76,8 +76,8 @@ if [ -n "$FAKE_CLI_STDOUT" ]; then
 fi
 ${
   program === "kubectl"
-    ? `while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\nown="${calls}/${program}.exec.stdin.$$"\nif [ -n "$reads_stdin" ]; then cat; fi > "$own"\ncp "$own" "${calls}/${program}.exec.stdin"\n"$@" < "$own"\ncode=$?\nrm -f "$own"\nexit $code`
-    : `for last; do :; done\nown="${calls}/${program}.exec.stdin.$$"\ncat > "$own"\ncp "$own" "${calls}/${program}.exec.stdin"\nsh -c "$last" < "$own"\ncode=$?\nrm -f "$own"\nexit $code`
+    ? `while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\nown="${calls}/${program}.exec.stdin.$$"\nif [ -n "$reads_stdin" ]; then cat; fi > "$own"\ncp "$own" "$own.last" && mv -f "$own.last" "${calls}/${program}.exec.stdin"\n"$@" < "$own"\ncode=$?\nrm -f "$own"\nexit $code`
+    : `for last; do :; done\nown="${calls}/${program}.exec.stdin.$$"\ncat > "$own"\ncp "$own" "$own.last" && mv -f "$own.last" "${calls}/${program}.exec.stdin"\nsh -c "$last" < "$own"\ncode=$?\nrm -f "$own"\nexit $code`
 }
 `;
 

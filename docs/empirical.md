@@ -29,7 +29,7 @@ await Scenario.run({ name: "cat-foo", wrap: ["cat"], cwd: files, script: "cat fo
 files.remove();                                   // también se borra al terminar el proceso
 ```
 
-`writeFile` crea las carpetas que falten y acepta rutas absolutas o relativas a `cwd()`; `readFile`, `exists` y `path(...)` completan la utilidad.
+`writeFile` crea las carpetas que falten y acepta rutas absolutas o relativas a `cwd()`, siempre dentro del directorio (una ruta con `../` o ajena lanza un error); `readFile`, `exists` y `path(...)` completan la utilidad.
 
 ### Cómo se vinculan las sesiones
 
@@ -59,7 +59,10 @@ Cada `*.session.json` es un arreglo de `{ elapse_nanosecond, type, ... }`, donde
 - `parent_session_id` apunta al programa **envuelto** más cercano: un `curl` que lanza un `node` envuelto cuelga de él; uno lanzado por un proceso sin wrapper (el proxy, por ejemplo) cuelga de quien lo lanzó antes, o de `null`.
 - **Una sola vez:** si la carpeta del escenario existe, `Scenario.run` devuelve lo grabado sin ejecutar nada; `force: true` lo graba de nuevo.
 - Todo se graba en una carpeta temporal y se renombra al final tras validar cada sesión: si el escenario falla o supera `timeoutMs`, no queda nada.
-- Un programa fuera de `wrap`, o una ruta absoluta, no se graba.
+- Un programa fuera de `wrap`, o una ruta absoluta, no se graba. Un programa de `wrap` que no está en el `PATH` del escenario, o un `name` que no sea un nombre simple (letras, dígitos, `_`, `-`, `.`), hace fallar `Scenario.run` antes de ejecutar nada.
+- Con `force`, el escenario anterior se conserva si la nueva grabación falla.
+- Si el wrapper recibe una señal (`TERM`, `INT`, `HUP`), se la pasa al programa real y cierra la sesión con su código de salida (por ejemplo 143). Si lo matan con `KILL`, queda una sesión sin `end` y `Scenario.run` falla.
+- Cada trozo se entrega por stdout/stderr antes de salir, así que un pipe recibe la salida completa.
 
 ## Cómo se prueba
 

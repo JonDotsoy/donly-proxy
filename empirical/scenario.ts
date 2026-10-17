@@ -10,7 +10,7 @@ export interface ScenarioOptions {
   wrap: string[];
   /** What the bash runs (`bash -c`). */
   script: string;
-  /** Extra environment for the bash. A `PATH` here replaces the one the wrapper directory is put in front of. */
+  /** Extra environment for the bash. A `PATH` here replaces the inherited one: the wrapper directory goes in front of it, and `bash` and the wrapped programs are looked up in it. */
   env?: Record<string, string>;
   /** Directory the bash starts in: a path, or a `vfs` (its `cwd()`). Defaults to the one of this process. */
   cwd?: string | { cwd(): string };
@@ -58,6 +58,7 @@ const text = async (stream: ReadableStream<Uint8Array>) => await new Response(st
 /** Reads a recorded scenario: `scenario.json` and the session files it lists. */
 const load = (name: string, root = scenariosDir): ScenarioResult => {
   const dir = join(root, name);
+  if (!existsSync(join(dir, "scenario.json"))) throw new Error(`the scenario ${name} is not recorded (no scenario.json in ${dir})`);
   const meta = JSON.parse(readFileSync(join(dir, "scenario.json"), "utf8"));
   const sessions: ScenarioSession[] = meta.sessions.map((item: Omit<ScenarioSession, "entries">) => ({
     ...item,
@@ -67,9 +68,18 @@ const load = (name: string, root = scenariosDir): ScenarioResult => {
 };
 
 const run = async (options: ScenarioOptions): Promise<ScenarioResult> => {
+  // The name is a folder under `root`: it cannot point anywhere else.
+  if (!/^[A-Za-z0-9][\w.-]*$/.test(options.name)) throw new Error(`invalid scenario name ${JSON.stringify(options.name)}: use letters, digits, "_", "-" and "."`);
   const root = options.root ?? scenariosDir;
   const dir = join(root, options.name);
-  if (existsSync(dir) && !options.force) return load(options.name, root);
+  if (existsSync(dir) && !options.force) {
+    if (!existsSync(join(dir, "scenario.json"))) throw new Error(`${dir} exists without scenario.json: delete it or run with force`);
+    return load(options.name, root);
+  }
+  // A wrapper cannot record a program it cannot find: fail before running anything (and before replacing a good scenario).
+  const path = options.env?.PATH ?? process.env.PATH;
+  const absent = options.wrap.filter((program) => /[\\/]/.test(program) || !Bun.which(program, { PATH: path }));
+  if (absent.length) throw new Error(`cannot wrap ${absent.join(", ")}: not found in the PATH of the scenario`);
 
   const id = crypto.randomUUID();
   const staging = join(root, `.${options.name}.${id}.tmp`);
@@ -84,7 +94,7 @@ const run = async (options: ScenarioOptions): Promise<ScenarioResult> => {
     const timestamp = new Date(t0).toISOString();
     const signal = AbortSignal.timeout(options.timeoutMs ?? 60_000);
     const request = new ShellRequest({
-      commands: ["bash", "-c", options.script],
+      commands: [Bun.which("bash") ?? "bash", "-c", options.script],
       signal,
       cwd: typeof options.cwd === "string" ? options.cwd : options.cwd?.cwd(),
       env: {
@@ -126,8 +136,16 @@ const run = async (options: ScenarioOptions): Promise<ScenarioResult> => {
     rmSync(bin, { recursive: true, force: true });
     rmSync(join(staging, ".claims"), { recursive: true, force: true });
     // The scenario only reaches its final place complete: a failed run leaves nothing and can be repeated.
-    rmSync(dir, { recursive: true, force: true });
-    renameSync(staging, dir);
+    // The previous one (force) is set aside first, so a failure here does not lose it.
+    const previous = `${staging}.previous`;
+    if (existsSync(dir)) renameSync(dir, previous);
+    try {
+      renameSync(staging, dir);
+    } catch (error) {
+      if (existsSync(previous)) renameSync(previous, dir);
+      throw error;
+    }
+    rmSync(previous, { recursive: true, force: true });
     return { ...meta, sessions, dir, recorded: true, stdout, stderr };
   } catch (error) {
     rmSync(staging, { recursive: true, force: true });

@@ -300,3 +300,85 @@ test("FAKE_CLI_* variables fail kubectl exec and ssh but not kubectl get", async
     }
   });
 });
+
+test("each queued answer is used by exactly one of many concurrent calls", async () => {
+  for (let i = 0; i < 6; i++) fake.next("ssh", { stdout: `answer-${i}` });
+  const outputs = await Promise.all(Array.from({ length: 10 }, () => run("ssh", ["host", "echo real"], "")));
+  const texts = outputs.map((out) => out.stdout.toString());
+  expect(texts.filter((text) => text.startsWith("answer-")).sort()).toEqual(Array.from({ length: 6 }, (_, i) => `answer-${i}`));
+  expect(texts.filter((text) => text === "real\n")).toHaveLength(4);
+  expect(fake.pending("ssh")).toBe(0);
+});
+
+test("reset forgets the calls and the queued answers", async () => {
+  fake.next("ssh", { stdout: "never used" });
+  await run("ssh", ["other", "true"], "");
+  fake.next("ssh", { stdout: "queued after the call" });
+  fake.reset();
+  expect(fake.pending("ssh")).toBe(0);
+  expect(fake.count("ssh")).toBe(0);
+  fake.next("ssh", { stdout: "after reset" });
+  expect((await run("ssh", ["host", "true"], "")).stdout.toString()).toBe("after reset");
+});
+
+test("FAKE_KUBECTL_PODS changes what kubectl get lists", async () => {
+  await withEnv({ FAKE_KUBECTL_PODS: "pod/a\\npod/b" }, async () => {
+    expect((await run("kubectl", ["get", "pods", "-o", "name"], "")).stdout.toString()).toBe("pod/a\npod/b\n");
+  });
+});
+
+test("a queued answer with only stderr prints it and then behaves normally", async () => {
+  fake.next("ssh", { stderr: "warning only" });
+  const out = await run("ssh", ["host", "echo real"], "");
+  expect(out.stderr.toString()).toContain("warning only");
+  expect(out.stdout.toString()).toBe("real\n");
+  expect(out.code).toBe(0);
+});
+
+test("a queued exit without stdout still ends the call and the stdin sent to it does not break the caller", async () => {
+  fake.next("ssh", { exit: 7, stderr: "stopped" });
+  const out = await run("ssh", ["host", "true"], "x".repeat(200_000));
+  expect(out.code).toBe(7);
+  expect(out.stderr.toString()).toContain("stopped");
+});
+
+test("the fake kubectl reads stdin only with -i or --stdin, also bundled, and not after --", async () => {
+  const read = async (...flags: string[]) => {
+    await run("kubectl", ["exec", ...flags, "pod/x", "--", "cat"], "typed");
+    return fake.stdin("kubectl");
+  };
+  expect(await read()).toBe("");
+  expect(await read("-i")).toBe("typed");
+  expect(await read("--stdin")).toBe("typed");
+  expect(await read("-it")).toBe("typed");
+  const after = await run("kubectl", ["exec", "pod/x", "--", "cat", "-i"], "typed");
+  expect(after.stdout.toString()).toBe("");
+  expect(fake.stdin("kubectl")).toBe("");
+});
+
+test("withEnv restores the variables when the function throws and keeps the previous value", async () => {
+  process.env.WITH_ENV_BEFORE = "before";
+  delete process.env.WITH_ENV_NEW;
+  await expect(
+    withEnv({ WITH_ENV_BEFORE: "during", WITH_ENV_NEW: "new" }, async () => {
+      expect(process.env.WITH_ENV_NEW).toBe("new");
+      throw new Error("boom");
+    }),
+  ).rejects.toThrow("boom");
+  expect(process.env.WITH_ENV_BEFORE).toBe("before");
+  expect("WITH_ENV_NEW" in process.env).toBe(false);
+  delete process.env.WITH_ENV_BEFORE;
+});
+
+test("uninstall restores the PATH and NO_PROXY the install changed", () => {
+  const other = createFakeCli(mkdtempSync(join(tmpdir(), "donly-proxy-fake-cli-other-")));
+  const before = { PATH: process.env.PATH, NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };
+  other.install();
+  expect(process.env.PATH).not.toBe(before.PATH);
+  expect(process.env.PATH!.startsWith(join(dir, "..")) || process.env.PATH!.includes("fake-bin")).toBe(true);
+  expect(process.env.NO_PROXY).toBe("");
+  other.uninstall();
+  expect(process.env.PATH).toBe(before.PATH);
+  expect(process.env.NO_PROXY).toBe(before.NO_PROXY);
+  expect(process.env.no_proxy).toBe(before.no_proxy);
+});

@@ -42,7 +42,7 @@ const viaProxy = (routes: string, requests: { host: string; path: string }[]) =>
   return `cd ${sh(dir)}
 ${sh(process.execPath)} ${sh(main)} manifest.donly > proxy.out 2>&1 &
 proxy=$!
-for _ in $(seq 100); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && break; sleep 0.1; done
+for _ in $(seq 40); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && break; sleep 0.1; done
 ${asks}
 kill $proxy
 wait $proxy

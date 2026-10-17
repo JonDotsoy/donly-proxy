@@ -5,7 +5,7 @@ import { delimiter, join } from "node:path";
 import { vfs } from "../src/utils/test_utils/vfs/vfs";
 import { testFeature } from "../src/utils/test_utils/test-feature/test-feature";
 import { Scenario } from "./scenario";
-import type { SessionEntry } from "./session";
+import { validateSession, type SessionEntry } from "./session";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-scenario-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -82,7 +82,7 @@ describe("Scenario", () => {
   test("records a scenario only once unless it is forced", async () => {
     const root = roots();
     const counter = join(dir, `counter-${seq}`);
-    const options = { name: "once", wrap: ["node"], env: { PATH }, root, script: `echo x >> ${counter}; node` };
+    const options = { name: "once", wrap: ["node"], root, env: { PATH, COUNTER: counter }, script: `echo x >> "$COUNTER"; node` };
     const first = await Scenario.run(options);
     const second = await Scenario.run(options);
     expect(first.recorded).toBe(true);
@@ -117,6 +117,80 @@ describe("Scenario", () => {
     await expect(
       Scenario.run({ name: "killed", wrap: ["slow"], env: { PATH }, root: roots(), script: "slow & pid=$!; sleep 1; kill -KILL $pid; wait $pid; exit 0" }),
     ).rejects.toThrow("every command needs its end");
+  });
+
+  test("refuses names that point outside the root and programs it cannot find", async () => {
+    const root = roots();
+    for (const name of ["", "a/b", "../escape", ".", "..", ".hidden"]) {
+      await expect(Scenario.run({ name, wrap: ["node"], env: { PATH }, root, script: "true" })).rejects.toThrow("invalid scenario name");
+    }
+    await expect(Scenario.run({ name: "absent", wrap: ["node", "no-such-program"], env: { PATH }, root, script: "true" })).rejects.toThrow("cannot wrap no-such-program");
+    expect(existsSync(root) ? readdirSync(root) : []).toEqual([]);
+  });
+
+  test("keeps the previous scenario when a forced run fails", async () => {
+    const root = roots();
+    const first = await Scenario.run({ name: "keep", wrap: ["node"], env: { PATH }, root, script: "node" });
+    await expect(Scenario.run({ name: "keep", wrap: ["node"], env: { PATH }, root, script: "node; sleep 5", timeoutMs: 300, force: true })).rejects.toThrow("timed out");
+    await expect(Scenario.run({ name: "keep", wrap: ["no-such-program"], env: { PATH }, root, script: "true", force: true })).rejects.toThrow("cannot wrap");
+    expect(Scenario.load("keep", root).id).toBe(first.id);
+    expect(readdirSync(root)).toEqual(["keep"]);
+  });
+
+  test("says what is wrong with a folder that is not a recorded scenario", async () => {
+    const root = roots();
+    mkdirSync(join(root, "empty"), { recursive: true });
+    await expect(Scenario.run({ name: "empty", wrap: ["node"], env: { PATH }, root, script: "node" })).rejects.toThrow("exists without scenario.json");
+    expect(() => Scenario.load("empty", root)).toThrow("is not recorded");
+    expect(() => Scenario.load("never", root)).toThrow("is not recorded");
+    const forced = await Scenario.run({ name: "empty", wrap: ["node"], env: { PATH }, root, script: "node", force: true });
+    expect(forced.sessions).toHaveLength(1);
+  });
+
+  // Sessions written by hand into the directory of the scenario, as a wrapper would, to check what `Scenario.run` refuses.
+  const injected = (entries: SessionEntry[], claims = ["0001"]) => {
+    const file = join(dir, `injected-${seq++}.json`);
+    writeFileSync(file, JSON.stringify(entries));
+    return `mkdir -p "$DONLY_SCENARIO_DIR/.claims"; ${claims.map((claim) => `touch "$DONLY_SCENARIO_DIR/.claims/${claim}"`).join("; ")}; sed "s/__ID__/$DONLY_SCENARIO_ID/" ${file} > "$DONLY_SCENARIO_DIR/0001-node.session.json"`;
+  };
+  const session = (extra: Partial<Extract<SessionEntry, { type: "session" }>> = {}): SessionEntry[] => [
+    { elapse_nanosecond: 1, type: "session", id: "s1", timestamp: new Date().toISOString(), name: "x", scenario_id: "__ID__", parent_session_id: null, ...extra },
+    { elapse_nanosecond: 2, type: "command", command: "node", args: [] },
+    { elapse_nanosecond: 3, type: "end", exit_code: 0 },
+  ];
+
+  test("refuses sessions that do not belong to the scenario, have an unknown parent or are missing", async () => {
+    const options = { wrap: ["node"], env: { PATH }, root: roots() };
+    await expect(Scenario.run({ ...options, name: "foreign", script: injected(session({ scenario_id: "another" })) })).rejects.toThrow("belongs to another scenario");
+    await expect(Scenario.run({ ...options, name: "unknown-parent", script: injected(session({ parent_session_id: "nobody" })) })).rejects.toThrow("unknown parent session");
+    const fine = await Scenario.run({ ...options, name: "injected", script: injected(session()) });
+    expect(fine.sessions.map((item) => item.id)).toEqual(["s1"]);
+    await expect(Scenario.run({ ...options, name: "missing-file", script: injected(session(), ["0001", "0002"]) })).rejects.toThrow("incomplete session");
+    expect(readdirSync(options.root)).toEqual(["injected"]);
+  });
+
+  test("validateSession accepts a well-formed session and names what is wrong otherwise", () => {
+    const good = session({ scenario_id: "s" });
+    expect(() => validateSession(good)).not.toThrow();
+    const [open, command, end] = good as [SessionEntry, SessionEntry, SessionEntry];
+    expect(() => validateSession([])).toThrow("opens with a `session`");
+    expect(() => validateSession([command, end])).toThrow("opens with a `session`");
+    expect(() => validateSession([open, open, command, end])).toThrow("exactly one `session`");
+    expect(() => validateSession([open, command])).toThrow("needs its end");
+    expect(() => validateSession([{ ...open, elapse_nanosecond: -1 } as SessionEntry, command, end])).toThrow("elapse_nanosecond");
+    expect(() => validateSession([{ ...open, elapse_nanosecond: 1.5 } as SessionEntry, command, end])).toThrow("elapse_nanosecond");
+    expect(() => validateSession([{ ...(open as object), timestamp: "yesterday" } as SessionEntry, command, end])).toThrow();
+    expect(() => validateSession([open, { ...command, args: [1] } as unknown as SessionEntry, end])).toThrow("string args");
+    expect(() => validateSession([open, command, { ...end, exit_code: 1.5 } as SessionEntry])).toThrow("exit_code");
+    expect(() => validateSession([open, command, { elapse_nanosecond: 3, type: "stdout", chunk: 1 } as unknown as SessionEntry, end])).toThrow("chunk");
+    expect(() => validateSession([open, command, { elapse_nanosecond: 3, type: "other" } as unknown as SessionEntry, end])).toThrow("unknown entry type");
+  });
+
+  test("records a character split between two chunks without corrupting it", async () => {
+    fake("utf", "printf '\\303'; sleep 0.3; printf '\\251'");
+    const scenario = await Scenario.run({ name: "utf8", wrap: ["utf"], env: { PATH }, root: roots(), script: "utf" });
+    const text = scenario.sessions[0]!.entries.filter((entry) => entry.type === "stdout").map((entry) => (entry as { chunk: string }).chunk).join("");
+    expect(text).toBe("\u00e9");
   });
 
   test("starts the script in the cwd, a path or a vfs", async () => {
@@ -166,12 +240,12 @@ testFeature(manifest, ["/proxy/route/command_pass"], "should record the curl the
     name: "proxy-command-pass",
     wrap: ["curl"],
     root: roots(),
-    env: { PATH, NO_PROXY: "", no_proxy: "" },
+    env: { PATH, NO_PROXY: "", no_proxy: "", WORK: work, MAIN: main, BUN: process.execPath },
     script: `
-      cd ${JSON.stringify(work)}
-      ${JSON.stringify(process.execPath)} ${JSON.stringify(main)} manifest.donly > proxy.out 2>&1 &
+      cd "$WORK"
+      "$BUN" "$MAIN" manifest.donly > proxy.out 2>&1 &
       proxy=$!
-      for _ in $(seq 100); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && break; sleep 0.1; done
+      for _ in $(seq 40); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && break; sleep 0.1; done
       exec 3<>/dev/tcp/127.0.0.1/${port}
       printf '${request}' >&3
       cat <&3

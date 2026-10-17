@@ -37,3 +37,34 @@ test("remove deletes everything, and using disposes", () => {
   }
   expect(existsSync(cwd)).toBe(false);
 });
+
+test("writeFile takes bytes or nothing, and readFile of a missing file throws", () => {
+  const f = vfs.createTmp();
+  f.writeFile("bytes", new Uint8Array([104, 105]));
+  expect(f.readFile("bytes")).toBe("hi");
+  f.writeFile("empty");
+  expect(f.readFile("empty")).toBe("");
+  expect(() => f.readFile("missing")).toThrow();
+  f.remove();
+});
+
+test("no path leaves the directory", () => {
+  const f = vfs.createTmp();
+  for (const outside of ["../escape", "a/../../escape", "/etc/vfs-escape", join(f.cwd(), "..", "escape")]) {
+    expect(() => f.writeFile(outside, "x")).toThrow("outside the vfs");
+    expect(() => f.readFile(outside)).toThrow("outside the vfs");
+    expect(() => f.exists(outside)).toThrow("outside the vfs");
+  }
+  expect(() => f.path("..", "x")).toThrow("outside the vfs");
+  expect(f.path("a", "..", "b")).toBe(join(f.cwd(), "b"));
+  f.remove();
+});
+
+test("remove twice is harmless and releases its exit listener", () => {
+  const before = process.listenerCount("exit");
+  const f = vfs.createTmp();
+  expect(process.listenerCount("exit")).toBe(before + 1);
+  f.remove();
+  f.remove();
+  expect(process.listenerCount("exit")).toBe(before);
+});
