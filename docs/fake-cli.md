@@ -1,0 +1,27 @@
+# CLI falsos de `kubectl` y `ssh`
+
+Los tests de `kubectl_pass`, `ssh_pass` y `command_pass kubectl|ssh` no necesitan un clúster ni
+una red: `createFakeCli` (`src/utils/test_utils/fake-cli/fake-cli.ts`) escribe binarios `kubectl` y
+`ssh` de mentira y los pone al inicio del `PATH`. Lo que el programa real ejecutaría en remoto
+(`kubectl exec … -- cmd`, `ssh … cmd`) se ejecuta en local.
+
+```ts
+const fake = createFakeCli(dir);
+beforeAll(() => fake.install());   // PATH con los falsos + NO_PROXY vacío
+afterAll(() => fake.uninstall());
+beforeEach(() => fake.reset());    // olvida las llamadas registradas
+```
+
+- `fake.args("kubectl")` / `fake.args("kubectl", "get")` / `fake.args("ssh")`: argumentos de la última llamada.
+- `fake.count(programa, sub?)`: cuántas veces se llamó desde el último `reset`.
+- `withEnv({ ... }, fn)` fija variables que guionan la respuesta:
+
+| Variable | Efecto |
+| --- | --- |
+| `FAKE_CLI_EXIT`, `FAKE_CLI_STDERR` | La llamada falla con ese código y mensaje. |
+| `FAKE_CLI_STDOUT` | Imprime ese texto en lugar de ejecutar el comando remoto. |
+| `FAKE_KUBECTL_PODS` | Lo que lista `kubectl get pods -o name` (por defecto tres pods). |
+| `FAKE_KUBECTL_GET_EXIT` | Solo `kubectl get` falla. |
+
+Como todo proceso pasa por `src/spawn/`, los tests también comprueban `command_start`/`command_end`
+en el log `.ndjson`. La suite está en `src/proxy/tunnel/fake-cli.test.ts`.

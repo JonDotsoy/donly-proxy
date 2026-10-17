@@ -1,0 +1,193 @@
+import { afterAll, beforeAll, beforeEach, expect } from "bun:test";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createProxyServer, loadConfig } from "../server";
+import { testFeature } from "../../utils/test_utils/test-feature/test-feature";
+import { createFakeCli, withEnv } from "../../utils/test_utils/fake-cli/fake-cli";
+
+// Suite over dummy `kubectl` and `ssh` binaries: failures, scripted answers and logging, with no cluster or network.
+const dir = mkdtempSync(join(tmpdir(), "donly-proxy-fake-cli-"));
+const fake = createFakeCli(dir);
+
+const upstream = http.createServer(async (req, res) => {
+  const body = Buffer.concat(await Array.fromAsync(req)).toString();
+  res.end(JSON.stringify({ method: req.method, url: req.url, body }));
+});
+
+let proxy: string;
+let upstreamPort: number;
+let server: ReturnType<typeof createProxyServer>;
+
+const manifestPayload = (port: number) => `proxy {
+  host "127.0.0.1"
+  port 0
+  log_file "./fake-cli.ndjson"
+  route http://127.0.0.1:${port}/pod-glob/* {
+    kubectl_pass {
+      pod_match my-pod-*
+      command_pass curl
+    }
+  }
+  route http://127.0.0.1:${port}/pod-single/* {
+    kubectl_pass {
+      pod_match my-pod-9?
+      command_pass curl
+    }
+  }
+  route http://127.0.0.1:${port}/pod-none/* {
+    kubectl_pass {
+      pod_match nope-*
+      command_pass curl
+    }
+  }
+  route http://127.0.0.1:${port}/pod-fixed/* {
+    kubectl_pass "-n" "prod" "pod/api-0" {
+      command_pass curl
+    }
+  }
+  route http://127.0.0.1:${port}/ssh/* {
+    ssh_pass "-p" "2222" "user@remote.test" {
+      command_pass curl
+    }
+  }
+  route http://127.0.0.1:${port}/ssh-pass/* {
+    ssh_pass "user@remote.test" {
+      pass "s3cret-password"
+      command_pass curl
+    }
+  }
+}
+`;
+const payload = manifestPayload(8080);
+
+const logLines = () =>
+  readFileSync(join(dir, "fake-cli.ndjson"), "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+const get = (path: string) => fetch(`http://127.0.0.1:${upstreamPort}${path}`, { proxy });
+
+beforeAll(async () => {
+  await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  upstreamPort = (upstream.address() as AddressInfo).port;
+  writeFileSync(join(dir, "manifest.donly"), manifestPayload(upstreamPort));
+  fake.install();
+  server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  proxy = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+
+beforeEach(() => fake.reset());
+
+afterAll(() => {
+  fake.uninstall();
+  server.close();
+  upstream.close();
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "should run in the first listed pod that matches the pod_match glob and skip the others", async () => {
+  const res = await get("/pod-glob/x");
+  expect(res.status).toBe(200);
+  expect(await res.json()).toMatchObject({ method: "GET", url: "/pod-glob/x" });
+  expect(fake.count("kubectl", "get")).toBe(1);
+  expect(fake.args("kubectl").slice(0, 3)).toEqual(["exec", "-i", "-q"]);
+  expect(fake.args("kubectl")).toContain("pod/my-pod-12345");
+  expect(fake.args("kubectl")).not.toContain("pod/other-1");
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "should treat ? in pod_match as a single character", async () => {
+  const res = await get("/pod-single/x");
+  expect(res.status).toBe(200);
+  expect(fake.args("kubectl")).toContain("pod/my-pod-99");
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "should answer 502 and never exec when no running pod matches pod_match", async () => {
+  const res = await get("/pod-none/x");
+  expect(res.status).toBe(502);
+  expect(await res.text()).toContain("no running pod matches pod_match nope-*");
+  expect(fake.count("kubectl", "get")).toBe(1);
+  expect(fake.count("kubectl")).toBe(0);
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "should answer 502 with the stderr of kubectl get pods when the lookup fails", async () => {
+  await withEnv({ FAKE_KUBECTL_GET_EXIT: "1" }, async () => {
+    const res = await get("/pod-glob/x");
+    expect(res.status).toBe(502);
+    expect(await res.text()).toContain("kubectl get pods exited with 1: boom");
+    expect(fake.count("kubectl")).toBe(0);
+  });
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass"], "should answer 502 with the exit code and stderr when kubectl exec fails", async () => {
+  await withEnv({ FAKE_CLI_EXIT: "137", FAKE_CLI_STDERR: "error: unable to upgrade connection: container not found" }, async () => {
+    const res = await get("/pod-fixed/x");
+    expect(res.status).toBe(502);
+    const text = await res.text();
+    expect(text).toContain("kubectl curl exited with 137");
+    expect(text).toContain("container not found");
+  });
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass"], "should answer 502 when kubectl prints something that is not a curl result", async () => {
+  await withEnv({ FAKE_CLI_STDOUT: "not a curl answer" }, async () => {
+    const res = await get("/pod-fixed/x");
+    expect(res.status).toBe(502);
+  });
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass"], "should answer every concurrent request through kubectl with its own response", async () => {
+  const responses = await Promise.all(Array.from({ length: 5 }, (_, i) => get(`/pod-fixed/${i}`)));
+  expect(responses.map((res) => res.status)).toEqual([200, 200, 200, 200, 200]);
+  const urls = await Promise.all(responses.map(async (res) => (await res.json()).url));
+  expect(urls).toEqual([0, 1, 2, 3, 4].map((i) => `/pod-fixed/${i}`));
+  expect(fake.count("kubectl")).toBe(5);
+});
+
+testFeature(payload, ["/proxy/route/ssh_pass"], "should answer 502 with the exit code and stderr when ssh cannot connect", async () => {
+  await withEnv({ FAKE_CLI_EXIT: "255", FAKE_CLI_STDERR: "ssh: connect to host remote.test port 2222: Connection refused" }, async () => {
+    const res = await get("/ssh/x");
+    expect(res.status).toBe(502);
+    const text = await res.text();
+    expect(text).toContain("ssh curl exited with 255");
+    expect(text).toContain("Connection refused");
+  });
+});
+
+testFeature(payload, ["/proxy/route/ssh_pass"], "should answer 502 when ssh prints something that is not a curl result", async () => {
+  await withEnv({ FAKE_CLI_STDOUT: "Welcome to remote.test" }, async () => {
+    const res = await get("/ssh/x");
+    expect(res.status).toBe(502);
+  });
+});
+
+testFeature(payload, ["/proxy/route/ssh_pass"], "should answer every concurrent request through ssh with its own response", async () => {
+  const responses = await Promise.all(Array.from({ length: 5 }, (_, i) => get(`/ssh/${i}`)));
+  expect(responses.map((res) => res.status)).toEqual([200, 200, 200, 200, 200]);
+  const urls = await Promise.all(responses.map(async (res) => (await res.json()).url));
+  expect(urls).toEqual([0, 1, 2, 3, 4].map((i) => `/ssh/${i}`));
+  expect(fake.count("ssh")).toBe(5);
+});
+
+testFeature(payload, ["/proxy/log_file", "/proxy/route/ssh_pass"], "should log the ssh command and its exit code without the ssh_pass password", async () => {
+  const before = logLines().length;
+  expect((await get("/ssh-pass/x")).status).toBe(200);
+  const lines = logLines().slice(before);
+  const start = lines.find((l) => l.type === "command_start" && l.program === "ssh");
+  expect(start.command.at(-2)).toBe("user@remote.test");
+  const end = lines.find((l) => l.type === "command_end" && l.span_id === start.span_id);
+  expect(end.exit_code).toBe(0);
+  expect(fake.args("ssh")).not.toContain("s3cret-password");
+  expect(JSON.stringify(lines)).not.toContain("s3cret-password");
+});
+
+testFeature(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass"], "should log a failed kubectl exec with its exit code", async () => {
+  const before = logLines().length;
+  await withEnv({ FAKE_CLI_EXIT: "1", FAKE_CLI_STDERR: "Error from server (NotFound)" }, async () => {
+    expect((await get("/pod-fixed/x")).status).toBe(502);
+  });
+  const lines = logLines().slice(before);
+  const start = lines.find((l) => l.type === "command_start" && l.program === "kubectl");
+  const end = lines.find((l) => l.type === "command_end" && l.span_id === start.span_id);
+  expect(end.exit_code).toBe(1);
+  expect(end.console_log.some((e: { type: string; message: string }) => e.type === "stderr" && e.message.includes("NotFound"))).toBe(true);
+});
