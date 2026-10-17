@@ -23,11 +23,15 @@ await request.stdin.getWriter().close(); // cierra el stdin del proceso
   Sin `stdin` el request no tiene `request.stdin` y el proceso recibe el fin de entrada de inmediato.
   Con `stdin` en las opciones el request tiene `request.stdin` (lo escrito también va a ese stream): es una tubería, el proceso
   sigue vivo mientras el writable siga abierto y cerrarlo termina la entrada (así lo usa `run()`).
+- `ShellResponse` también se construye como la API web `Response`, para respuestas sintéticas (pruebas, mocks):
+  `new ShellResponse(stdout)` y `new ShellResponse(stdout, { stderr, exitCode })`. Si se omiten: `stderr` vacío, `exitCode` `0`
+  y `pid` `0`. `exitCode` puede ser un número o una promesa. La forma `new ShellResponse({ pid, exitCode, stdout, stderr })`
+  que usa `spawn` sigue funcionando. Una respuesta nunca expone `stdin`: la entrada pertenece al `ShellRequest`.
 - `tty: true` (solo Bun, `false` por defecto) conecta el proceso a un pseudo terminal: stdout y stderr llegan mezclados por
   `stdout`, `\n` pasa a `\r\n` y cerrar el stdin envía `SIGHUP` (un terminal no tiene fin de entrada). Los túneles no lo usan.
 - `signal` (un `AbortSignal`): al abortarlo se termina el proceso con la señal de `controller.abort(new SignalError("SIGHUP"))` (también acepta el número de señal o un código de salida: `new SignalError(129)`); sin ella, `SIGTERM` (`SIGHUP` con tty). No aplica a procesos anidados.
 - `SystemSpawn.defaultChildProcess` ejecuta como hijo de este proceso.
-- `SystemSpawn.fromResponse(response)` ejecuta dentro de un shell ya iniciado (p. ej. `bash`) que lee comandos
+- `SystemSpawn.fromResponse(response, request)` ejecuta dentro de un shell ya iniciado (p. ej. `bash`) que lee comandos
   por stdin. Toma posesión de `response.stdout` y ejecuta de a un proceso por vez. El `stdin` del request (o `/dev/null`) viaja
   en base64 dentro del script, y el stderr se entrega al terminar, después del stdout. Con un shell en tty las líneas están limitadas
   a 4096 bytes, así que ahí solo caben entradas pequeñas. Los argumentos se citan, no se interpolan.

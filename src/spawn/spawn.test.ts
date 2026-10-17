@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { ShellRequest, SignalError, SystemSpawn, spawn } from "./index";
+import { ShellRequest, ShellResponse, SignalError, SystemSpawn, spawn } from "./index";
 
 const text = (stream: ReadableStream<Uint8Array>) => new Response(stream).text();
 
@@ -21,6 +21,29 @@ test("ShellResponse.text() reads the whole stdout as a string", async () => {
 test("ShellResponse.json() parses stdout as JSON", async () => {
   const response = await spawn(new ShellRequest({ commands: ["sh", "-c", `printf '{"a":[1,2]}'`] }));
   expect(await response.json()).toEqual({ a: [1, 2] });
+});
+
+const streamOf = (text: string) =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(text));
+      controller.close();
+    },
+  });
+
+test("new ShellResponse(stdout) defaults to empty stderr, exit code 0 and pid 0", async () => {
+  const response = new ShellResponse(streamOf("hi"));
+  expect(await response.text()).toBe("hi");
+  expect(await new Response(response.stderr).text()).toBe("");
+  expect(await response.exitCode).toBe(0);
+  expect(response.pid).toBe(0);
+});
+
+test("new ShellResponse(stdout, { stderr, exitCode }) uses the given values", async () => {
+  const response = new ShellResponse(streamOf("out"), { stderr: streamOf("err"), exitCode: 2 });
+  expect(await response.text()).toBe("out");
+  expect(await new Response(response.stderr).text()).toBe("err");
+  expect(await response.exitCode).toBe(2);
 });
 
 test("passes env and cwd without a shell", async () => {
@@ -57,7 +80,7 @@ test("rejects when the program does not exist", async () => {
 
 const runLsInBash = async (bashRequest: ShellRequest) => {
   const bash = await spawn(bashRequest);
-  const system = SystemSpawn.fromResponse(bash);
+  const system = SystemSpawn.fromResponse(bash, bashRequest);
   const ls = await spawn(new ShellRequest({ commands: ["ls", "/"] }), { system });
   expect(ls.pid).toBeGreaterThan(0);
   expect(await text(ls.stdout)).toContain("usr");
@@ -79,7 +102,7 @@ test("closes a bash by closing its stdin after running a nested process", async 
 test("nested processes never go through a shell", async () => {
   const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream() });
   const bash = await spawn(bashRequest);
-  const system = SystemSpawn.fromResponse(bash);
+  const system = SystemSpawn.fromResponse(bash, bashRequest);
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
   expect(await text(echo.stdout)).toBe("$(echo x)'; echo y\n");
   await bashRequest.stdin!.getWriter().close();
@@ -90,7 +113,7 @@ test("nested processes never go through a shell, closing the bash by signal", as
   const controller = new AbortController();
   const bashRequest = new ShellRequest({ commands: ["bash"], stdin: new WritableStream(), signal: controller.signal });
   const bash = await spawn(bashRequest);
-  const system = SystemSpawn.fromResponse(bash);
+  const system = SystemSpawn.fromResponse(bash, bashRequest);
   const echo = await spawn(new ShellRequest({ commands: ["echo", "$(echo x)'; echo y"], env: { A: "1" } }), { system });
   expect(await text(echo.stdout)).toBe("$(echo x)'; echo y\n");
   controller.abort(new SignalError("SIGHUP"));
@@ -139,7 +162,7 @@ test("a request without stdin has no stdin and the process gets the end of input
   const response = await spawn(request);
   expect(await text(response.stdout)).toBe("");
   expect(await response.exitCode).toBe(0);
-  expect(() => SystemSpawn.fromResponse(response)).toThrow("no stdin");
+  expect(() => SystemSpawn.fromResponse(response, request)).toThrow("no stdin");
 });
 
 test("tty: the process runs in a terminal and closing stdin hangs it up", async () => {

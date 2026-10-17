@@ -99,8 +99,16 @@ export interface ShellResponseInit {
   exitCode: Promise<number>;
   stdout: ReadableStream<Uint8Array>;
   stderr: ReadableStream<Uint8Array>;
-  /** The input of the process, used to run nested processes (see `SystemSpawn.fromResponse`). */
-  stdin?: WritableStream<Uint8Array>;
+}
+
+/** Options of the `new ShellResponse(stdout, options)` form, like the `init` of a web `Response`. */
+export interface ShellResponseOptions {
+  /** Defaults to an empty stream. */
+  stderr?: ReadableStream<Uint8Array>;
+  /** Defaults to `0`. */
+  exitCode?: number | Promise<number>;
+  /** Defaults to `0`, as a synthetic response has no process. */
+  pid?: number;
 }
 
 export class ShellResponse {
@@ -108,14 +116,23 @@ export class ShellResponse {
   readonly exitCode: Promise<number>;
   readonly stdout: ReadableStream<Uint8Array>;
   readonly stderr: ReadableStream<Uint8Array>;
-  readonly stdin?: WritableStream<Uint8Array>;
 
-  constructor(init: ShellResponseInit) {
-    this.pid = init.pid;
-    this.exitCode = init.exitCode;
-    this.stdout = init.stdout;
-    this.stderr = init.stderr;
-    this.stdin = init.stdin;
+  /** Builds a response from a process description. */
+  constructor(init: ShellResponseInit);
+  /** Builds a synthetic response the way a web `Response` is built: `new ShellResponse(stdout, { stderr, exitCode })`. */
+  constructor(stdout: ReadableStream<Uint8Array>, options?: ShellResponseOptions);
+  constructor(source: ShellResponseInit | ReadableStream<Uint8Array>, options: ShellResponseOptions = {}) {
+    if (source instanceof ReadableStream) {
+      this.pid = options.pid ?? 0;
+      this.exitCode = Promise.resolve(options.exitCode ?? 0);
+      this.stdout = source;
+      this.stderr = options.stderr ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() });
+      return;
+    }
+    this.pid = source.pid;
+    this.exitCode = source.exitCode;
+    this.stdout = source.stdout;
+    this.stderr = source.stderr;
   }
 
   /** Reads all of `stdout` and decodes it as UTF-8. Consumes the stream. */
