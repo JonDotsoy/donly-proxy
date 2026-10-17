@@ -249,9 +249,11 @@ test("Bun.$ gets the version of the fake kubectl as text", async () => {
 });
 
 test("Bun.$ gets the queued stdout of the fake kubectl and then the real output of the remote command", async () => {
+  // `-i` makes kubectl read stdin: give it an empty one instead of the stdin of the test runner.
+  const exec = () => Bun.$`kubectl exec -i pod/x -- echo real < ${new Response("")}`.text();
   fake.next("kubectl", { stdout: "queued answer" });
-  expect(await Bun.$`kubectl exec -i pod/x -- echo real`.text()).toBe("queued answer");
-  expect(await Bun.$`kubectl exec -i pod/x -- echo real`.text()).toBe("real\n");
+  expect(await exec()).toBe("queued answer");
+  expect(await exec()).toBe("real\n");
 });
 
 test("Bun.$ feeds stdin to the remote command of the fake ssh and the fake keeps it", async () => {
