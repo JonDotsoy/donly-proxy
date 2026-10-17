@@ -114,7 +114,10 @@ for (const session of sessions) {
     for (const entry of entries) {
       expect(["command", "stdin", "stdout", "stderr"]).toContain(entry.type);
       expect(Number.isInteger(entry.elapse_nanosecond) && entry.elapse_nanosecond >= 0).toBe(true);
-      if (entry.type === "command") expect(entry.args.every((arg) => typeof arg === "string")).toBe(true);
+      if (entry.type === "command") {
+        expect(typeof entry.command).toBe("string");
+        expect(entry.args.every((arg) => typeof arg === "string")).toBe(true);
+      }
       else expect(typeof entry.chunk).toBe("string");
     }
     expect(entries.filter((entry) => entry.type === "command").length).toBe(JSON.parse(readFileSync(recording.replace(/\.session\.json$/, ".calls.json"), "utf8")).length);

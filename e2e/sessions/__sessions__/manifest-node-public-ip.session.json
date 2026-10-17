@@ -2,6 +2,7 @@
   {
     "elapse_nanosecond": 324529297,
     "type": "command",
+    "command": "node",
     "args": [
       "--input-type=module",
       "-"

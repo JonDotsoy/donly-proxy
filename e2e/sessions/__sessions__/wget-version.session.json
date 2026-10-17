@@ -1,13 +1,14 @@
 [
   {
-    "elapse_nanosecond": 38410645,
+    "elapse_nanosecond": 21524902,
     "type": "command",
+    "command": "wget",
     "args": [
       "--version"
     ]
   },
   {
-    "elapse_nanosecond": 63310303,
+    "elapse_nanosecond": 36076172,
     "type": "stdout",
     "chunk": "GNU Wget 1.21.4 built on linux-gnu.\n\n-cares +digest -gpgme +https +ipv6 +iri +large-file -metalink +nls \n+ntlm +opie +psl +ssl/openssl \n\nWgetrc: \n    /etc/wgetrc (system)\nLocale: \n    /usr/share/locale \nCompile: \n    gcc -DHAVE_CONFIG_H -DSYSTEM_WGETRC=\"/etc/wgetrc\" \n    -DLOCALEDIR=\"/usr/share/locale\" -I. -I../../src -I../lib \n    -I../../lib -Wdate-time -D_FORTIFY_SOURCE=3 -DHAVE_LIBSSL -DNDEBUG \n    -g -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer \n    -ffile-prefix-map=/build/wget-JgCXcc/wget-1.21.4=. -flto=auto \n    -ffat-lto-objects -fstack-protector-strong -fstack-clash-protection \n    -Wformat -Werror=format-security -fcf-protection \n    -fdebug-prefix-map=/build/wget-JgCXcc/wget-1.21.4=/usr/src/wget-1.21.4-1ubuntu4.5 \n    -DNO_SSLv2 -D_FILE_OFFSET_BITS=64 -g -Wall \nLink: \n    gcc -DHAVE_LIBSSL -DNDEBUG -g -O2 -fno-omit-frame-pointer \n    -mno-omit-leaf-frame-pointer \n    -ffile-prefix-map=/build/wget-JgCXcc/wget-1.21.4=. -flto=auto \n    -ffat-lto-objects -fstack-protector-strong -fstack-clash-protection \n    -Wformat -Werror=format-security -fcf-protection \n    -fdebug-prefix-map=/build/wget-JgCXcc/wget-1.21.4=/usr/src/wget-1.21.4-1ubuntu4.5 \n    -DNO_SSLv2 -D_FILE_OFFSET_BITS=64 -g -Wall -Wl,-Bsymbolic-functions \n    -flto=auto -ffat-lto-objects -Wl,-z,relro -Wl,-z,now -lpcre2-8 \n    -luuid -lidn2 -lssl -lcrypto -lz -lpsl ../lib/libgnu.a \n\nCopyright (C) 2015 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later\n<http://www.gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nOriginally written by Hrvoje Niksic <hniksic@xemacs.org>.\nPlease send bug reports and questions to <bug-wget@gnu.org>.\n"
   }

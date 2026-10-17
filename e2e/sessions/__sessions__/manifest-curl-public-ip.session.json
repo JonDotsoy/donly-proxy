@@ -2,6 +2,7 @@
   {
     "elapse_nanosecond": 529354980,
     "type": "command",
+    "command": "curl",
     "args": [
       "--silent",
       "--compressed",

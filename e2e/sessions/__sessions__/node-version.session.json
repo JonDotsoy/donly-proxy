@@ -2,6 +2,7 @@
   {
     "elapse_nanosecond": 23887207,
     "type": "command",
+    "command": "node",
     "args": [
       "--version"
     ]
