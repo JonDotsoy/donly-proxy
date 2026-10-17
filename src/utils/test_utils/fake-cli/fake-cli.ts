@@ -12,6 +12,8 @@ export type FakeProgram = "kubectl" | "ssh";
  * - `FAKE_CLI_STDOUT`: print this instead of running the remote command (any program).
  * - `FAKE_KUBECTL_PODS`: what `kubectl get pods -o name` lists (default: three pods).
  * - `FAKE_KUBECTL_GET_EXIT`: make only `kubectl get` fail.
+ *
+ * `kubectl --version` answers like the real one; `kubectl exec` without `--` fails instead of looping.
  */
 const script = (program: FakeProgram, calls: string) => `#!/bin/sh
 mkdir -p "${calls}"
@@ -21,7 +23,10 @@ printf '%s\\0' "$@" > "${calls}/${program}.$sub.args"
 echo x >> "${calls}/${program}.$sub.count"
 ${
   program === "kubectl"
-    ? `if [ "$sub" = "get" ]; then
+    ? `case "$1" in
+  --version|version) echo "Client Version: v0.0.0-fake"; exit 0 ;;
+esac
+if [ "$sub" = "get" ]; then
   [ -n "$FAKE_KUBECTL_GET_EXIT" ] && { echo "boom" >&2; exit "$FAKE_KUBECTL_GET_EXIT"; }
   if [ -n "$FAKE_KUBECTL_PODS" ]; then printf '%b\\n' "$FAKE_KUBECTL_PODS"; else printf 'pod/other-1\\npod/my-pod-12345\\npod/my-pod-99\\n'; fi
   exit 0
@@ -39,7 +44,7 @@ if [ -n "$FAKE_CLI_STDOUT" ]; then
 fi
 ${
   program === "kubectl"
-    ? 'while [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"'
+    ? 'while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\nexec "$@"'
     : 'for last; do :; done\nexec sh -c "$last"'
 }
 `;

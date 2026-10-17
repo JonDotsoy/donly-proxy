@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, expect } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProxyServer, loadConfig } from "../server";
 import { testFeature } from "../../utils/test_utils/test-feature/test-feature";
+import { run } from "./run";
 import { createFakeCli, withEnv } from "../../utils/test_utils/fake-cli/fake-cli";
 
 // Suite over dummy `kubectl` and `ssh` binaries: failures, scripted answers and logging, with no cluster or network.
@@ -190,4 +191,13 @@ testFeature(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass"], "should l
   const end = lines.find((l) => l.type === "command_end" && l.span_id === start.span_id);
   expect(end.exit_code).toBe(1);
   expect(end.console_log.some((e: { type: string; message: string }) => e.type === "stderr" && e.message.includes("NotFound"))).toBe(true);
+});
+
+test("the fake kubectl answers --version and fails cleanly without a command after --", async () => {
+  const version = await run("kubectl", ["--version"], "");
+  expect(version.code).toBe(0);
+  expect(version.stdout.toString()).toContain("Client Version");
+  const bare = await run("kubectl", ["exec", "-i", "pod/x"], "");
+  expect(bare.code).toBe(1);
+  expect(bare.stderr.toString()).toContain("needs a command after --");
 });
