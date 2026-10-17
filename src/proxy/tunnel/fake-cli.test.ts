@@ -243,6 +243,29 @@ test("the fake ssh keeps the stdin of the remote command", async () => {
   expect(fake.stdin("ssh")).toBe("typed on stdin");
 });
 
+// Bun.$ is used only here, in the tests, to call the fake binaries the way a person would from a terminal.
+test("Bun.$ gets the version of the fake kubectl as text", async () => {
+  expect(await Bun.$`kubectl --version`.text()).toBe("Client Version: v0.0.0-fake\n");
+});
+
+test("Bun.$ gets the queued stdout of the fake kubectl and then the real output of the remote command", async () => {
+  fake.next("kubectl", { stdout: "queued answer" });
+  expect(await Bun.$`kubectl exec -i pod/x -- echo real`.text()).toBe("queued answer");
+  expect(await Bun.$`kubectl exec -i pod/x -- echo real`.text()).toBe("real\n");
+});
+
+test("Bun.$ feeds stdin to the remote command of the fake ssh and the fake keeps it", async () => {
+  expect(await Bun.$`ssh host cat < ${new Response("from Bun.$")}`.text()).toBe("from Bun.$");
+  expect(fake.stdin("ssh")).toBe("from Bun.$");
+});
+
+test("Bun.$ sees the queued failure of the fake ssh", async () => {
+  fake.next("ssh", { exit: 255, stderr: "Connection refused" });
+  const failed = await Bun.$`ssh host true`.nothrow().quiet();
+  expect(failed.exitCode).toBe(255);
+  expect(failed.stderr.toString()).toContain("Connection refused");
+});
+
 test("the fake kubectl answers --version and fails cleanly without a command after --", async () => {
   const version = await run("kubectl", ["--version"], "");
   expect(version.code).toBe(0);

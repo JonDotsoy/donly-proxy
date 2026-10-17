@@ -24,7 +24,7 @@ export interface FakeAnswer {
  * (one queued answer per call, in order, then the default behavior resumes). The queue is shared
  * state on disk between the test (this process) and the fake binary (a child of the proxy).
  *
- * The stdin of the remote command is kept (`stdin()`) and then fed to it, so a body sent to `curl` can be checked.
+ * `kubectl exec` reads stdin only with `-i`/`--stdin`, as the real one does. The stdin of the remote command is kept (`stdin()`) and then fed to it, so a body sent to `curl` can be checked.
  *
  * `kubectl --version` answers like the real one; `kubectl exec` without `--` fails instead of looping.
  */
@@ -32,6 +32,12 @@ const script = (program: FakeProgram, calls: string) => `#!/bin/sh
 mkdir -p "${calls}"
 sub=exec
 ${program === "kubectl" ? '[ "$1" = "get" ] && sub=get' : ""}
+${
+  program === "kubectl"
+    ? `reads_stdin=""
+for a in "$@"; do case "$a" in --) break ;; --stdin|-i|-[!-]*i*) reads_stdin=1 ;; esac; done`
+    : "reads_stdin=1"
+}
 printf '%s\\0' "$@" > "${calls}/${program}.$sub.args"
 echo x >> "${calls}/${program}.$sub.count"
 ${program === "kubectl" ? 'case "$1" in\n  --version|version) echo "Client Version: v0.0.0-fake"; exit 0 ;;\nesac' : ""}
@@ -43,7 +49,10 @@ for d in "${calls}/queue/${program}.$sub"/*; do
 done
 if [ -n "$taken" ]; then
   [ -f "$taken/stderr" ] && cat "$taken/stderr" >&2
-  [ -f "$taken/stdout" ] && { cat > /dev/null; cat "$taken/stdout"; }
+  if [ -f "$taken/stdout" ]; then
+    [ -n "$reads_stdin" ] && cat > /dev/null
+    cat "$taken/stdout"
+  fi
   [ -f "$taken/exit" ] && exit "$(cat "$taken/exit")"
   [ -f "$taken/stdout" ] && exit 0
 fi
@@ -61,13 +70,13 @@ if [ -n "$FAKE_CLI_EXIT" ]; then
   exit "$FAKE_CLI_EXIT"
 fi
 if [ -n "$FAKE_CLI_STDOUT" ]; then
-  cat > /dev/null
+  [ -n "$reads_stdin" ] && cat > /dev/null
   printf '%s' "$FAKE_CLI_STDOUT"
   exit 0
 fi
 ${
   program === "kubectl"
-    ? `while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\ncat > "${calls}/${program}.exec.stdin"\n"$@" < "${calls}/${program}.exec.stdin"\nexit $?`
+    ? `while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ $# -eq 0 ] && { echo "error: kubectl exec needs a command after --" >&2; exit 1; }\nshift\nif [ -n "$reads_stdin" ]; then cat; fi > "${calls}/${program}.exec.stdin"\n"$@" < "${calls}/${program}.exec.stdin"\nexit $?`
     : `for last; do :; done\ncat > "${calls}/${program}.exec.stdin"\nsh -c "$last" < "${calls}/${program}.exec.stdin"\nexit $?`
 }
 `;
