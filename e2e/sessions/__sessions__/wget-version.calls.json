@@ -1,0 +1,9 @@
+[
+  {
+    "program": "wget",
+    "argv": [
+      "--version"
+    ],
+    "exitCode": 0
+  }
+]

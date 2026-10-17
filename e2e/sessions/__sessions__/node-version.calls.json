@@ -1,0 +1,9 @@
+[
+  {
+    "program": "node",
+    "argv": [
+      "--version"
+    ],
+    "exitCode": 0
+  }
+]

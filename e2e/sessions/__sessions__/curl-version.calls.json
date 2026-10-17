@@ -1,0 +1,9 @@
+[
+  {
+    "program": "curl",
+    "argv": [
+      "--version"
+    ],
+    "exitCode": 0
+  }
+]

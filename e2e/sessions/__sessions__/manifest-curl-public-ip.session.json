@@ -1,0 +1,12 @@
+[
+  {
+    "perf": 453172607,
+    "type": "stdout",
+    "chunk": "{\"ip\":\"35.193.9.97\"}"
+  },
+  {
+    "perf": 454547852,
+    "type": "stderr",
+    "chunk": "200\n{\"date\":[\"Sat, 17 Oct 2026 14:10:47 GMT\"],\n\"content-type\":[\"application/json\"],\n\"content-length\":[\"20\"],\n\"server\":[\"cloudflare\"],\n\"vary\":[\"Origin\"],\n\"cf-cache-status\":[\"DYNAMIC\"],\n\"cf-ray\":[\"a4bfe386cc1b13f1-ORD\"]\n}"
+  }
+]

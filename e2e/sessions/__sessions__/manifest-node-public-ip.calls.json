@@ -1,0 +1,10 @@
+[
+  {
+    "program": "node",
+    "argv": [
+      "--input-type=module",
+      "-"
+    ],
+    "exitCode": 0
+  }
+]

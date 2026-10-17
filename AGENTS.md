@@ -16,6 +16,7 @@ manifiesto [DON](https://don.jon.soy/) (`manifest.donly`). Corre sobre [Bun](htt
 | `src/proxy/*.test.ts` | Tests del servidor (un archivo por tema). Los de `tunnel/` viven junto a su código. |
 | `src/utils/test_utils/test-feature/` | `testFeature`: registra cada test como una *spec* de feature. |
 | `src/utils/test_utils/fake-cli/` | `createFakeCli`: binarios `kubectl` y `ssh` falsos para tests (ver `docs/fake-cli.md`). |
+| `e2e/sessions/` | `bun run e2e:sessions`: graba sesiones `{ perf, type, chunk }` de los programas reales con wrappers en el `PATH` (ver `docs/e2e.md`). |
 | `src/utils/test_utils/lint-features/` | Convierte el payload + paths de un test en el "lint" que se ve en la tabla. |
 | `docs/` | Referencia: `manifest.md`, `overview.md`, `concepts/` (`route`, `proxy_pass`, `command_pass`, `kubectl_pass`, `ssh_pass`), `tunnel/`. |
 | `e2e/ui.e2e.ts` | Prueba end-to-end de `--ui` con Playwright (`bun run e2e`, ver `docs/e2e.md`). No la corre `bun test`. |
