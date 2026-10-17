@@ -193,6 +193,37 @@ testFeature(payload, ["/proxy/log_file", "/proxy/route/kubectl_pass"], "should l
   expect(end.console_log.some((e: { type: string; message: string }) => e.type === "stderr" && e.message.includes("NotFound"))).toBe(true);
 });
 
+const curlHeaders = `200\n{"content-type":["text/plain"]}`;
+
+testFeature(payload, ["/proxy/route/ssh_pass"], "should answer each request with the next stdout queued in the fake ssh, then run normally", async () => {
+  fake.next("ssh", { stdout: "first", stderr: curlHeaders });
+  fake.next("ssh", { stdout: "second", stderr: curlHeaders });
+  expect(fake.pending("ssh")).toBe(2);
+  expect(await (await get("/ssh/a")).text()).toBe("first");
+  expect(await (await get("/ssh/b")).text()).toBe("second");
+  expect(fake.pending("ssh")).toBe(0);
+  expect(await (await get("/ssh/c")).json()).toMatchObject({ url: "/ssh/c" });
+  expect(fake.count("ssh")).toBe(3);
+});
+
+testFeature(payload, ["/proxy/route/ssh_pass"], "should fail only the request whose turn has a queued failure in the fake ssh", async () => {
+  fake.next("ssh", { exit: 255, stderr: "Connection refused" });
+  const failed = await get("/ssh/a");
+  expect(failed.status).toBe(502);
+  expect(await failed.text()).toContain("Connection refused");
+  expect((await get("/ssh/b")).status).toBe(200);
+});
+
+testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "should use the pods queued for the next kubectl get pods of the fake", async () => {
+  fake.next("kubectl", { stdout: "pod/my-pod-7\n" }, "get");
+  expect((await get("/pod-glob/x")).status).toBe(200);
+  expect(fake.args("kubectl")).toContain("pod/my-pod-7");
+  expect(fake.pending("kubectl", "get")).toBe(0);
+  // The queue is empty again: the default listing is back.
+  expect((await get("/pod-glob/y")).status).toBe(200);
+  expect(fake.args("kubectl")).toContain("pod/my-pod-12345");
+});
+
 test("the fake kubectl answers --version and fails cleanly without a command after --", async () => {
   const version = await run("kubectl", ["--version"], "");
   expect(version.code).toBe(0);

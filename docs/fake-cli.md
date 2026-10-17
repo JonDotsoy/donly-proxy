@@ -14,6 +14,12 @@ beforeEach(() => fake.reset());    // olvida las llamadas registradas
 
 - `fake.args("kubectl")` / `fake.args("kubectl", "get")` / `fake.args("ssh")`: argumentos de la última llamada.
 - `fake.count(programa, sub?)`: cuántas veces se llamó desde el último `reset`.
+- `fake.next(programa, { stdout, stderr, exit }, sub?)` encola la respuesta de la **siguiente** llamada
+  ("el próximo stdout debe ser X"). El estado se comparte en archivos entre el test y el binario falso
+  (un directorio por respuesta, que el binario toma con un `mv` atómico), así que sirve también con
+  llamadas concurrentes: una respuesta por llamada, en el orden en que se encolaron; con la cola
+  vacía vuelve el comportamiento normal. `fake.pending(programa, sub?)` cuenta las que nadie consumió.
+  `sub` es `"get"` para `kubectl get pods`.
 - `withEnv({ ... }, fn)` fija variables que guionan la respuesta:
 
 | Variable | Efecto |

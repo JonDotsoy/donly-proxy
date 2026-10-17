@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **389** · ✅ pasan: **389** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **392** · ✅ pasan: **392** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -148,6 +148,7 @@ Specs: **389** · ✅ pasan: **389** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should answer 502 with the exit code and stderr when ssh cannot connect | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;pass "s3cret-password"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should answer 502 with the stderr of kubectl get pods when the lookup fails | ✅ | <code>pod_match my-pod-*</code><br><code>pod_match my-pod-9?</code><br><code>pod_match nope-*</code> |
 | should answer each proxy block with its own route | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should answer each request with the next stdout queued in the fake ssh, then run normally | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;pass "s3cret-password"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should answer every concurrent request through kubectl with its own response | ✅ | <code>kubectl_pass {</code><br><code>&nbsp;&nbsp;pod_match my-pod-*</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass {</code><br><code>&nbsp;&nbsp;pod_match my-pod-9?</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass {</code><br><code>&nbsp;&nbsp;pod_match nope-*</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>kubectl_pass "-n" "prod" "pod/api-0" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should answer every concurrent request through ssh with its own response | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;pass "s3cret-password"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should answer the socks5 username/password subnegotiation status | ✅ | <code>listen http 127.0.0.1 0</code><br><code>listen socks5 127.0.0.1 0</code><br><code>listen https 127.0.0.1 0</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
@@ -165,6 +166,7 @@ Specs: **389** · ✅ pasan: **389** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should default the port to 0 when the manifest has none | ✅ |  |
 | should fail --ui with a clear error when the manifest has no log_file | ✅ | <code>port 0</code> |
 | should fail --ui with a clear error when the ui port is already in use | ✅ | <code>log_file "./proxy.ndjson"</code> |
+| should fail only the request whose turn has a queued failure in the fake ssh | ✅ | <code>ssh_pass "-p" "2222" "user@remote.test" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass "user@remote.test" {</code><br><code>&nbsp;&nbsp;pass "s3cret-password"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should give every route its own plugin state | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should hand the pass of ssh_pass to ssh through an askpass program, never on the command line | ✅ | <code>pass "s3cr3t pa$$"</code> |
 | should install a plugin for every engine and transport | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
@@ -388,6 +390,7 @@ Specs: **389** · ✅ pasan: **389** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should use the curl engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass curl</code> |
 | should use the first argument of ssh_pass as the host, so ~/.ssh/config applies | ✅ | <code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;port 2222</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;port 2200</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver "-v" {</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code><br><code>ssh_pass myserver {</code><br><code>&nbsp;&nbsp;user jon</code><br><code>&nbsp;&nbsp;pass "s3cr3t pa$$"</code><br><code>&nbsp;&nbsp;command_pass curl</code><br><code>}</code> |
 | should use the node engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass node</code> |
+| should use the pods queued for the next kubectl get pods of the fake | ✅ | <code>pod_match my-pod-*</code><br><code>pod_match my-pod-9?</code><br><code>pod_match nope-*</code> |
 | should use the wget engine of the nested command_pass in ssh_pass | ✅ | <code>command_pass wget</code> |
 | should warn about an unknown directive inside auth | ✅ | <code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "secreto"</code><br><code>&nbsp;&nbsp;token "x"</code><br><code>}</code> |
 | should warn about routes declared after a route without arguments | ✅ | <code>route {</code><br><code>&nbsp;&nbsp;respond 404</code><br><code>}</code> |
