@@ -140,3 +140,23 @@ testFeature(proxyBlock("a", [1, 2]) + proxyBlock("b", [3]), ["/proxy", "/proxy/l
   // The listeners that left the manifest are gone.
   expect(await Promise.all([a2!, b1!].map(isClosed))).toEqual([true, true]);
 });
+
+testFeature(proxyBlock("v1", [1]), ["/proxy/listen"], "should add and then remove a listener keeping the others alive", async () => {
+  const [port1, port2] = [await freePort(), await freePort()];
+  const proxy = await startProxy("reload-add-remove-listener", proxyBlock("v1", [port1]));
+  expect(await answerOn(port1)).toBe("v1");
+  expect(await isClosed(port2)).toBe(true);
+
+  // A second listener: both ports are alive and answer the same.
+  await proxy.updateManifest(proxyBlock("v2", [port1, port2]));
+  expect(proxy.ports()).toEqual([port1, port2]);
+  expect(await answerOn(port1)).toBe("v2");
+  expect(await answerOn(port2)).toBe("v2");
+
+  // The second listener leaves: port 1 stays alive, port 2 fails.
+  await proxy.updateManifest(proxyBlock("v3", [port1]));
+  expect(proxy.ports()).toEqual([port1]);
+  expect(await answerOn(port1)).toBe("v3");
+  expect(await isClosed(port2)).toBe(true);
+  await expect(answerOn(port2)).rejects.toThrow();
+});

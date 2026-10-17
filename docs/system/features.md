@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **383** · ✅ pasan: **383** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **384** · ✅ pasan: **384** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -135,6 +135,7 @@ Specs: **383** · ✅ pasan: **383** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should accept the method in lowercase | ✅ | <code>route get "http://lower.test/*" {</code><br><code>&nbsp;&nbsp;respond 201 "lower"</code><br><code>}</code> |
 | should accept wget as the child of kubectl_pass | ✅ | <code>kubectl_pass "pod/api" {</code><br><code>&nbsp;&nbsp;command_pass wget</code><br><code>}</code> |
 | should accept wget as the child of ssh_pass | ✅ | <code>ssh_pass "user@host" {</code><br><code>&nbsp;&nbsp;command_pass wget</code><br><code>}</code> |
+| should add and then remove a listener keeping the others alive | ✅ | <code>listen http 127.0.0.1 1</code> |
 | should add the extra_args to the ssh options, keeping the destination last | ✅ | <code>extra_args "-p" 2222</code> |
 | should allow the same port on different hosts | ✅ | <code>listen http 127.0.0.1 9090</code><br><code>listen http ::1 9090</code> |
 | should answer 200 ok through a tunnel when no route matches | ✅ | <code>listen socks4 127.0.0.1 0</code> |
