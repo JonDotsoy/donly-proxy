@@ -1,6 +1,13 @@
 [
   {
-    "perf": 125835205,
+    "perf": 67119629,
+    "type": "command",
+    "args": [
+      "--version"
+    ]
+  },
+  {
+    "perf": 174185303,
     "type": "stdout",
     "chunk": "v22.22.0\n"
   }

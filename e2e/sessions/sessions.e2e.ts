@@ -112,10 +112,12 @@ for (const session of sessions) {
     const entries: SessionEntry[] = JSON.parse(readFileSync(recording, "utf8"));
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(["stdin", "stdout", "stderr"]).toContain(entry.type);
+      expect(["command", "stdin", "stdout", "stderr"]).toContain(entry.type);
       expect(Number.isInteger(entry.perf) && entry.perf >= 0).toBe(true);
-      expect(typeof entry.chunk).toBe("string");
+      if (entry.type === "command") expect(entry.args.every((arg) => typeof arg === "string")).toBe(true);
+      else expect(typeof entry.chunk).toBe("string");
     }
+    expect(entries.filter((entry) => entry.type === "command").length).toBe(JSON.parse(readFileSync(recording.replace(/\.session\.json$/, ".calls.json"), "utf8")).length);
     mkdirSync(sessionsDir, { recursive: true });
     renameSync(recording.replace(/\.session\.json$/, ".calls.json"), callsPath(session.name));
     renameSync(recording, file);

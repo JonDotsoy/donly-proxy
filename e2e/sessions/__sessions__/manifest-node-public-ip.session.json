@@ -1,12 +1,20 @@
 [
   {
-    "perf": 423186035,
+    "perf": 324529297,
+    "type": "command",
+    "args": [
+      "--input-type=module",
+      "-"
+    ]
+  },
+  {
+    "perf": 337752686,
     "type": "stdin",
     "chunk": "globalThis.__donlyRequest = JSON.parse(Buffer.from(\"eyJtZXRob2QiOiJHRVQiLCJ1cmwiOiJodHRwOi8vYXBpLmlwaWZ5Lm9yZy8/Zm9ybWF0PWpzb24iLCJoZWFkZXJzIjp7ImFjY2VwdCI6IiovKiIsInVzZXItYWdlbnQiOiJCdW4vMS40LjIifSwiYm9keSI6IiJ9\", \"base64\").toString());\n// Runs in a separate `node` process spawned by the proxy (`command_pass node`).\n// Reads { method, url, headers, body (base64) } as JSON from stdin (or globalThis.__donlyRequest), performs the\n// request with http.request / https.request and writes { status, headers, body (base64) }\n// as JSON to stdout. Any failure goes to stderr with a non-zero exit code.\nimport http from \"node:http\";\nimport https from \"node:https\";\nimport zlib from \"node:zlib\";\n\n// Run through `ssh ... node -`, stdin is this script itself, so the request arrives\n// in `globalThis.__donlyRequest` instead.\nlet input = globalThis.__donlyRequest;\nif (!input) {\n  const chunks = [];\n  for await (const chunk of process.stdin) chunks.push(chunk);\n  input = JSON.parse(Buffer.concat(chunks).toString());\n}\nconst { method, url, headers, body } = input;\n\nconst target = new URL(url);\nif (target.protocol !== \"http:\" && target.protocol !== \"https:\") {\n  process.stderr.write(`unsupported protocol ${target.protocol}`);\n  process.exit(1);\n}\nconst payload = Buffer.from(body, \"base64\");\nconst request = (target.protocol === \"https:\" ? https : http).request(\n  target,\n  { method, headers: payload.length ? { ...headers, \"content-length\": payload.length } : headers },\n  (res) => {\n    const decoders = {\n      gzip: zlib.createGunzip,\n      \"x-gzip\": zlib.createGunzip,\n      deflate: zlib.createInflate,\n      br: zlib.createBrotliDecompress,\n    };\n    const encoding = String(res.headers[\"content-encoding\"] ?? \"\").toLowerCase();\n    const decoder = decoders[encoding];\n    const source = decoder ? res.pipe(decoder()) : res;\n    const out = [];\n    source.on(\"data\", (chunk) => out.push(chunk));\n    source.on(\"error\", (error) => fail(error));\n    source.on(\"end\", () => {\n      const responseHeaders = { ...res.headers };\n      if (decoder) delete responseHeaders[\"content-encoding\"];\n      process.stdout.write(\n        JSON.stringify({\n          status: res.statusCode,\n          headers: responseHeaders,\n          body: Buffer.concat(out).toString(\"base64\"),\n        }),\n      );\n    });\n  },\n);\nconst fail = (error) => {\n  process.stderr.write(error.message);\n  process.exit(1);\n};\nrequest.on(\"error\", fail);\nrequest.end(payload);\n"
   },
   {
-    "perf": 900993896,
+    "perf": 815291504,
     "type": "stdout",
-    "chunk": "{\"status\":200,\"headers\":{\"date\":\"Sat, 17 Oct 2026 14:10:48 GMT\",\"content-type\":\"application/json\",\"content-length\":\"21\",\"server\":\"cloudflare\",\"vary\":\"Origin\",\"cf-cache-status\":\"DYNAMIC\",\"cf-ray\":\"a4bfe38c7f870012-ORD\"},\"body\":\"eyJpcCI6IjM1LjI1My43Ny44OCJ9\"}"
+    "chunk": "{\"status\":200,\"headers\":{\"date\":\"Sat, 17 Oct 2026 15:21:58 GMT\",\"content-type\":\"application/json\",\"content-length\":\"20\",\"server\":\"cloudflare\",\"vary\":\"Origin\",\"cf-cache-status\":\"DYNAMIC\",\"cf-ray\":\"a4c04bcacb2ce828-ORD\"},\"body\":\"eyJpcCI6IjM1LjE5My45Ljk3In0=\"}"
   }
 ]
