@@ -1,13 +1,13 @@
 [
   {
-    "perf": 67119629,
+    "elapse_nanosecond": 23887207,
     "type": "command",
     "args": [
       "--version"
     ]
   },
   {
-    "perf": 174185303,
+    "elapse_nanosecond": 40284180,
     "type": "stdout",
     "chunk": "v22.22.0\n"
   }

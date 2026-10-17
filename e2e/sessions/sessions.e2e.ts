@@ -7,7 +7,7 @@ import { createProxyServer, loadConfig } from "../../src/proxy/server";
 import { callsPath, sessionPath, sessionsDir, type SessionEntry } from "./session";
 
 // Empirical sessions: runs REAL programs (kubectl, ssh, curl…) through wrapper binaries that record every stdin, stdout
-// and stderr chunk as `{ perf, type, chunk }` in e2e/sessions/__sessions__/<name>.session.json, either from a Bun.$ command
+// and stderr chunk as `{ elapse_nanosecond, type, chunk }` in e2e/sessions/__sessions__/<name>.session.json, either from a Bun.$ command
 // or from a request through the proxy with a manifest. A session whose file exists is NOT recorded again: delete the file to
 // record it again. Programs or settings a session needs and the machine lacks make it skip (the file is not created).
 const root = mkdtempSync(join(tmpdir(), "donly-proxy-sessions-"));
@@ -113,7 +113,7 @@ for (const session of sessions) {
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
       expect(["command", "stdin", "stdout", "stderr"]).toContain(entry.type);
-      expect(Number.isInteger(entry.perf) && entry.perf >= 0).toBe(true);
+      expect(Number.isInteger(entry.elapse_nanosecond) && entry.elapse_nanosecond >= 0).toBe(true);
       if (entry.type === "command") expect(entry.args.every((arg) => typeof arg === "string")).toBe(true);
       else expect(typeof entry.chunk).toBe("string");
     }
