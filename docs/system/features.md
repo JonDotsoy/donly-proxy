@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **380** · ✅ pasan: **380** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **383** · ✅ pasan: **383** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -142,6 +142,7 @@ Specs: **380** · ✅ pasan: **380** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should answer 407 when the password is wrong | ✅ | <code>password "s3cr3t pass"</code><br><code>password "other"</code> |
 | should answer 407 with Proxy-Authenticate when the proxy-authorization header is missing | ✅ | <code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
 | should answer each proxy block with its own route | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 127.0.0.1 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
+| should answer each request with the manifest saved right before it | ✅ | <code>respond 200 "v1"</code> |
 | should answer the socks5 username/password subnegotiation status | ✅ | <code>listen http 127.0.0.1 0</code><br><code>listen socks5 127.0.0.1 0</code><br><code>listen https 127.0.0.1 0</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
 | should answer with a plain fetch in the proxy plugin and keep the query | ✅ | <code>proxy_pass "http://127.0.0.1:&lt;port&gt;/"</code> |
 | should append the extra_args of ssh_pass as ssh options | ✅ | <code>extra_args "-4" "-v"</code> |
@@ -333,6 +334,8 @@ Specs: **380** · ✅ pasan: **380** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should reject ssh_pass without a nested command_pass | ✅ | <code>ssh_pass "user@remote.test"</code> |
 | should reject the same host and port in two proxy blocks | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;listen http 9090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok http"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code><br><code>proxy {</code><br><code>&nbsp;&nbsp;listen https 9090</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "ok https"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should reject two listen on the same host and port | ✅ | <code>listen http 127.0.0.1 9090</code><br><code>listen https 127.0.0.1 9090</code> |
+| should release the old port and listen on the new one when the manifest changes the port | ✅ |  |
+| should reload several proxies and listeners and validate every port | ✅ | <code>proxy {</code><br><code>&nbsp;&nbsp;host "127.0.0.1"</code><br><code>&nbsp;&nbsp;port 0</code><br><code>&nbsp;&nbsp;route {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;respond 200 "v1"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should replay only the last lines of a long log and survive a truncation | ✅ | <code>log_file "./proxy.ndjson"</code> |
 | should report an error when a route has more than two arguments | ✅ | <code>route GET POST a {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>}</code> |
 | should report an error when a route has not exactly one action | ✅ | <code>route a {</code><br><code>}</code><br><code>route b {</code><br><code>&nbsp;&nbsp;respond 200</code><br><code>&nbsp;&nbsp;proxy_pass "http://x/"</code><br><code>}</code> |
