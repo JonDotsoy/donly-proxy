@@ -24,6 +24,8 @@ El bundle está construido para [Bun](https://bun.sh), así que se ejecuta con:
 bun ~/donly-proxy/bin/donly-proxy.js [manifest.donly]
 ```
 
+Sin argumentos carga, del directorio actual, el primero que exista entre `proxy.donly`, `.proxy.donly`, `manifest.donly` y `.manifest.donly`, e imprime en consola (stderr) qué manifiesto está leyendo.
+
 Para actualizar, vuelve a ejecutar el comando de descarga.
 
 ## Fórmula local de Homebrew (desarrollo)
