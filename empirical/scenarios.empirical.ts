@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { proxyScript, type ProxyRequest } from "./proxy-script";
 import { Scenario, type ScenarioResult } from "./scenario";
 import { scenariosDir } from "./session";
 
@@ -14,7 +15,6 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 const hasProgram = (program: string) => Bun.which(program) !== null;
 const words = (value = "") => value.split(/\s+/).filter(Boolean);
 const quoted = (args: string[]) => args.map((arg) => JSON.stringify(arg)).join(" ");
-const sh = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`;
 
 interface EmpiricalScenario {
   name: string;
@@ -28,25 +28,11 @@ interface EmpiricalScenario {
   check?: (scenario: ScenarioResult) => void;
 }
 
-/** Script that starts the proxy with `routes` (manifest body), asks it for `GET http://<host><path>` for each request and stops it. */
-const viaProxy = (routes: string, requests: { host: string; path: string }[]) => () => {
+/** Script that starts the proxy with `routes` (manifest body) and asks it for each request. */
+const viaProxy = (routes: string, requests: ProxyRequest[]) => () => {
   const dir = mkdtempSync(join(root, "proxy-"));
-  const probe = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {} } });
-  const port = probe.port;
-  probe.stop(true);
-  writeFileSync(join(dir, "manifest.donly"), `proxy {\n  host "127.0.0.1"\n  port ${port}\n${routes}\n}\n`);
-  const main = join(import.meta.dir, "..", "src", "cli", "main.ts");
-  const asks = requests
-    .map(({ host, path }) => `exec 3<>/dev/tcp/127.0.0.1/${port}\nprintf 'GET http://${host}${path} HTTP/1.1\\r\\nHost: ${host}\\r\\nConnection: close\\r\\n\\r\\n' >&3\ncat <&3\nexec 3>&-`)
-    .join("\n");
-  return `cd ${sh(dir)}
-${sh(process.execPath)} ${sh(main)} manifest.donly > proxy.out 2>&1 &
-proxy=$!
-for _ in $(seq 40); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && break; sleep 0.1; done
-${asks}
-kill $proxy
-wait $proxy
-exit 0`;
+  writeFileSync(join(dir, "manifest.donly"), `proxy {\n  host "127.0.0.1"\n  port 0\n${routes}\n}\n`);
+  return proxyScript({ dir, bun: process.execPath, main: join(import.meta.dir, "..", "src", "cli", "main.ts"), requests });
 };
 
 const ssh = process.env.DONLY_E2E_SSH; // `user@host`; DONLY_E2E_SSH_ARGS: ssh options such as `-p 22 -i ~/.ssh/key`
@@ -67,6 +53,7 @@ const scenarios: EmpiricalScenario[] = [
   // The proxy fetches the public IP of this machine with each real program.
   { name: "manifest-curl-public-ip", summary: "command_pass curl asking api.ipify.org for the public IP through the proxy", wrap: ["curl"], script: viaProxy(route(`    command_pass curl "--max-time" "15"`), ipify), check: showsIp },
   { name: "manifest-node-public-ip", summary: "command_pass node asking api.ipify.org for the public IP through the proxy", wrap: ["node"], script: viaProxy(route(`    command_pass node`), ipify), check: showsIp },
+  { name: "manifest-curl-not-found", summary: "command_pass curl asking api.ipify.org for a path that does not exist (404 through the proxy)", wrap: ["curl"], script: viaProxy(`  route http://api.ipify.org/* {\n    command_pass curl "--max-time" "15"\n  }`, [{ host: "api.ipify.org", path: "/no-such-path" }]), check: (scenario) => expect(scenario.stdout).toMatch(/^HTTP\/1\.1 404/) },
   {
     // Two wrapped programs in one scenario, each call a session of its own.
     name: "manifest-curl-and-node-public-ip",

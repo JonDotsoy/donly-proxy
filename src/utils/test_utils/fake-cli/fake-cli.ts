@@ -3,6 +3,9 @@ import { delimiter, join } from "node:path";
 
 export type FakeProgram = "kubectl" | "ssh";
 
+/** What a program is asked to do: `kubectl` has `exec` and `get`, `ssh` only runs a command. */
+type Sub<P extends FakeProgram> = P extends "kubectl" ? "exec" | "get" : "exec";
+
 /** One queued answer: what the next call prints and how it ends. Without `stdout` or `exit` the call runs normally. */
 export interface FakeAnswer {
   stdout?: string;
@@ -26,7 +29,7 @@ export interface FakeAnswer {
  *
  * `kubectl exec` reads stdin only with `-i`/`--stdin`, as the real one does. The stdin of the remote command is kept (`stdin()` is the one of the last call) and then fed to it from a file of its own, so concurrent calls never share a body, so a body sent to `curl` can be checked.
  *
- * `kubectl --version` answers like the real one; `kubectl exec` without `--` fails instead of looping.
+ * `kubectl --version` (also `version`) and `ssh -V`/`--version` answer like the real ones and are not counted as calls; `kubectl exec` without `--` fails instead of looping.
  */
 const script = (program: FakeProgram, calls: string) => `#!/bin/sh
 mkdir -p "${calls}"
@@ -38,14 +41,18 @@ ${
 for a in "$@"; do case "$a" in --) break ;; --stdin) reads_stdin=1 ;; --*) ;; -*i*) reads_stdin=1 ;; esac; done`
     : "reads_stdin=1"
 }
+${
+  program === "kubectl"
+    ? 'case "$1" in\n  --version|version) echo "Client Version: v0.0.0-fake"; exit 0 ;;\nesac'
+    : 'case "$1" in\n  -V|--version) echo "OpenSSH_0.0-fake" >&2; exit 0 ;;\nesac'
+}
 printf '%s\\0' "$@" > "${calls}/${program}.$sub.args"
 echo x >> "${calls}/${program}.$sub.count"
-${program === "kubectl" ? 'case "$1" in\n  --version|version) echo "Client Version: v0.0.0-fake"; exit 0 ;;\nesac' : ""}
 taken=""
 for d in "${calls}/queue/${program}.$sub"/*; do
   [ -d "$d" ] || continue
   mkdir -p "${calls}/taken"
-  if mv "$d" "${calls}/taken/$$" 2>/dev/null; then taken="${calls}/taken/$$"; break; fi
+  if mv "$d" "${calls}/taken/$$.$(basename "$d")" 2>/dev/null; then taken="${calls}/taken/$$.$(basename "$d")"; break; fi
 done
 if [ -n "$taken" ]; then
   [ -f "$taken/stderr" ] && cat "$taken/stderr" >&2
@@ -127,7 +134,7 @@ export const createFakeCli = (dir: string) => {
      * Queues the answer of the next call that has no answer queued before it (`sub` as in `args`).
      * Answers are consumed in the order they were queued, one per call.
      */
-    next(program: FakeProgram, answer: FakeAnswer, sub: "exec" | "get" = "exec") {
+    next<P extends FakeProgram>(program: P, answer: FakeAnswer, sub: Sub<P> = "exec" as Sub<P>) {
       const entry = join(queueDir(program, sub), String(seq++).padStart(6, "0"));
       mkdirSync(entry, { recursive: true });
       if (answer.stdout !== undefined) writeFileSync(join(entry, "stdout"), answer.stdout);

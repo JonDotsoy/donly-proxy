@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { vfs } from "../src/utils/test_utils/vfs/vfs";
 import { testFeature } from "../src/utils/test_utils/test-feature/test-feature";
+import { proxyScript } from "./proxy-script";
 import { Scenario } from "./scenario";
 import { validateSession, type SessionEntry } from "./session";
 
@@ -163,6 +164,9 @@ describe("Scenario", () => {
     const options = { wrap: ["node"], env: { PATH }, root: roots() };
     await expect(Scenario.run({ ...options, name: "foreign", script: injected(session({ scenario_id: "another" })) })).rejects.toThrow("belongs to another scenario");
     await expect(Scenario.run({ ...options, name: "unknown-parent", script: injected(session({ parent_session_id: "nobody" })) })).rejects.toThrow("unknown parent session");
+    const twoCalls = session();
+    twoCalls.push({ elapse_nanosecond: 4, type: "command", command: "node", args: [] }, { elapse_nanosecond: 5, type: "end", exit_code: 0 });
+    await expect(Scenario.run({ ...options, name: "two-calls", script: injected(twoCalls) })).rejects.toThrow("exactly one call");
     const fine = await Scenario.run({ ...options, name: "injected", script: injected(session()) });
     expect(fine.sessions.map((item) => item.id)).toEqual(["s1"]);
     await expect(Scenario.run({ ...options, name: "missing-file", script: injected(session(), ["0001", "0002"]) })).rejects.toThrow("incomplete session");
@@ -183,6 +187,11 @@ describe("Scenario", () => {
     expect(() => validateSession([open, { ...command, args: [1] } as unknown as SessionEntry, end])).toThrow("string args");
     expect(() => validateSession([open, command, { ...end, exit_code: 1.5 } as SessionEntry])).toThrow("exit_code");
     expect(() => validateSession([open, command, { elapse_nanosecond: 3, type: "stdout", chunk: 1 } as unknown as SessionEntry, end])).toThrow("chunk");
+    expect(() => validateSession("nope" as unknown as SessionEntry[])).toThrow("array");
+    expect(() => validateSession([open, end, command])).toThrow("needs the command it closes");
+    expect(() => validateSession([open, command, command, end])).toThrow("cannot open before");
+    expect(() => validateSession([open, { elapse_nanosecond: 2, type: "stdout", chunk: "x" }, command, end])).toThrow("between a command and its end");
+    expect(() => validateSession([open, { ...command, elapse_nanosecond: 5 }, { ...end, elapse_nanosecond: 4 }])).toThrow("time order");
     expect(() => validateSession([open, command, { elapse_nanosecond: 3, type: "other" } as unknown as SessionEntry, end])).toThrow("unknown entry type");
   });
 
@@ -217,13 +226,9 @@ describe("Scenario", () => {
 
 // The proxy is the subject: a scenario starts it with a manifest and asks it for a page; the proxy runs `curl` through `command_pass`,
 // and the wrapper records that call next to the one the script made itself.
-const probe = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {} } });
-const port = probe.port;
-probe.stop(true);
-
 const manifest = `proxy {
   host "127.0.0.1"
-  port ${port}
+  port 0
   log_file "./proxy.ndjson"
   route http://scenario.test/* {
     command_pass curl "--max-time" "5"
@@ -235,25 +240,12 @@ testFeature(manifest, ["/proxy/route/command_pass"], "should record the curl the
   const work = mkdtempSync(join(dir, "proxy-"));
   writeFileSync(join(work, "manifest.donly"), payload);
   const main = join(import.meta.dir, "..", "src", "cli", "main.ts");
-  const request = "GET http://scenario.test/page HTTP/1.1\\r\\nHost: scenario.test\\r\\nConnection: close\\r\\n\\r\\n";
   const scenario = await Scenario.run({
     name: "proxy-command-pass",
     wrap: ["curl"],
     root: roots(),
-    env: { PATH, NO_PROXY: "", no_proxy: "", WORK: work, MAIN: main, BUN: process.execPath },
-    script: `
-      cd "$WORK"
-      "$BUN" "$MAIN" manifest.donly > proxy.out 2>&1 &
-      proxy=$!
-      for _ in $(seq 40); do (exec 3<>/dev/tcp/127.0.0.1/${port}) 2>/dev/null && break; sleep 0.1; done
-      exec 3<>/dev/tcp/127.0.0.1/${port}
-      printf '${request}' >&3
-      cat <&3
-      curl direct < /dev/null
-      kill $proxy
-      wait $proxy
-      exit 0
-    `,
+    env: { PATH, NO_PROXY: "", no_proxy: "" },
+    script: proxyScript({ dir: work, bun: process.execPath, main, requests: [{ host: "scenario.test", path: "/page" }], after: "curl direct < /dev/null" }),
   });
   expect(scenario.stdout).toContain("from curl");
   const curls = scenario.sessions.filter((session) => session.program === "curl");

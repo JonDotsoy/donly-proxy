@@ -16,28 +16,34 @@ export type SessionEntry =
 
 export const scenariosDir = resolve(import.meta.dir, "__scenarios__");
 
-/** Throws when `entries` is not a well-formed session. */
+/** Throws when `entries` is not a well-formed session: one `session` first, then calls that open with `command`, carry chunks and close with `end`, in time order. */
 export const validateSession = (entries: SessionEntry[]) => {
+  if (!Array.isArray(entries)) throw new Error("a session is an array of entries");
   const first = entries[0];
   if (first?.type !== "session") throw new Error("a session opens with a `session` entry");
   if (entries.filter((entry) => entry.type === "session").length !== 1) throw new Error("a session has exactly one `session` entry");
-  let calls = 0;
-  let ends = 0;
+  let inCall = false;
+  let previous = 0;
   for (const entry of entries) {
     if (!Number.isInteger(entry.elapse_nanosecond) || entry.elapse_nanosecond < 0) throw new Error("elapse_nanosecond must be a non-negative integer");
+    if (entry.elapse_nanosecond < previous) throw new Error("entries must be in time order");
+    previous = entry.elapse_nanosecond;
     if (entry.type === "session") {
       if (new Date(entry.timestamp).toISOString() !== entry.timestamp) throw new Error("timestamp must be an ISO date");
     } else if (entry.type === "command") {
-      calls++;
-      if (typeof entry.command !== "string" || !entry.args.every((arg) => typeof arg === "string")) throw new Error("command needs a string command and string args");
+      if (inCall) throw new Error("a command cannot open before the previous call has its end");
+      inCall = true;
+      if (typeof entry.command !== "string" || !Array.isArray(entry.args) || !entry.args.every((arg) => typeof arg === "string")) throw new Error("command needs a string command and string args");
     } else if (entry.type === "end") {
-      ends++;
+      if (!inCall) throw new Error("an end needs the command it closes");
+      inCall = false;
       if (entry.exit_code !== null && !Number.isInteger(entry.exit_code)) throw new Error("exit_code must be an integer or null");
     } else if (entry.type === "stdin" || entry.type === "stdout" || entry.type === "stderr") {
+      if (!inCall) throw new Error(`${entry.type} chunks belong between a command and its end`);
       if (typeof entry.chunk !== "string") throw new Error("chunk must be a string");
     } else {
       throw new Error(`unknown entry type ${(entry as { type: string }).type}`);
     }
   }
-  if (calls !== ends) throw new Error("every command needs its end");
+  if (inCall) throw new Error("every command needs its end");
 };

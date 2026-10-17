@@ -32,3 +32,5 @@ beforeEach(() => fake.reset());    // olvida las llamadas registradas
 
 Como todo proceso pasa por `src/spawn/`, los tests también comprueban `command_start`/`command_end`
 en el log `.ndjson`. La suite está en `src/proxy/tunnel/fake-cli.test.ts`.
+
+`kubectl --version`/`version` y `ssh -V`/`--version` responden como los reales y no cuentan como llamadas ni pisan los argumentos registrados. `next("ssh", …, "get")` no compila: `get` solo existe en `kubectl`.

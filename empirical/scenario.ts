@@ -121,6 +121,7 @@ const run = async (options: ScenarioOptions): Promise<ScenarioResult> => {
     const sessions: ScenarioSession[] = files.map((file) => {
       const entries: SessionEntry[] = JSON.parse(readFileSync(join(staging, file), "utf8"));
       validateSession(entries);
+      if (entries.filter((entry) => entry.type === "command").length !== 1) throw new Error(`${file} must record exactly one call`);
       const [start] = entries as [Extract<SessionEntry, { type: "session" }>];
       if (start.scenario_id !== id) throw new Error(`${file} belongs to another scenario`);
       const end = [...entries].reverse().find((entry) => entry.type === "end");

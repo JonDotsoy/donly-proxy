@@ -4,3 +4,5 @@ logs
 dist
 # Empirical scenarios that carry the public IP of the machine that recorded them
 empirical/__scenarios__/manifest-*
+empirical/__scenarios__/kubectl-*
+empirical/__scenarios__/ssh-*

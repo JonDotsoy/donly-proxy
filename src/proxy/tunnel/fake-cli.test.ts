@@ -382,3 +382,16 @@ test("uninstall restores the PATH and NO_PROXY the install changed", () => {
   expect(process.env.NO_PROXY).toBe(before.NO_PROXY);
   expect(process.env.no_proxy).toBe(before.no_proxy);
 });
+
+test("--version and -V answer without counting as a call or replacing the recorded arguments", async () => {
+  await run("ssh", ["host", "true"], "");
+  expect((await run("ssh", ["-V"], "")).stderr.toString()).toContain("OpenSSH");
+  expect((await run("ssh", ["--version"], "")).code).toBe(0);
+  expect((await run("kubectl", ["version"], "")).stdout.toString()).toContain("Client Version");
+  await run("kubectl", ["exec", "pod/x", "--", "true"], "");
+  await run("kubectl", ["--version"], "");
+  expect(fake.count("ssh")).toBe(1);
+  expect(fake.args("ssh")).toEqual(["host", "true"]);
+  expect(fake.count("kubectl")).toBe(1);
+  expect(fake.args("kubectl")).toEqual(["exec", "pod/x", "--", "true"]);
+});
