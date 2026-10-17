@@ -12,6 +12,8 @@ export interface ScenarioOptions {
   script: string;
   /** Extra environment for the bash. A `PATH` here replaces the one the wrapper directory is put in front of. */
   env?: Record<string, string>;
+  /** Directory the bash starts in: a path, or a `vfs` (its `cwd()`). Defaults to the one of this process. */
+  cwd?: string | { cwd(): string };
   /** Directory of the scenarios. Defaults to `empirical/__scenarios__`. */
   root?: string;
   /** Record again even if the scenario exists. */
@@ -84,6 +86,7 @@ const run = async (options: ScenarioOptions): Promise<ScenarioResult> => {
     const request = new ShellRequest({
       commands: ["bash", "-c", options.script],
       signal,
+      cwd: typeof options.cwd === "string" ? options.cwd : options.cwd?.cwd(),
       env: {
         ...options.env,
         PATH: `${bin}${delimiter}${options.env?.PATH ?? process.env.PATH}`,

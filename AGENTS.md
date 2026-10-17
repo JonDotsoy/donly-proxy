@@ -16,6 +16,7 @@ manifiesto [DON](https://don.jon.soy/) (`manifest.donly`). Corre sobre [Bun](htt
 | `src/proxy/*.test.ts` | Tests del servidor (un archivo por tema). Los de `tunnel/` viven junto a su código. |
 | `src/utils/test_utils/test-feature/` | `testFeature`: registra cada test como una *spec* de feature. |
 | `src/utils/test_utils/fake-cli/` | `createFakeCli`: binarios `kubectl` y `ssh` falsos para tests (ver `docs/fake-cli.md`). |
+| `src/utils/test_utils/vfs/` | `vfs.createTmp()`: directorio temporal para tests (`cwd()`, `writeFile`, `readFile`, `remove`); `Scenario.run({ cwd })` lo acepta. |
 | `empirical/` | Pruebas empíricas: `Scenario` abre un `bash` con wrappers en el `PATH` y graba una sesión por cada llamada a un programa real; `bun run empirical` (ver `docs/empirical.md`). Su `scenario.test.ts` sí corre con `bun test`. |
 | `src/utils/test_utils/lint-features/` | Convierte el payload + paths de un test en el "lint" que se ve en la tabla. |
 | `docs/` | Referencia: `manifest.md`, `overview.md`, `concepts/` (`route`, `proxy_pass`, `command_pass`, `kubectl_pass`, `ssh_pass`), `tunnel/`. |

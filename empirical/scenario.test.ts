@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { vfs } from "../src/utils/test_utils/vfs/vfs";
 import { testFeature } from "../src/utils/test_utils/test-feature/test-feature";
 import { Scenario } from "./scenario";
 import type { SessionEntry } from "./session";
@@ -91,6 +92,20 @@ describe("Scenario", () => {
     expect(forced.id).not.toBe(first.id);
     expect(readFileSync(counter, "utf8").split("\n").filter(Boolean)).toHaveLength(2);
     expect(Scenario.load("once", root).id).toBe(forced.id);
+  });
+
+  test("starts the script in the cwd, a path or a vfs", async () => {
+    const files = vfs.createTmp();
+    files.writeFile("foo", "from vfs");
+    const options = { wrap: ["node"], env: { PATH }, script: "pwd; cat foo; node here" } as const;
+    const viaVfs = await Scenario.run({ ...options, name: "cwd-vfs", root: roots(), cwd: files });
+    expect(viaVfs.stdout).toBe(`${files.cwd()}\nfrom vfsnode here\n`);
+    expect(viaVfs.sessions).toHaveLength(1);
+    const viaPath = await Scenario.run({ ...options, name: "cwd-path", root: roots(), cwd: files.cwd() });
+    expect(viaPath.stdout).toBe(`${files.cwd()}\nfrom vfsnode here\n`);
+    const without = await Scenario.run({ ...options, name: "cwd-none", root: roots(), script: "pwd" });
+    expect(without.stdout.trim()).toBe(process.cwd());
+    files.remove();
   });
 
   test("leaves nothing on disk when the scenario times out", async () => {

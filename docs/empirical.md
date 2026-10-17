@@ -8,6 +8,7 @@ Las pruebas empíricas ejecutan los programas **reales** (`kubectl`, `ssh`, `cur
 const scenario = await Scenario.run({
   name: "node-public-ip",     // nombre del escenario (su carpeta en disco)
   wrap: ["node", "curl"],     // programas que se graban
+  cwd: files,                 // carpeta donde arranca el bash: una ruta o un vfs
   env: { LANG: "C" },         // variables extra para el bash (un PATH aquí reemplaza al heredado)
   script: `node --version; curl --version`,
 });
@@ -16,6 +17,19 @@ scenario.sessions[0].entries;  // SessionEntry[]
 ```
 
 `Scenario.run` abre `bash -c <script>` con el `PATH` cambiado: un *wrapper* por cada programa de `wrap` va primero. Cada vez que el script (o un programa que este lance) ejecuta uno de ellos, el wrapper (`empirical/recorder.ts`) corre el programa real con el módulo `spawn`, deja pasar stdin, stdout y stderr sin tocarlos y escribe una **sesión** propia. `Scenario.load(name)` lee un escenario ya grabado.
+
+### Archivos de entrada: `vfs`
+
+```ts
+import { vfs } from "../src/utils/test_utils/vfs/vfs";
+
+const files = vfs.createTmp();                    // directorio temporal propio
+files.writeFile(join(files.cwd(), "foo"), "hola"); // o files.writeFile("foo", "hola")
+await Scenario.run({ name: "cat-foo", wrap: ["cat"], cwd: files, script: "cat foo" });
+files.remove();                                   // también se borra al terminar el proceso
+```
+
+`writeFile` crea las carpetas que falten y acepta rutas absolutas o relativas a `cwd()`; `readFile`, `exists` y `path(...)` completan la utilidad.
 
 ### Cómo se vinculan las sesiones
 
