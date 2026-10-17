@@ -261,3 +261,59 @@ testFeature(manifest, ["/proxy/route/command_pass"], "should record the curl the
   expect(started).toBeTruthy();
   expect(JSON.stringify(started)).toContain("http://scenario.test/page");
 });
+
+// The real curl is only the client that talks to the proxy; the one the proxy runs is the fake one, and it is the one recorded.
+const client = Bun.which("curl");
+const clientFeature = client ? testFeature : testFeature.skip;
+
+const postManifest = `proxy {
+  host "127.0.0.1"
+  port 0
+  route POST http://scenario.test/upload {
+    command_pass curl "--max-time" "5"
+  }
+}
+`;
+
+clientFeature(postManifest, ["/proxy/route/command_pass", "/proxy/route/method"], "should record the body a POST sends to the curl of command_pass as its stdin", async (payload) => {
+  const work = mkdtempSync(join(dir, "proxy-"));
+  writeFileSync(join(work, "manifest.donly"), payload);
+  const scenario = await Scenario.run({
+    name: "proxy-post-body",
+    wrap: ["curl"],
+    root: roots(),
+    env: { PATH, NO_PROXY: "", no_proxy: "" },
+    script: proxyScript({ dir: work, bun: process.execPath, main: join(import.meta.dir, "..", "src", "cli", "main.ts"), client, requests: [{ host: "scenario.test", path: "/upload", method: "POST", body: "name=value&other=1" }] }),
+  });
+  expect(scenario.stdout).toContain("200 OK");
+  expect(scenario.stdout).toContain("from curl");
+  expect(scenario.sessions).toHaveLength(1);
+  const entries = scenario.sessions[0]!.entries;
+  expect(entries.filter((entry) => entry.type === "stdin").map((entry) => (entry as { chunk: string }).chunk).join("")).toBe("name=value&other=1");
+  expect((entries[1] as { args: string[] }).args).toEqual(expect.arrayContaining(["--request", "POST", "http://scenario.test/upload"]));
+});
+
+const httpsManifest = `proxy {
+  host "127.0.0.1"
+  port 0
+  route https://secure.test/* {
+    command_pass curl "--max-time" "5"
+  }
+}
+`;
+
+clientFeature(httpsManifest, ["/proxy/route/command_pass"], "should record the curl the proxy runs for a request that came through a CONNECT tunnel", async (payload) => {
+  const work = mkdtempSync(join(dir, "proxy-"));
+  writeFileSync(join(work, "manifest.donly"), payload);
+  const scenario = await Scenario.run({
+    name: "proxy-https",
+    wrap: ["curl"],
+    root: roots(),
+    env: { PATH, NO_PROXY: "", no_proxy: "" },
+    script: proxyScript({ dir: work, bun: process.execPath, main: join(import.meta.dir, "..", "src", "cli", "main.ts"), client, requests: [{ host: "secure.test", path: "/a?x=1", https: true }] }),
+    timeoutMs: 20_000,
+  });
+  expect(scenario.stdout).toContain("from curl");
+  expect(scenario.sessions).toHaveLength(1);
+  expect((scenario.sessions[0]!.entries[1] as { args: string[] }).args).toContain("https://secure.test/a?x=1");
+});

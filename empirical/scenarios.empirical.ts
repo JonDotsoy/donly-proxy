@@ -32,7 +32,7 @@ interface EmpiricalScenario {
 const viaProxy = (routes: string, requests: ProxyRequest[]) => () => {
   const dir = mkdtempSync(join(root, "proxy-"));
   writeFileSync(join(dir, "manifest.donly"), `proxy {\n  host "127.0.0.1"\n  port 0\n${routes}\n}\n`);
-  return proxyScript({ dir, bun: process.execPath, main: join(import.meta.dir, "..", "src", "cli", "main.ts"), requests });
+  return proxyScript({ dir, bun: process.execPath, main: join(import.meta.dir, "..", "src", "cli", "main.ts"), requests, client: Bun.which("curl") ?? undefined });
 };
 
 const ssh = process.env.DONLY_E2E_SSH; // `user@host`; DONLY_E2E_SSH_ARGS: ssh options such as `-p 22 -i ~/.ssh/key`
@@ -53,6 +53,28 @@ const scenarios: EmpiricalScenario[] = [
   // The proxy fetches the public IP of this machine with each real program.
   { name: "manifest-curl-public-ip", summary: "command_pass curl asking api.ipify.org for the public IP through the proxy", wrap: ["curl"], script: viaProxy(route(`    command_pass curl "--max-time" "15"`), ipify), check: showsIp },
   { name: "manifest-node-public-ip", summary: "command_pass node asking api.ipify.org for the public IP through the proxy", wrap: ["node"], script: viaProxy(route(`    command_pass node`), ipify), check: showsIp },
+  {
+    name: "manifest-curl-post-body",
+    summary: "command_pass curl sending a POST with a body to an echo API through the proxy (the body travels on the stdin of curl)",
+    wrap: ["curl"],
+    script: viaProxy(`  route POST http://postman-echo.com/post {\n    command_pass curl "--max-time" "15"\n  }`, [{ host: "postman-echo.com", path: "/post", method: "POST", body: "hola=mundo" }]),
+    check: (scenario) => {
+      expect(scenario.stdout).toMatch(/"hola":\s*"mundo"/);
+      const [session] = scenario.sessions;
+      expect(session!.entries.filter((entry) => entry.type === "stdin").map((entry) => (entry as { chunk: string }).chunk).join("")).toBe("hola=mundo");
+    },
+  },
+  {
+    name: "manifest-curl-https",
+    summary: "command_pass curl asking an echo API over HTTPS through a CONNECT tunnel that the proxy terminates",
+    wrap: ["curl"],
+    script: viaProxy(`  route https://postman-echo.com/* {\n    command_pass curl "--max-time" "15"\n  }`, [{ host: "postman-echo.com", path: "/get?x=1", https: true }]),
+    check: (scenario) => {
+      expect(scenario.stdout).toMatch(/^HTTP\/\S+ 200/);
+      expect(scenario.stdout).toMatch(/"x":\s*"1"/);
+      expect((scenario.sessions[0]!.entries[1] as { args: string[] }).args).toContain("https://postman-echo.com/get?x=1");
+    },
+  },
   { name: "manifest-curl-not-found", summary: "command_pass curl asking api.ipify.org for a path that does not exist (404 through the proxy)", wrap: ["curl"], script: viaProxy(`  route http://api.ipify.org/* {\n    command_pass curl "--max-time" "15"\n  }`, [{ host: "api.ipify.org", path: "/no-such-path" }]), check: (scenario) => expect(scenario.stdout).toMatch(/^HTTP\/1\.1 404/) },
   {
     // Two wrapped programs in one scenario, each call a session of its own.
