@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { argument, flag, flags } from "@jondotsoy/flags";
 import pkg from "../../package.json";
 import { lintManifestFile } from "../proxy/lint";
-import { createProxyServers, loadConfigs } from "../proxy/server";
+import { runManifest } from "../proxy/hot-reload";
+import { loadConfigs } from "../proxy/server";
 import { createUiServer } from "../ui/server";
 
 const parser = flags({
@@ -12,6 +13,7 @@ const parser = flags({
   version: flag("--version", "-V").boolean().describe("Muestra la versión"),
   ui: flag("--ui").boolean().describe("Levanta una página con los logs en vivo (requiere log_file)"),
   uiPort: flag("--ui-port").number().default(8081).describe("Puerto de la página de logs (por defecto 8081)"),
+  noReload: flag("--no-reload", "--no-hot").boolean().describe("Desactiva la recarga en caliente: los cambios del manifiesto no se aplican hasta reiniciar"),
   manifest: argument().string().describe("Ruta al manifiesto .donly (por defecto, el primero que exista en el directorio actual: proxy.donly, .proxy.donly, manifest.donly, .manifest.donly)"),
 })
   .program("donly-proxy")
@@ -61,21 +63,11 @@ if (options.ui && !logFile) {
   console.error("Error: --ui requiere log_file en el manifiesto para poder mostrar los logs");
   process.exit(1);
 }
-const failed = (listener: { host: string; port: number }) => (error: NodeJS.ErrnoException) => {
-  console.error(`Error: no se pudo escuchar en ${listener.host}:${listener.port}: ${error.code ?? error.message}`);
+try {
+  await runManifest(manifest, { reload: !options.noReload });
+} catch (error) {
+  console.error(`Error: ${(error as Error).message}`);
   process.exit(1);
-};
-for (const config of configs) {
-  const servers = createProxyServers(config);
-  for (const [i, server] of servers.entries()) {
-    const listener = config.listeners[i]!;
-    server.on("error", failed(listener));
-    server.listen(listener.port, listener.host, () => {
-      // `port 0` is assigned by the system: report the real one.
-      const scheme = listener.socks ? `socks${listener.socks}` : listener.https ? "https" : "http";
-      console.log(`proxy listening on ${listener.host}:${(server.address() as AddressInfo).port} (${scheme})`);
-    });
-  }
 }
 
 if (options.ui && logFile) {

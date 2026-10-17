@@ -14,6 +14,7 @@ bun src/cli/main.ts               # sin argumentos, usa el primero que exista: p
 bun src/cli/main.ts otro.donly     # usa otro manifiesto
 bun src/cli/main.ts --ui           # además, página de logs en vivo en http://127.0.0.1:8081
 bun src/cli/main.ts --ui --ui-port 9000   # la misma página en otro puerto
+bun src/cli/main.ts --no-reload     # sin recarga en caliente del manifiesto (alias --no-hot)
 bun src/cli/main.ts --version      # imprime la versión (-V)
 bun src/cli/main.ts --help         # muestra la ayuda (-h)
 bun test
@@ -25,6 +26,19 @@ Con el servidor levantado (el `manifest.donly` de la raíz usa el puerto 8080; s
 curl -x http://127.0.0.1:8080 http://example.com/            # -> ok
 curl -k -x http://127.0.0.1:8080 https://example.com/        # -> ok
 ```
+
+### Recarga en caliente
+
+Por defecto el proxy vigila el manifiesto: al guardarlo, aplica la nueva configuración sin reiniciar el
+proceso e imprime `manifiesto recargado: <ruta>`.
+
+- Una recarga vuelve a abrir los listeners (con `port 0` el sistema asigna otro puerto); las conexiones
+  en curso terminan con la configuración anterior.
+- Si el manifiesto nuevo es inválido (lint con errores, error de `loadConfigs` o un `listen` que no se
+  puede abrir), se conserva la configuración anterior y se imprime
+  `Error: no se pudo recargar <ruta>: <causa>; se conserva la configuración anterior`.
+- `--ui` y su `log_file` se fijan al arrancar: cambiarlos requiere reiniciar.
+- `--no-reload` (alias `--no-hot`) desactiva la vigilancia.
 
 ### `--ui`: logs en vivo
 
