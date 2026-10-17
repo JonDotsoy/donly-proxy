@@ -1,7 +1,9 @@
 # `command_pass`
 
 Pasa la petición a un comando externo, que la ejecuta contra su URL original. Comandos
-soportados: [`curl`](#curl), [`node`](#node), [`ssh`](#ssh) y [`kubectl`](#kubectl).
+soportados: [`curl`](#curl), [`node`](#node), [`ssh`](#ssh) y [`kubectl`](#kubectl). Para elegir
+entre `command_pass`, `ssh_pass` y `kubectl_pass`, y para ver cómo se atiende cada comando como
+plugin, empieza por [`concepts/command_pass.md`](../concepts/command_pass.md).
 
 ```
 route http://example.com/ {
@@ -23,7 +25,7 @@ El primer argumento es el comando (cualquier otro hace fallar el arranque). Los 
 siguientes, opcionales, son **opciones adicionales del comando**, una por cadena. Directivas
 hijas opcionales: [`concurrency`](#concurrencia), [`extra_args`](#argumentos-extra), [`insecure`](#certificados-inseguros-con-curl), [`no_warnings`](#sin-avisos-con-node) (solo `node`), [`max_time`](#tiempo-máximo-con-curl) y [`retry`](#reintentos-con-curl) (solo `curl`) y, con `ssh` / `kubectl`, [`engine`](#engine).
 
-En ambos casos el comando se lanza **sin shell** (los argumentos van como lista), se busca en el
+El comando se lanza **sin shell** (los argumentos van como lista), se busca en el
 `PATH`, y si falla, no está instalado o no devuelve una respuesta válida el proxy contesta
 `502 bad gateway: <comando> exited with <código>: <salida>`. Las cabeceras de conexión, `host`,
 `content-length` y `content-encoding` no se devuelven al cliente.
