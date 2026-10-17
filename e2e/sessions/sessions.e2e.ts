@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { createProxyServer, loadConfig } from "../../src/proxy/server";
-import { callsPath, sessionPath, sessionsDir, type SessionEntry } from "./session";
+import { sessionPath, sessionsDir, type SessionEntry } from "./session";
 
 // Empirical sessions: runs REAL programs (kubectl, ssh, curl…) through wrapper binaries that record every stdin, stdout
 // and stderr chunk as `{ elapse_nanosecond, type, chunk }` in e2e/sessions/__sessions__/<name>.session.json, either from a Bun.$ command
@@ -112,17 +112,18 @@ for (const session of sessions) {
     const entries: SessionEntry[] = JSON.parse(readFileSync(recording, "utf8"));
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) {
-      expect(["command", "stdin", "stdout", "stderr"]).toContain(entry.type);
+      expect(["command", "stdin", "stdout", "stderr", "end"]).toContain(entry.type);
       expect(Number.isInteger(entry.elapse_nanosecond) && entry.elapse_nanosecond >= 0).toBe(true);
       if (entry.type === "command") {
         expect(typeof entry.command).toBe("string");
         expect(entry.args.every((arg) => typeof arg === "string")).toBe(true);
       }
+      else if (entry.type === "end") expect(entry.exit_code === null || Number.isInteger(entry.exit_code)).toBe(true);
       else expect(typeof entry.chunk).toBe("string");
     }
-    expect(entries.filter((entry) => entry.type === "command").length).toBe(JSON.parse(readFileSync(recording.replace(/\.session\.json$/, ".calls.json"), "utf8")).length);
+    // Every call opens with `command` and closes with `end`.
+    expect(entries.filter((entry) => entry.type === "command").length).toBe(entries.filter((entry) => entry.type === "end").length);
     mkdirSync(sessionsDir, { recursive: true });
-    renameSync(recording.replace(/\.session\.json$/, ".calls.json"), callsPath(session.name));
     renameSync(recording, file);
   });
 }

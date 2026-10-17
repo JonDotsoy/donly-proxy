@@ -1,6 +1,6 @@
 [
   {
-    "elapse_nanosecond": 23887207,
+    "elapse_nanosecond": 25819092,
     "type": "command",
     "command": "node",
     "args": [
@@ -8,8 +8,13 @@
     ]
   },
   {
-    "elapse_nanosecond": 40284180,
+    "elapse_nanosecond": 41417236,
     "type": "stdout",
     "chunk": "v22.22.0\n"
+  },
+  {
+    "elapse_nanosecond": 42808838,
+    "type": "end",
+    "exit_code": 0
   }
 ]

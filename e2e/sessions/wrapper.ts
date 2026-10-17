@@ -1,12 +1,12 @@
 import { accessSync, constants, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import { ShellRequest, spawn } from "../../src/spawn";
-import type { SessionCall, SessionEntry } from "./session";
+import type { SessionEntry } from "./session";
 
 /**
  * Body of the wrapper binaries (`kubectl`, `ssh`, `curl`…) that e2e/sessions puts first in the `PATH`.
  * It runs the real program of the same name, passes stdin, stdout and stderr through untouched, and appends
- * a `command` entry with the program and its arguments and every chunk to the session file as `{ elapse_nanosecond, type, chunk }`.
+ * a `command` entry with the program and its arguments, every chunk as `{ elapse_nanosecond, type, chunk }` and an `end` entry with the exit code to the session file.
  *
  * Environment: `DONLY_SESSION_FILE` (where to record), `DONLY_SESSION_T0` (epoch ms the session began,
  * the origin of `elapse_nanosecond`) and `DONLY_SESSION_BIN` (the wrapper directory, skipped when looking for the real program).
@@ -24,8 +24,8 @@ const realProgram = (program: string) => {
   throw new Error(`the real ${program} is not in the PATH`);
 };
 
-const append = <T>(file: string, items: T[]) => {
-  const current: T[] = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
+const append = (file: string, items: SessionEntry[]) => {
+  const current: SessionEntry[] = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
   writeFileSync(file, JSON.stringify([...current, ...items], null, 2));
 };
 
@@ -58,7 +58,7 @@ export const wrap = async (program: string) => {
   };
   const [, , exitCode] = await Promise.all([pump(response.stdout, "stdout"), pump(response.stderr, "stderr"), response.exitCode]);
 
+  entries.push({ elapse_nanosecond: elapse(), type: "end", exit_code: exitCode });
   append(file, entries);
-  append<SessionCall>(file.replace(/\.session\.json$/, ".calls.json"), [{ program, argv, exitCode }]);
   process.exit(exitCode ?? 1);
 };

@@ -1,6 +1,6 @@
 [
   {
-    "elapse_nanosecond": 529354980,
+    "elapse_nanosecond": 242555176,
     "type": "command",
     "command": "curl",
     "args": [
@@ -27,13 +27,18 @@
     ]
   },
   {
-    "elapse_nanosecond": 650152344,
+    "elapse_nanosecond": 373961914,
     "type": "stdout",
-    "chunk": "{\"ip\":\"34.66.28.202\"}"
+    "chunk": "{\"ip\":\"34.58.71.169\"}"
   },
   {
-    "elapse_nanosecond": 652395996,
+    "elapse_nanosecond": 374663086,
     "type": "stderr",
-    "chunk": "200\n{\"date\":[\"Sat, 17 Oct 2026 15:21:57 GMT\"],\n\"content-type\":[\"application/json\"],\n\"content-length\":[\"21\"],\n\"server\":[\"cloudflare\"],\n\"vary\":[\"Origin\"],\n\"cf-cache-status\":[\"DYNAMIC\"],\n\"cf-ray\":[\"a4c04bc59f269300-ORD\"]\n}"
+    "chunk": "200\n{\"date\":[\"Sat, 17 Oct 2026 15:25:56 GMT\"],\n\"content-type\":[\"application/json\"],\n\"content-length\":[\"21\"],\n\"server\":[\"cloudflare\"],\n\"vary\":[\"Origin\"],\n\"cf-cache-status\":[\"DYNAMIC\"],\n\"cf-ray\":[\"a4c0519cbea94f6c-ORD\"]\n}"
+  },
+  {
+    "elapse_nanosecond": 375666748,
+    "type": "end",
+    "exit_code": 0
   }
 ]
