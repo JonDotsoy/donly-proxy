@@ -1,0 +1,21 @@
+{
+  "id": "c487527f-bfa6-40f1-aa6d-97e9d02dabc2",
+  "timestamp": "2026-10-17T16:25:39.307Z",
+  "name": "wget-version",
+  "wrap": [
+    "wget",
+    "curl",
+    "node"
+  ],
+  "script": "wget --version",
+  "exit_code": 0,
+  "sessions": [
+    {
+      "file": "0001-wget.session.json",
+      "program": "wget",
+      "id": "0b06806a-4af9-46c3-aa22-317036ba6c92",
+      "parent_session_id": null,
+      "exit_code": 0
+    }
+  ]
+}

@@ -8,7 +8,8 @@
     "test": "bun test",
     "features": "bun scripts/features.ts",
     "features:check": "bun scripts/features.ts --check",
-    "e2e": "bun run build && bun test --timeout 60000 ./e2e/ui.e2e.ts ./e2e/multi-proxy.e2e.ts ./e2e/route-url-formats.e2e.ts ./e2e/no-route.e2e.ts"
+    "e2e": "bun run build && bun test --timeout 60000 ./e2e/ui.e2e.ts ./e2e/multi-proxy.e2e.ts ./e2e/route-url-formats.e2e.ts ./e2e/no-route.e2e.ts",
+    "empirical": "bun test --timeout 60000 ./empirical/scenarios.empirical.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

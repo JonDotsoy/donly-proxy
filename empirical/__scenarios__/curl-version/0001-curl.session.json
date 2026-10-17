@@ -1,0 +1,29 @@
+[
+  {
+    "elapse_nanosecond": 26748291,
+    "type": "session",
+    "id": "8af63984-8df0-4d5f-a92d-6f0aa17e0be6",
+    "timestamp": "2026-10-17T16:25:39.273Z",
+    "name": "curl-version",
+    "scenario_id": "283d77e6-e099-44e6-8ce0-7a94b3359a87",
+    "parent_session_id": null
+  },
+  {
+    "elapse_nanosecond": 26793457,
+    "type": "command",
+    "command": "curl",
+    "args": [
+      "--version"
+    ]
+  },
+  {
+    "elapse_nanosecond": 50060791,
+    "type": "stdout",
+    "chunk": "curl 8.5.0 (x86_64-pc-linux-gnu) libcurl/8.5.0 OpenSSL/3.0.13 zlib/1.3 brotli/1.1.0 zstd/1.5.5 libidn2/2.3.7 libpsl/0.21.2 (+libidn2/2.3.7) libssh/0.10.6/openssl/zlib nghttp2/1.59.0 librtmp/2.3 OpenLDAP/2.6.10\nRelease-Date: 2023-12-06, security patched: 8.5.0-2ubuntu10.15\nProtocols: dict file ftp ftps gopher gophers http https imap imaps ldap ldaps mqtt pop3 pop3s rtmp rtsp scp sftp smb smbs smtp smtps telnet tftp\nFeatures: alt-svc AsynchDNS brotli GSS-API HSTS HTTP2 HTTPS-proxy IDN IPv6 Kerberos Largefile libz NTLM PSL SPNEGO SSL threadsafe TLS-SRP UnixSockets zstd\n"
+  },
+  {
+    "elapse_nanosecond": 51896973,
+    "type": "end",
+    "exit_code": 0
+  }
+]
