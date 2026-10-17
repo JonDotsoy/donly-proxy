@@ -5,7 +5,7 @@ Generado por `bun run features` a partir de `spec_tests.json` (las specs que reg
 
 Cada fila es un test: **Directivas** son las del manifest que el test ejercita.
 
-Specs: **393** · ✅ pasan: **393** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
+Specs: **394** · ✅ pasan: **394** · 🔴 fallan: **0** · ⏳ sin resultado: **0**
 
 | Feature | Estado | Directivas |
 | --- | --- | --- |
@@ -270,6 +270,7 @@ Specs: **393** · ✅ pasan: **393** · 🔴 fallan: **0** · ⏳ sin resultado:
 | should read the concurrency and the options of the nested command_pass in ssh_pass | ✅ | <code>command_pass curl {</code><br><code>&nbsp;&nbsp;concurrency 3</code><br><code>&nbsp;&nbsp;max_time 5</code><br><code>&nbsp;&nbsp;extra_args --foo tar</code><br><code>}</code> |
 | should read the host of ssh_pass from the host subdirective | ✅ | <code>host "user@remote.test"</code> |
 | should read the port from the manifest | ✅ | <code>port 3000</code> |
+| should record the curl the proxy runs for command_pass in a scenario | ✅ | <code>command_pass curl "--max-time" "5"</code> |
 | should refuse a plain http connection to an https proxy | ✅ | <code>listen https 127.0.0.1 0 {</code><br><code>&nbsp;&nbsp;ssl {</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;cert "./certs/cert.pem"</code><br><code>&nbsp;&nbsp;&nbsp;&nbsp;key "./certs/key.pem"</code><br><code>&nbsp;&nbsp;}</code><br><code>}</code> |
 | should refuse the CONNECT with 407 without valid credentials and tunnel with them | ✅ | <code>auth basic {</code><br><code>&nbsp;&nbsp;username "alice"</code><br><code>&nbsp;&nbsp;password "s3cr3t pass"</code><br><code>}</code><br><code>auth basic {</code><br><code>&nbsp;&nbsp;username "bob"</code><br><code>&nbsp;&nbsp;password "other"</code><br><code>}</code> |
 | should reject a child of kubectl_pass that is not an engine | ✅ | <code>kubectl_pass "pod/api" {</code><br><code>&nbsp;&nbsp;command_pass ssh</code><br><code>}</code> |

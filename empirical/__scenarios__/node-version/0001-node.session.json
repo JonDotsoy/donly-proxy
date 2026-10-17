@@ -1,0 +1,29 @@
+[
+  {
+    "elapse_nanosecond": 21763672,
+    "type": "session",
+    "id": "43d2a44f-292d-4c29-923e-fbe6afcfa2e0",
+    "timestamp": "2026-10-17T16:25:39.379Z",
+    "name": "node-version",
+    "scenario_id": "96212ef4-e91f-4398-a948-02558673369b",
+    "parent_session_id": null
+  },
+  {
+    "elapse_nanosecond": 21806641,
+    "type": "command",
+    "command": "node",
+    "args": [
+      "--version"
+    ]
+  },
+  {
+    "elapse_nanosecond": 99843262,
+    "type": "stdout",
+    "chunk": "v22.22.0\n"
+  },
+  {
+    "elapse_nanosecond": 102902100,
+    "type": "end",
+    "exit_code": 0
+  }
+]

@@ -35,15 +35,4 @@ bun run e2e                             # construye y corre la prueba
 
 El job `e2e` de `.github/workflows/test.yml` instala Chromium con `playwright-core install --with-deps chromium` y corre `bun run e2e` en cada PR.
 
-## Sesiones empíricas (`e2e/sessions`)
-
-`bun run e2e:sessions` graba cómo se comportan los programas **reales** (`kubectl`, `ssh`, `curl`, `wget`, `node`) para tener datos reales con los que construir y validar los CLI falsos (`docs/fake-cli.md`).
-
-- El test prepara un directorio `bin` con un *wrapper* por programa, al inicio del `PATH`. El wrapper (`e2e/sessions/wrapper.ts`) ejecuta el programa real con el módulo `spawn`, deja pasar stdin, stdout y stderr sin tocarlos y guarda cada trozo en `e2e/sessions/__sessions__/<nombre>.session.json` como un arreglo de `{ elapse_nanosecond, type, ... }`: `elapse_nanosecond` son los nanosegundos transcurridos desde que empezó la sesión (API `performance`) y `type` es `session` (abre el archivo una sola vez, con `id`, `timestamp` ISO del inicio, `name` y `summary` de la sesión), `command` (abre cada llamada, con `command`, el programa que se ejecutó, y `args: string[]`, los argumentos que recibió), `stdin`, `stdout` o `stderr` (con `chunk`, el mensaje) y `end` (cierra la llamada, con `exit_code`; la sesión no tiene entrada de cierre propia).
-- Una sesión puede tener varias llamadas (`kubectl get pods` y `kubectl exec` en una misma sesión de `kubectl_pass`, por ejemplo): cada una abre con `command` y cierra con `end`.
-- Cada sesión se ejecuta con un `Bun.$` (solo en el test) o con un manifest: se levanta el proxy y se pide `http://api.ipify.org/?format=json` por él (la IP pública de esta máquina).
-- **Una sola vez:** si el archivo de la sesión existe, el test se salta. Para grabarla de nuevo, borra su `.session.json`.
-- Una sesión se salta si falta un programa en la máquina (en CI no hay `kubectl` ni `ssh`). Las de `ssh_pass` y `kubectl_pass` piden además `DONLY_E2E_SSH=usuario@host` (y `DONLY_E2E_SSH_ARGS="-p 22 -i ~/.ssh/llave"`) o `DONLY_E2E_KUBECTL_POD=pod/nombre` (y `DONLY_E2E_KUBECTL_ARGS="-n prod"`).
-- La grabación solo se mueve a su sitio cuando la sesión completa terminó bien; si falla, se puede repetir.
-
-Los archivos contienen la salida real de cada máquina que graba (versiones, fechas, la IP pública…): revísalos antes de commitearlos.
+Las pruebas que graban programas reales (antes `e2e/sessions`) son las **pruebas empíricas**: ver [empirical.md](empirical.md).

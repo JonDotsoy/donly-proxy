@@ -2,3 +2,5 @@ node_modules
 certs
 logs
 dist
+# Empirical scenarios that carry the public IP of the machine that recorded them
+empirical/__scenarios__/manifest-*
