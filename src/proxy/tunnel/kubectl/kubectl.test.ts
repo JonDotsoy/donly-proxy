@@ -1,37 +1,16 @@
-import { afterAll, beforeAll, expect } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { createProxyServer, loadConfig } from "../../server";
 import { testFeature } from "../../../utils/test_utils/test-feature/test-feature";
+import { createFakeCli, withEnv } from "../../../utils/test_utils/fake-cli/fake-cli";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-kubectl-"));
-const bin = join(dir, "bin");
-const argsFile = join(dir, "kubectl.args");
-const getFile = join(dir, "kubectl.get");
 const evilFile = join(dir, "pwned");
-
-// A fake `kubectl`: records its arguments and runs what follows `--` locally, as
-// `kubectl exec` would run it inside the container. stdin passes straight through.
-mkdirSync(bin);
-writeFileSync(
-  join(bin, "kubectl"),
-  `#!/bin/sh
-if [ "$1" = "get" ]; then
-  printf '%s\\0' "$@" > "${getFile}"
-  [ -n "$FAKE_PODS_FAIL" ] && { echo "boom" >&2; exit 1; }
-  printf 'pod/other-1\\npod/my-pod-12345\\npod/my-pod-99\\n'
-  exit 0
-fi
-printf '%s\\0' "$@" > "${argsFile}"
-while [ "$1" != "--" ]; do shift; done
-shift
-exec "$@"
-`,
-);
-chmodSync(join(bin, "kubectl"), 0o755);
+const fake = createFakeCli(dir);
 
 const upstream = http.createServer(async (req, res) => {
   const body = Buffer.concat(await Array.fromAsync(req)).toString();
@@ -39,7 +18,6 @@ const upstream = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ method: req.method, url: req.url, custom: req.headers["x-custom"], body }));
 });
 
-const saved = { PATH: process.env.PATH, NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };
 let server: ReturnType<typeof createProxyServer>;
 let proxy: string;
 let port: number;
@@ -89,24 +67,21 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
   port = (upstream.address() as AddressInfo).port;
   writeFileSync(join(dir, "manifest.donly"), manifestPayload(port));
-  process.env.NO_PROXY = process.env.no_proxy = "";
-  process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
+  fake.install();
   server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   proxy = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
 afterAll(() => {
-  process.env.PATH = saved.PATH;
-  for (const [key, value] of [["NO_PROXY", saved.NO_PROXY], ["no_proxy", saved.no_proxy]] as const) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
+  fake.uninstall();
   server.close();
   upstream.close();
 });
 
-const kubectlArgs = () => readFileSync(argsFile, "utf8").split("\0").slice(0, -1);
+beforeEach(() => fake.reset());
+
+const kubectlArgs = () => fake.args("kubectl");
 
 for (const engine of ["curl", "node"] as const) {
   testFeature(payload, ["/proxy/route/command_pass/engine"], `command_pass kubectl with engine ${engine} runs the request inside the pod`, async () => {
@@ -160,18 +135,10 @@ testFeature(payload, ["/proxy/route/command_pass"], "request data never reaches 
 });
 
 testFeature(payload, ["/proxy/route/command_pass"], "kubectl failures are reported as a bad gateway", async () => {
-  const failing = join(dir, "failing");
-  mkdirSync(failing);
-  writeFileSync(join(failing, "kubectl"), '#!/bin/sh\necho \'Error from server (NotFound): pods "api-0" not found\' >&2\nexit 1\n');
-  chmodSync(join(failing, "kubectl"), 0o755);
-  process.env.PATH = `${failing}${delimiter}${bin}${delimiter}${saved.PATH}`;
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/curl/`, { proxy });
-    expect(res.status).toBe(502);
-    expect(await res.text()).toContain('kubectl curl exited with 1: Error from server (NotFound): pods "api-0" not found');
-  } finally {
-    process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
-  }
+  fake.next("kubectl", { stderr: 'Error from server (NotFound): pods "api-0" not found\n', exit: 1 });
+  const res = await fetch(`http://127.0.0.1:${port}/curl/`, { proxy });
+  expect(res.status).toBe(502);
+  expect(await res.text()).toContain('kubectl curl exited with 1: Error from server (NotFound): pods "api-0" not found');
 });
 
 testFeature(manifest(`  route / {\n command_pass kubectl\n }`), ["/proxy/route/command_pass"], "manifest validation for kubectl", async () => {
@@ -205,7 +172,7 @@ testFeature(payload, ["/proxy/route/kubectl_pass/pod_name"], "kubectl_pass witho
 testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "kubectl_pass with pod_match lists the pods and runs in the first one that matches", async () => {
   const res = await fetch(`http://127.0.0.1:${port}/podmatch/path`, { proxy });
   expect(res.status).toBe(200);
-  const get = readFileSync(getFile, "utf8").split("\0").slice(0, -1);
+  const get = fake.args("kubectl", "get");
   expect(get).toEqual(["get", "pods", "--context", "local-my-context", "--namespace", "the-namespace", "--field-selector=status.phase=Running", "-o", "name"]);
   const args = kubectlArgs();
   expect(args.slice(0, args.indexOf("--"))).toEqual(["exec", "-i", "-q", "--context", "local-my-context", "--namespace", "the-namespace", "pod/my-pod-12345"]);
@@ -249,14 +216,11 @@ testFeature(podMatchLogPayload(8080), ["/proxy/log_file", "/proxy/route/kubectl_
 });
 
 testFeature(payload, ["/proxy/route/kubectl_pass/pod_match"], "kubectl_pass with pod_match answers 502 when kubectl get pods fails", async () => {
-  process.env.FAKE_PODS_FAIL = "1";
-  try {
+  await withEnv({ FAKE_KUBECTL_GET_EXIT: "1" }, async () => {
     const res = await fetch(`http://127.0.0.1:${port}/podmatch/path`, { proxy });
     expect(res.status).toBe(502);
     expect(await res.text()).toContain("kubectl get pods exited with 1");
-  } finally {
-    delete process.env.FAKE_PODS_FAIL;
-  }
+  });
 });
 
 testFeature(manifest(`  route / {\n kubectl_pass {\n pod_match ""\n command_pass curl\n }\n }`), ["/proxy/route/kubectl_pass/pod_match"], "manifest validation for pod_match", async () => {
@@ -303,11 +267,7 @@ const consolePayload = (port: number) => `proxy {
 `;
 
 testFeature(consolePayload(8080), ["/proxy/log_file", "/proxy/route/command_pass"], "kubectl command_end logs the console (stdout, stderr and stdin) without changing the response", async () => {
-  const noisy = join(dir, "noisy");
-  mkdirSync(noisy);
-  writeFileSync(join(noisy, "kubectl"), `#!/bin/sh\necho 'kubectl-warning' >&2\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n`);
-  chmodSync(join(noisy, "kubectl"), 0o755);
-  process.env.PATH = `${noisy}${delimiter}${bin}${delimiter}${saved.PATH}`;
+  fake.next("kubectl", { stderr: "kubectl-warning\n" });
   writeFileSync(join(dir, "console.donly"), consolePayload(port));
   const logging = createProxyServer(await loadConfig(join(dir, "console.donly")));
   await new Promise<void>((resolve) => logging.listen(0, "127.0.0.1", resolve));
@@ -335,7 +295,6 @@ testFeature(consolePayload(8080), ["/proxy/log_file", "/proxy/route/command_pass
     // The response line the client's answer comes from carries no console_log.
     expect(lines.find((l) => l.type === "response").console_log).toBeUndefined();
   } finally {
-    process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
     logging.close();
   }
 });

@@ -1,0 +1,3 @@
+{"type":"command","sessionId":"3f8e9262-5b7e-4360-8611-8353b12d27f8","timestamp":"2026-10-18T19:38:56.788Z","performance":30.071013,"command":"/opt/node22/bin/node","args":["--version"],"pid":7634}
+{"type":"stdout","timestamp":"2026-10-18T19:38:56.795Z","performance":37.29112,"size":9,"data":"v22.22.0\n"}
+{"type":"end","timestamp":"2026-10-18T19:38:56.796Z","performance":38.454258,"exitCode":0,"total":9}

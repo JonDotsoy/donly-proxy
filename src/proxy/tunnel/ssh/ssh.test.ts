@@ -1,25 +1,16 @@
-import { afterAll, beforeAll, expect } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect } from "bun:test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { createProxyServer, loadConfig } from "../../server";
 import { testFeature } from "../../../utils/test_utils/test-feature/test-feature";
+import { createFakeCli } from "../../../utils/test_utils/fake-cli/fake-cli";
 
 const dir = mkdtempSync(join(tmpdir(), "donly-proxy-ssh-"));
-const bin = join(dir, "bin");
-const argsFile = join(dir, "ssh.args");
 const evilFile = join(dir, "pwned");
-
-// A fake `ssh`: records its arguments and runs the last one (the remote command) with
-// `sh -c`, as the remote login shell would. stdin passes straight through.
-mkdirSync(bin);
-writeFileSync(
-  join(bin, "ssh"),
-  `#!/bin/sh\nprintf '%s\\0' "$@" > "${argsFile}"\nfor last; do :; done\nexec sh -c "$last"\n`,
-);
-chmodSync(join(bin, "ssh"), 0o755);
+const fake = createFakeCli(dir);
 
 const upstream = http.createServer(async (req, res) => {
   const body = Buffer.concat(await Array.fromAsync(req)).toString();
@@ -27,7 +18,6 @@ const upstream = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ method: req.method, url: req.url, custom: req.headers["x-custom"], body }));
 });
 
-const saved = { PATH: process.env.PATH, NO_PROXY: process.env.NO_PROXY, no_proxy: process.env.no_proxy };
 let server: ReturnType<typeof createProxyServer>;
 let proxy: string;
 let port: number;
@@ -56,24 +46,21 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
   port = (upstream.address() as AddressInfo).port;
   writeFileSync(join(dir, "manifest.donly"), manifestPayload(port));
-  process.env.NO_PROXY = process.env.no_proxy = "";
-  process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
+  fake.install();
   server = createProxyServer(await loadConfig(join(dir, "manifest.donly")));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   proxy = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
 afterAll(() => {
-  process.env.PATH = saved.PATH;
-  for (const [key, value] of [["NO_PROXY", saved.NO_PROXY], ["no_proxy", saved.no_proxy]] as const) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
+  fake.uninstall();
   server.close();
   upstream.close();
 });
 
-const sshArgs = () => readFileSync(argsFile, "utf8").split("\0").slice(0, -1);
+beforeEach(() => fake.reset());
+
+const sshArgs = () => fake.args("ssh");
 
 for (const engine of ["curl", "node"] as const) {
   testFeature(payload, ["/proxy/route/command_pass/engine"], `command_pass ssh with engine ${engine} runs the request on the remote host`, async () => {
@@ -121,18 +108,10 @@ testFeature(payload, ["/proxy/route/command_pass"], "request data never reaches 
 });
 
 testFeature(payload, ["/proxy/route/command_pass"], "ssh failures are reported as a bad gateway", async () => {
-  const failing = join(dir, "failing");
-  mkdirSync(failing);
-  writeFileSync(join(failing, "ssh"), "#!/bin/sh\necho 'connection refused' >&2\nexit 255\n");
-  chmodSync(join(failing, "ssh"), 0o755);
-  process.env.PATH = `${failing}${delimiter}${bin}${delimiter}${saved.PATH}`;
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/curl/`, { proxy });
-    expect(res.status).toBe(502);
-    expect(await res.text()).toContain("ssh curl exited with 255: connection refused");
-  } finally {
-    process.env.PATH = `${bin}${delimiter}${saved.PATH}`;
-  }
+  fake.next("ssh", { stderr: "connection refused\n", exit: 255 });
+  const res = await fetch(`http://127.0.0.1:${port}/curl/`, { proxy });
+  expect(res.status).toBe(502);
+  expect(await res.text()).toContain("ssh curl exited with 255: connection refused");
 });
 
 testFeature(manifest(`  route / {\n command_pass ssh\n }`), ["/proxy/route/command_pass"], "manifest validation for ssh and engine", async () => {

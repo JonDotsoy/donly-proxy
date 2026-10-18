@@ -1,0 +1,24 @@
+{
+  "id": "0945befc-422a-4020-b59a-ff2f7b3682a7",
+  "timestamp": "2026-10-18T19:38:56.682Z",
+  "name": "wget-version",
+  "wrap": [
+    "wget",
+    "curl",
+    "node"
+  ],
+  "script": "wget --version",
+  "exit_code": 0,
+  "sessions": [
+    {
+      "file": "records/658278af-9177-4f7f-aec1-6968ce03367c.ndjson",
+      "program": "wget",
+      "id": "658278af-9177-4f7f-aec1-6968ce03367c",
+      "command": "/usr/bin/wget",
+      "args": [
+        "--version"
+      ],
+      "exit_code": 0
+    }
+  ]
+}

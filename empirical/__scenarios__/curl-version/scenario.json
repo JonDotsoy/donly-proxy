@@ -1,0 +1,23 @@
+{
+  "id": "76ba9fe7-0c06-4766-83ff-61511880e3f6",
+  "timestamp": "2026-10-18T19:38:56.627Z",
+  "name": "curl-version",
+  "wrap": [
+    "curl",
+    "node"
+  ],
+  "script": "curl --version",
+  "exit_code": 0,
+  "sessions": [
+    {
+      "file": "records/1f305d6a-f433-4c15-a116-266b9357c039.ndjson",
+      "program": "curl",
+      "id": "1f305d6a-f433-4c15-a116-266b9357c039",
+      "command": "/usr/bin/curl",
+      "args": [
+        "--version"
+      ],
+      "exit_code": 0
+    }
+  ]
+}

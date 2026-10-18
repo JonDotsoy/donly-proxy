@@ -34,3 +34,5 @@ bun run e2e                             # construye y corre la prueba
 ## CI
 
 El job `e2e` de `.github/workflows/test.yml` instala Chromium con `playwright-core install --with-deps chromium` y corre `bun run e2e` en cada PR.
+
+Las pruebas que graban programas reales (antes `e2e/sessions`) son las **pruebas empíricas**: ver [empirical.md](empirical.md).

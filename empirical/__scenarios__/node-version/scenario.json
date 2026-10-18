@@ -1,0 +1,23 @@
+{
+  "id": "338aa35c-1f2a-4e84-be8d-2a9fed52f1da",
+  "timestamp": "2026-10-18T19:38:56.748Z",
+  "name": "node-version",
+  "wrap": [
+    "node",
+    "curl"
+  ],
+  "script": "node --version",
+  "exit_code": 0,
+  "sessions": [
+    {
+      "file": "records/3f8e9262-5b7e-4360-8611-8353b12d27f8.ndjson",
+      "program": "node",
+      "id": "3f8e9262-5b7e-4360-8611-8353b12d27f8",
+      "command": "/opt/node22/bin/node",
+      "args": [
+        "--version"
+      ],
+      "exit_code": 0
+    }
+  ]
+}
