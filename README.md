@@ -1,5 +1,136 @@
 # donly-proxy
-Proxy for donly: continuation of the demo proxy
+
+Proxy HTTP/HTTPS/SOCKS configurable con un manifiesto [DON](https://don.jon.soy/) (`manifest.donly`).
+Por defecto responde `ok`; con rutas (`route`) puede responder con un cuerpo fijo, reenviar la
+petición a otro servidor o **sacarla por otra vía**: un comando local (`curl`, `node`), un host
+remoto por SSH o un pod de Kubernetes.
+
+- [Sintaxis inicial del manifest](#sintaxis-inicial-del-manifest)
+- [Pasar el tráfico a un comando: `command_pass`](#pasar-el-tráfico-a-un-comando-command_pass)
+- [Kubernetes: `kubectl_pass`](#kubernetes-kubectl_pass)
+- [SSH: `ssh_pass`](#ssh-ssh_pass)
+- [Instalación](#instalación)
+
+## Sintaxis inicial del manifest
+
+Todo va dentro de un bloque `proxy`. Este es el mínimo útil:
+
+```
+proxy {
+  listen http 127.0.0.1 8080
+  log_file "./logs/proxy.ndjson"
+
+  route http{s}?://example.com/* {
+    respond 200 "good"
+  }
+}
+```
+
+```sh
+bun start                    # usa ./manifest.donly
+bun start otro.donly         # usa otro manifest
+curl -x http://127.0.0.1:8080 http://example.com/    # -> good
+```
+
+- **`listen [http|https|socks4|socks5] [host] [puerto]`**: protocolo, dirección y puerto del
+  listener (por defecto `http 127.0.0.1 0`; el puerto `0` lo asigna el sistema). Se puede repetir
+  para abrir varios listeners que comparten las mismas rutas.
+- **Varios `proxy`**: un manifest puede declarar más de un bloque `proxy`, cada uno independiente
+  (su propio `listen`, `route` y `log_file`).
+- **`route [MÉTODO] <patrón> { <acción> }`**: el patrón es un
+  [`URLPattern`](https://developer.mozilla.org/docs/Web/API/URLPattern) contra la URL completa;
+  gana la primera ruta que coincida y, si ninguna lo hace, responde `200 ok`. Un `route { … }`
+  sin argumentos coincide con todo y va al final.
+- **Acciones** (exactamente una por ruta): `respond`, `proxy_pass`, `command_pass`, `kubectl_pass`
+  y `ssh_pass`.
+
+```
+proxy {
+  listen http 8080
+  listen socks5 1080
+
+  route GET https://api.example.com/* {
+    proxy_pass "http://localhost:3000"
+  }
+  route {
+    respond 404 "not found"
+  }
+}
+```
+
+Otras directivas: `auth basic { username "…" password "…" }` (usuario y contraseña),
+`listen https` (el cliente habla TLS con el proxy) y `--ui` para ver el log en vivo en el navegador.
+Referencia completa: [`docs/manifest.md`](docs/manifest.md) y [`docs/concepts/route.md`](docs/concepts/route.md).
+
+## Pasar el tráfico a un comando: `command_pass`
+
+`command_pass` entrega la petición a un comando que la ejecuta contra su URL original (la conexión
+la hace el comando, no el proxy). Los argumentos extra se pasan al comando, uno por cadena.
+
+```
+route http://example.com/* {
+  command_pass curl "--max-time" "5"
+}
+
+route https://example.com/* {
+  command_pass node "--no-warnings"
+}
+```
+
+- `curl` y `node` salen **desde la máquina local**; con `ssh` y `kubectl` salen desde el host o el
+  pod, y ahí el motor puede ser `curl`, `node` o `wget` (`engine`; `wget` solo hace GET y POST).
+- El comando se lanza **sin shell**; si falla, el cliente recibe `502 bad gateway`.
+- Directivas hijas: `concurrency`, `extra_args`, `insecure`, `max_time` y `retry` (solo `curl`),
+  `no_warnings` (solo `node`).
+
+Detalle: [`docs/tunnel/command-pass.md`](docs/tunnel/command-pass.md).
+
+## Kubernetes: `kubectl_pass`
+
+Ejecuta la petición **dentro de un pod**, por ejemplo para llegar a un Service `ClusterIP` que no
+está expuesto. El proxy usa `kubectl exec`; el `command_pass` hijo (`curl`, `wget` o `node`) dice
+qué corre dentro.
+
+```
+route http{s}?://api.internal/* {
+  kubectl_pass {
+    pod_name "my-pod-12345"        # o: pod_match my-pod-*
+    context dev
+    namespace prod
+    command_pass curl "--max-time" "5"
+  }
+}
+```
+
+También acepta el destino como argumento (`kubectl_pass "deploy/api" { … }`). Con `pod_match`
+elige el primer pod en ejecución cuyo nombre coincida. Necesita `kubectl` en el `PATH` y, dentro
+del contenedor, lo que use el motor (`sh`, `curl`/`wget`/`node`…).
+Detalle: [`docs/concepts/kubectl_pass.md`](docs/concepts/kubectl_pass.md).
+
+## SSH: `ssh_pass`
+
+Ejecuta la petición **en otra máquina** por `ssh` (un bastión, un servidor con otra IP…). El host
+puede ser un nombre de `~/.ssh/config`, un DNS, una IP o `usuario@host`.
+
+```
+route http{s}?://api.internal/* {
+  ssh_pass {
+    host "203.0.113.10"
+    port 2222
+    user deploy
+    identity_file "./keys/id_ed25519"
+    option "StrictHostKeyChecking=accept-new"
+    command_pass curl "--max-time" "10"
+  }
+}
+```
+
+Sin `pass`, `ssh` corre en `BatchMode` (solo llaves o agente); con `pass` la contraseña se entrega
+por `SSH_ASKPASS` y no aparece en la línea de comandos ni en el log, pero queda en claro en el
+manifest, así que prefiere llaves. Detalle: [`docs/concepts/ssh_pass.md`](docs/concepts/ssh_pass.md).
+
+> Con `ssh_pass`, `kubectl_pass` y `command_pass ssh|kubectl` ningún dato de la petición se
+> interpola en un shell: la configuración viaja en base64 y el cuerpo por stdin.
 
 ## Instalación
 
