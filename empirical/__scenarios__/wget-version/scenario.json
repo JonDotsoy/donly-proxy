@@ -1,6 +1,6 @@
 {
-  "id": "c487527f-bfa6-40f1-aa6d-97e9d02dabc2",
-  "timestamp": "2026-10-17T16:25:39.307Z",
+  "id": "0945befc-422a-4020-b59a-ff2f7b3682a7",
+  "timestamp": "2026-10-18T19:38:56.682Z",
   "name": "wget-version",
   "wrap": [
     "wget",
@@ -11,10 +11,13 @@
   "exit_code": 0,
   "sessions": [
     {
-      "file": "0001-wget.session.json",
+      "file": "records/658278af-9177-4f7f-aec1-6968ce03367c.ndjson",
       "program": "wget",
-      "id": "0b06806a-4af9-46c3-aa22-317036ba6c92",
-      "parent_session_id": null,
+      "id": "658278af-9177-4f7f-aec1-6968ce03367c",
+      "command": "/usr/bin/wget",
+      "args": [
+        "--version"
+      ],
       "exit_code": 0
     }
   ]

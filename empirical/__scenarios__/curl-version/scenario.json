@@ -1,6 +1,6 @@
 {
-  "id": "283d77e6-e099-44e6-8ce0-7a94b3359a87",
-  "timestamp": "2026-10-17T16:25:39.247Z",
+  "id": "76ba9fe7-0c06-4766-83ff-61511880e3f6",
+  "timestamp": "2026-10-18T19:38:56.627Z",
   "name": "curl-version",
   "wrap": [
     "curl",
@@ -10,10 +10,13 @@
   "exit_code": 0,
   "sessions": [
     {
-      "file": "0001-curl.session.json",
+      "file": "records/1f305d6a-f433-4c15-a116-266b9357c039.ndjson",
       "program": "curl",
-      "id": "8af63984-8df0-4d5f-a92d-6f0aa17e0be6",
-      "parent_session_id": null,
+      "id": "1f305d6a-f433-4c15-a116-266b9357c039",
+      "command": "/usr/bin/curl",
+      "args": [
+        "--version"
+      ],
       "exit_code": 0
     }
   ]

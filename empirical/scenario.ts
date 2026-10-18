@@ -1,7 +1,8 @@
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { delimiter, join, resolve } from "node:path";
+import { binrec } from "@jondotsoy/binrec";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { basename, delimiter, join } from "node:path";
 import { ShellRequest, spawn } from "../src/spawn";
-import { scenariosDir, validateSession, type SessionEntry } from "./session";
+import { scenariosDir, validateSession, type RecordLine } from "./session";
 
 export interface ScenarioOptions {
   /** Name of the scenario and of its directory under `root`. */
@@ -23,13 +24,17 @@ export interface ScenarioOptions {
 }
 
 export interface ScenarioSession {
-  /** File of the session inside the scenario directory. */
+  /** File of the session inside the scenario directory (`records/<id>.ndjson`, a binrec record). */
   file: string;
+  /** Name of the wrapped program, as the script called it. */
   program: string;
   id: string;
-  parent_session_id: string | null;
-  exit_code: number | null;
-  entries: SessionEntry[];
+  /** Path of the real program that ran. */
+  command: string;
+  args: string[];
+  exit_code: number;
+  /** The lines of the record: `command`, the `stdin`/`stdout`/`stderr` chunks and `end`. */
+  lines: RecordLine[];
 }
 
 export interface ScenarioResult {
@@ -50,9 +55,6 @@ export interface ScenarioResult {
   stderr: string;
 }
 
-const wrapperScript = (program: string) =>
-  `#!${process.execPath}\nimport { wrap } from ${JSON.stringify(resolve(import.meta.dir, "recorder.ts"))};\nawait wrap(${JSON.stringify(program)});\n`;
-
 const text = async (stream: ReadableStream<Uint8Array>) => await new Response(stream).text();
 
 /** Reads a recorded scenario: `scenario.json` and the session files it lists. */
@@ -60,9 +62,9 @@ const load = (name: string, root = scenariosDir): ScenarioResult => {
   const dir = join(root, name);
   if (!existsSync(join(dir, "scenario.json"))) throw new Error(`the scenario ${name} is not recorded (no scenario.json in ${dir})`);
   const meta = JSON.parse(readFileSync(join(dir, "scenario.json"), "utf8"));
-  const sessions: ScenarioSession[] = meta.sessions.map((item: Omit<ScenarioSession, "entries">) => ({
+  const sessions: ScenarioSession[] = meta.sessions.map((item: Omit<ScenarioSession, "lines">) => ({
     ...item,
-    entries: JSON.parse(readFileSync(join(dir, item.file), "utf8")),
+    lines: readFileSync(join(dir, item.file), "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)),
   }));
   return { ...meta, sessions, dir, recorded: false, stdout: "", stderr: "" };
 };
@@ -83,59 +85,47 @@ const run = async (options: ScenarioOptions): Promise<ScenarioResult> => {
 
   const id = crypto.randomUUID();
   const staging = join(root, `.${options.name}.${id}.tmp`);
-  const bin = join(staging, ".bin");
-  mkdirSync(bin, { recursive: true });
+  // binrec puts its config next to the shim folder and the records in the folder given.
+  const recorder = binrec.create({ path: join(staging, ".bin"), records: join(staging, "records") });
+  mkdirSync(staging, { recursive: true });
   try {
-    for (const program of options.wrap) {
-      writeFileSync(join(bin, program), wrapperScript(program));
-      chmodSync(join(bin, program), 0o755);
-    }
-    const t0 = Date.now();
-    const timestamp = new Date(t0).toISOString();
+    // The shims point at the programs found in the PATH of the scenario, which is not always the one of this process.
+    for (const program of options.wrap) await recorder.install(Bun.which(program, { PATH: path })!);
+    const timestamp = new Date().toISOString();
     const signal = AbortSignal.timeout(options.timeoutMs ?? 60_000);
     const request = new ShellRequest({
       commands: [Bun.which("bash") ?? "bash", "-c", options.script],
       signal,
       cwd: typeof options.cwd === "string" ? options.cwd : options.cwd?.cwd(),
-      env: {
-        ...options.env,
-        PATH: `${bin}${delimiter}${options.env?.PATH ?? process.env.PATH}`,
-        DONLY_SCENARIO_ID: id,
-        DONLY_SCENARIO_NAME: options.name,
-        DONLY_SCENARIO_DIR: staging,
-        DONLY_SCENARIO_T0: String(t0),
-        DONLY_SCENARIO_BIN: bin,
-        DONLY_PARENT_SESSION: "",
-      },
+      env: { ...options.env, PATH: `${recorder.path}${delimiter}${path}` },
     });
     const response = await spawn(request);
     const [exitCode, stdout, stderr] = await Promise.all([response.exitCode, text(response.stdout), text(response.stderr)]);
     if (signal.aborted) throw new Error(`the scenario ${options.name} timed out`);
-    
 
-    // A claimed number without its file is a wrapper that died before it could write.
-    const claims = existsSync(join(staging, ".claims")) ? readdirSync(join(staging, ".claims")).sort() : [];
-    const files = readdirSync(staging).filter((file) => file.endsWith(".session.json")).sort();
-    if (claims.length !== files.length) throw new Error(`the scenario ${options.name} has ${claims.length - files.length} incomplete session(s)`);
+    const sessions: ScenarioSession[] = (await recorder.sessions())
+      .map((record) => {
+        // A shim killed before it could write the `end` line leaves a record without exit code.
+        if (record.exitCode === null) throw new Error(`the scenario ${options.name} has an incomplete session (${basename(record.command)}, ${record.sessionId})`);
+        validateSession(record.lines as RecordLine[]);
+        return {
+          file: join("records", `${record.sessionId}.ndjson`),
+          program: basename(record.command),
+          id: record.sessionId,
+          command: record.command,
+          args: record.args,
+          exit_code: record.exitCode,
+          lines: record.lines as RecordLine[],
+        };
+      })
+      .sort((a, b) => Date.parse(a.lines[0]!.timestamp) - Date.parse(b.lines[0]!.timestamp));
 
-    const sessions: ScenarioSession[] = files.map((file) => {
-      const entries: SessionEntry[] = JSON.parse(readFileSync(join(staging, file), "utf8"));
-      validateSession(entries);
-      if (entries.filter((entry) => entry.type === "command").length !== 1) throw new Error(`${file} must record exactly one call`);
-      const [start] = entries as [Extract<SessionEntry, { type: "session" }>];
-      if (start.scenario_id !== id) throw new Error(`${file} belongs to another scenario`);
-      const end = [...entries].reverse().find((entry) => entry.type === "end");
-      return { file, program: file.replace(/^\d+-|\.session\.json$/g, ""), id: start.id, parent_session_id: start.parent_session_id, exit_code: end?.type === "end" ? end.exit_code : null, entries };
-    });
-    const ids = new Set(sessions.map((session) => session.id));
-    for (const session of sessions) {
-      if (session.parent_session_id !== null && !ids.has(session.parent_session_id)) throw new Error(`${session.file} has an unknown parent session`);
-    }
-
-    const meta = { id, timestamp, name: options.name, wrap: options.wrap, script: options.script, exit_code: exitCode, sessions: sessions.map(({ entries: _, ...item }) => item) };
+    const meta = { id, timestamp, name: options.name, wrap: options.wrap, script: options.script, exit_code: exitCode, sessions: sessions.map(({ lines: _, ...item }) => item) };
     writeFileSync(join(staging, "scenario.json"), JSON.stringify(meta, null, 2));
-    rmSync(bin, { recursive: true, force: true });
-    rmSync(join(staging, ".claims"), { recursive: true, force: true });
+    // Only the records stay: the shims, binrec's config and its stats files are not part of the scenario.
+    rmSync(recorder.path, { recursive: true, force: true });
+    rmSync(recorder.config, { force: true });
+    if (existsSync(recorder.records)) for (const file of readdirSync(recorder.records)) if (file.endsWith(".stats.json")) rmSync(join(recorder.records, file));
     // The scenario only reaches its final place complete: a failed run leaves nothing and can be repeated.
     // The previous one (force) is set aside first, so a failure here does not lose it.
     const previous = `${staging}.previous`;
@@ -155,8 +145,8 @@ const run = async (options: ScenarioOptions): Promise<ScenarioResult> => {
 };
 
 /**
- * Records real programs inside a bash. `Scenario.run` starts `bash -c <script>` with the wrappers of `wrap` first in the `PATH`;
- * each time the script (or a program it starts) runs one of them, the wrapper records a session file in the scenario directory.
- * The sessions of one scenario share its id, its time origin and, for nested calls, the parent session (see `recorder.ts`).
+ * Records real programs inside a bash. `Scenario.run` starts `bash -c <script>` with a binrec shim for each program of `wrap` first in the `PATH`;
+ * each time the script (or a program it starts) runs one of them, binrec records a session (an ndjson file in `records/`) in the scenario directory.
+ * `scenario.json` lists the sessions of the scenario in the order they started.
  */
 export const Scenario = { run, load };

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { proxyScript, type ProxyRequest } from "./proxy-script";
 import { Scenario, type ScenarioResult } from "./scenario";
-import { scenariosDir } from "./session";
+import { scenariosDir, sessionText } from "./session";
 
 // Empirical scenarios: run REAL programs (kubectl, ssh, curl, node…) inside a bash with wrappers first in the `PATH`; every call of a
 // wrapped program is recorded as a session in empirical/__scenarios__/<name>/. A scenario whose directory exists is NOT recorded again:
@@ -61,7 +61,7 @@ const scenarios: EmpiricalScenario[] = [
     check: (scenario) => {
       expect(scenario.stdout).toMatch(/"hola":\s*"mundo"/);
       const [session] = scenario.sessions;
-      expect(session!.entries.filter((entry) => entry.type === "stdin").map((entry) => (entry as { chunk: string }).chunk).join("")).toBe("hola=mundo");
+      expect(sessionText(session!.lines, "stdin")).toBe("hola=mundo");
     },
   },
   {
@@ -72,7 +72,7 @@ const scenarios: EmpiricalScenario[] = [
     check: (scenario) => {
       expect(scenario.stdout).toMatch(/^HTTP\/\S+ 200/);
       expect(scenario.stdout).toMatch(/"x":\s*"1"/);
-      expect((scenario.sessions[0]!.entries[1] as { args: string[] }).args).toContain("https://postman-echo.com/get?x=1");
+      expect(scenario.sessions[0]!.args).toContain("https://postman-echo.com/get?x=1");
     },
   },
   { name: "manifest-curl-not-found", summary: "command_pass curl asking api.ipify.org for a path that does not exist (404 through the proxy)", wrap: ["curl"], script: viaProxy(`  route http://api.ipify.org/* {\n    command_pass curl "--max-time" "15"\n  }`, [{ host: "api.ipify.org", path: "/no-such-path" }]), check: (scenario) => expect(scenario.stdout).toMatch(/^HTTP\/1\.1 404/) },

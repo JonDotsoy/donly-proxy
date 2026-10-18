@@ -9,12 +9,15 @@
         "donly": "^0.0.32",
       },
       "devDependencies": {
+        "@jondotsoy/binrec": "^0.0.5",
         "@types/bun": "latest",
         "playwright-core": "1.56.1",
       },
     },
   },
   "packages": {
+    "@jondotsoy/binrec": ["@jondotsoy/binrec@0.0.5", "", { "bin": { "binrec": "binrec.js" } }, "sha512-bY++UGb4kzSIsL15vrEtDUzw9Omlj2vgSp2C7o5YqYgmXN2pxzwcPaCmBEYXuHvYzEyn0eW3t4bJfLIjFNO0Wg=="],
+
     "@jondotsoy/flags": ["@jondotsoy/flags@3.2.1", "", {}, "sha512-WQ2cEV3Z3vlIYUXAkBLfrUww3zQ+6GlbQjBSVV1p/z2Gpi2eoPiqvN83KB4o25gmUq8c4Nn3590zSULl/dEISA=="],
 
     "@types/bun": ["@types/bun@1.4.3", "", { "dependencies": { "bun-types": "1.4.3" } }, "sha512-N67Pqy8JXbAY/j0tNraS3V5mubGvc6rrrNDmDCtZLlFzccbUJPDb0tvgUBC5q4m8ybkP93Jcn1QB+RYQ6PvBhw=="],

@@ -1,6 +1,6 @@
 {
-  "id": "96212ef4-e91f-4398-a948-02558673369b",
-  "timestamp": "2026-10-17T16:25:39.358Z",
+  "id": "338aa35c-1f2a-4e84-be8d-2a9fed52f1da",
+  "timestamp": "2026-10-18T19:38:56.748Z",
   "name": "node-version",
   "wrap": [
     "node",
@@ -10,10 +10,13 @@
   "exit_code": 0,
   "sessions": [
     {
-      "file": "0001-node.session.json",
+      "file": "records/3f8e9262-5b7e-4360-8611-8353b12d27f8.ndjson",
       "program": "node",
-      "id": "43d2a44f-292d-4c29-923e-fbe6afcfa2e0",
-      "parent_session_id": null,
+      "id": "3f8e9262-5b7e-4360-8611-8353b12d27f8",
+      "command": "/opt/node22/bin/node",
+      "args": [
+        "--version"
+      ],
       "exit_code": 0
     }
   ]

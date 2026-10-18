@@ -12,6 +12,7 @@
     "empirical": "bun test --timeout 60000 ./empirical/scenarios.empirical.ts"
   },
   "devDependencies": {
+    "@jondotsoy/binrec": "^0.0.5",
     "@types/bun": "latest",
     "playwright-core": "1.56.1"
   },
