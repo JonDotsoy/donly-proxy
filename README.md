@@ -28,6 +28,28 @@ Sin argumentos carga, del directorio actual, el primero que exista entre `proxy.
 
 Para actualizar, vuelve a ejecutar el comando de descarga.
 
+## Ejemplo: salir desde un pod de Kubernetes
+
+`kubectl_pass` ejecuta la petición dentro de un pod y su `command_pass node` hijo indica qué corre allí (el pod necesita `node`). No existe una directiva `node_pass`: `node` es el comando del `command_pass` anidado. Con `pod_match` se usa el primer pod en ejecución cuyo nombre coincide con el patrón.
+
+```donly
+proxy {
+  listen http 8080
+
+  log_file "./logs/proxy.ndjson"
+  route {
+    kubectl_pass {
+      pod_match "api-qa-*"
+      context my-context
+      namespaces my-namespace
+      command_pass node
+    }
+  }
+}
+```
+
+El proxy lista los pods con `kubectl get pods` (según `context` y `namespaces`, alias de `namespace`) y ejecuta `kubectl exec` en el primero que coincide. Ver [`docs/concepts/kubectl_pass.md`](docs/concepts/kubectl_pass.md) y el ejemplo completo en [`manual/kubectl-pass-node`](manual/kubectl-pass-node).
+
 ## Fórmula local de Homebrew (desarrollo)
 
 Para probar la instalación vía Homebrew sin publicar un tap, crea un tap local y coloca ahí la fórmula.
