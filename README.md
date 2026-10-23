@@ -28,6 +28,30 @@ Sin argumentos carga, del directorio actual, el primero que exista entre `proxy.
 
 Para actualizar, vuelve a ejecutar el comando de descarga.
 
+## Ejemplo: salir desde un pod de Kubernetes
+
+Para llegar a un Service que solo existe dentro del clúster, `kubectl_pass` ejecuta la petición dentro de un pod y su `command_pass node` hijo indica qué corre allí (el pod necesita `node`). No existe una directiva `node_pass`: `node` es el comando del `command_pass` anidado.
+
+```
+proxy {
+  host "127.0.0.1"
+  port 8080
+  log_file "./logs/proxy.ndjson"
+
+  route http{s}?://echo-pod.donly-manual.svc.cluster.local/* {
+    kubectl_pass "conn-pod" {
+      context kind-donly-manual
+      namespace donly-manual
+      command_pass node {
+        no_warnings
+      }
+    }
+  }
+}
+```
+
+El proxy lanza `kubectl exec` en `conn-pod` (con `--context` y `--namespace`) y ejecuta ahí la petición con `node`. Ver [`docs/concepts/kubectl_pass.md`](docs/concepts/kubectl_pass.md) y el ejemplo completo en [`manual/kubectl-pass-node`](manual/kubectl-pass-node).
+
 ## Fórmula local de Homebrew (desarrollo)
 
 Para probar la instalación vía Homebrew sin publicar un tap, crea un tap local y coloca ahí la fórmula.
